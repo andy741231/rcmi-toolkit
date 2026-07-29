@@ -272,6 +272,30 @@ add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
  * @return array
  */
 /**
+ * Prevent WordPress from trying to delete the old plugin folder before
+ * updating. On Windows, the active plugin's files are locked by PHP and
+ * cannot be deleted, which causes the entire update to abort before
+ * our upgrader_post_install filter can run.
+ *
+ * By returning true here, the install proceeds and the new plugin is
+ * extracted to a temp folder (e.g. rcmi-toolkit-main). Our post_install
+ * filter then copies files from the temp folder into the existing
+ * rcmi-toolkit folder (overwriting locked files with PHP's native copy()).
+ */
+function rcmi_toolkit_skip_clear_destination( $removed, $local_destination, $remote_destination, $hook_extra ) {
+	if ( ! isset( $hook_extra['plugin'] ) ) {
+		return $removed;
+	}
+	if ( false === strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) ) {
+		return $removed;
+	}
+	// Return true without actually deleting — our post_install filter
+	// will handle file replacement via recursive copy.
+	return true;
+}
+add_filter( 'upgrader_clear_destination', 'rcmi_toolkit_skip_clear_destination', 10, 4 );
+
+/**
  * Recursively copy files from $src to $dst using PHP's native copy().
  * Unlike WP_Filesystem methods, PHP's copy() can overwrite files on
  * Windows even when they are locked by the running PHP process.
