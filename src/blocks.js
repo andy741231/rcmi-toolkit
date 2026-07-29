@@ -167,6 +167,45 @@
 		];
 	}
 
+	// ============================================================
+	// Custom inline formats: always-visible font-family toolbar buttons.
+	// Adds Display, Body, and Serif buttons directly to the block
+	// toolbar (not inside a dropdown) so editors can click them
+	// without opening the "More" menu.
+	// ============================================================
+	var registerFormatType = wp.richText.registerFormatType;
+	var BlockControls = wp.blockEditor.BlockControls;
+	var ToolbarButton = wp.components.ToolbarButton;
+
+	function makeFontFormat( slug, name, fontFamily ) {
+		registerFormatType( 'rcmi/' + slug + '-font', {
+			title: name,
+			tagName: 'span',
+			className: 'has-' + slug + '-font',
+			edit: function ( props ) {
+				return el( BlockControls, null,
+					el( ToolbarButton, {
+						icon: 'editor-textcolor',
+						label: name,
+						isPressed: props.isActive,
+						onClick: function () {
+							props.onChange(
+								wp.richText.toggleFormat( props.value, {
+									type: 'rcmi/' + slug + '-font',
+									attributes: { style: 'font-family: ' + fontFamily }
+								} )
+							);
+						}
+					} )
+				);
+			}
+		} );
+	}
+
+	makeFontFormat( 'display', 'Display', "'League Gothic', 'Arial Narrow', sans-serif" );
+	makeFontFormat( 'body', 'Body', "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif" );
+	makeFontFormat( 'serif', 'Serif', "'Crimson Pro', Georgia, serif" );
+
 	// Block: rcmi/quote-block
 	// Large pull quote with quotation marks and citation.
 	// ============================================================
@@ -207,7 +246,7 @@
 							value: attrs.quote,
 							onChange: function ( v ) { setAttributes( { quote: v } ); },
 							placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 						} ),
 						el( 'cite', null,
 							el( RichText, {
@@ -215,14 +254,14 @@
 								value: attrs.citeName,
 								onChange: function ( v ) { setAttributes( { citeName: v } ); },
 								placeholder: __( 'Citation name…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 							} ),
 							el( RichText, {
 								tagName: 'span',
 								value: attrs.citeRole,
 								onChange: function ( v ) { setAttributes( { citeRole: v } ); },
 								placeholder: __( 'Citation role…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 							} )
 						)
 					),
@@ -303,14 +342,14 @@
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} ),
 								el( RichText, {
 									tagName: 'p',
 									value: attrs.text,
 									onChange: function ( v ) { setAttributes( { text: v } ); },
 									placeholder: __( 'Text…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} )
 							),
 							el( 'div', { className: 'cta-actions' },
@@ -400,21 +439,21 @@
 						value: attrs[prefix + 'Value'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Value'] = v; setAttributes( u ); },
 						placeholder: __( 'Value…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 					} ),
 					el( RichText, {
 						tagName: 'span',
 						value: attrs[prefix + 'Label'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Label'] = v; setAttributes( u ); },
 						placeholder: __( 'Label…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 					} )
 				);
 			};
@@ -536,14 +575,14 @@
 						value: attrs[prefix + 'Title'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); },
 						placeholder: __( 'Role title…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 					} ),
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
@@ -592,14 +631,14 @@
 									value: attrs.eyebrow,
 									onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} ),
 								el( RichText, {
 									tagName: 'h2',
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} )
 							),
 							el( RichText, {
@@ -608,7 +647,7 @@
 								value: attrs.note,
 								onChange: function ( v ) { setAttributes( { note: v } ); },
 								placeholder: __( 'Note…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 							} )
 						),
 						el( 'div', { className: 'role-grid' },
@@ -832,7 +871,7 @@
 									value: activeTabData.heading,
 									onChange: function ( v ) { updateTab( activeTabIndex, 'heading', v ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} ) ),
 								el( RichText, {
 									tagName: 'p',
@@ -840,7 +879,7 @@
 									value: activeTabData.note,
 									onChange: function ( v ) { updateTab( activeTabIndex, 'note', v ); },
 									placeholder: __( 'Note…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 								} )
 							),
 							el( 'div', { className: 'card-grid' },
@@ -852,21 +891,21 @@
 											value: card.tag,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'tag', v ); },
 											placeholder: __( 'Tag…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 										} ),
 										el( RichText, {
 											tagName: 'h4',
 											value: card.title,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'title', v ); },
 											placeholder: __( 'Title…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 										} ),
 										el( RichText, {
 											tagName: 'p',
 											value: card.desc,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'desc', v ); },
 											placeholder: __( 'Description…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 										} )
 									);
 								} )
@@ -1218,7 +1257,7 @@
 							value: attrs.headline,
 							onChange: function ( v ) { setAttributes( { headline: v } ); },
 							placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ],
 							style: { margin: '0 0 10px' }
 						} ),
 						el( RichText, {
@@ -1227,7 +1266,7 @@
 							value: attrs.eyebrow,
 							onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 							placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ],
 							style: { display: 'block', margin: '0 0 12px' }
 						} ),
 						el( RichText, {
@@ -1236,7 +1275,7 @@
 							value: attrs.lede,
 							onChange: function ( v ) { setAttributes( { lede: v } ); },
 							placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
 						} ),
 						el( 'div', { className: 'hero-actions' },
 							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
