@@ -94,13 +94,36 @@
 				// Center the range around 0: -0.5 (entering) to 0.5 (leaving).
 				var centered = progress - 0.5;
 
+				// Read direction from the section's data-direction attribute.
+				// 'down' = layers drift downward (default), 'up' = layers rise,
+				// 'left'/'right' = horizontal drift.
+				var direction = item.section.getAttribute( 'data-direction' ) || 'down';
+
 				item.layers.forEach( function ( layer ) {
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
 					// Travel distance scales with section height so faster
 					// layers cover more ground regardless of section size.
 					var travel = rect.height * speed;
 					var offset = centered * travel;
-					layer.style.transform = 'translate3d(0,' + offset.toFixed( 2 ) + 'px,0)';
+					var tx = '0', ty = '0';
+
+					switch ( direction ) {
+						case 'up':
+							ty = ( -offset ).toFixed( 2 );
+							break;
+						case 'left':
+							tx = ( -offset ).toFixed( 2 );
+							break;
+						case 'right':
+							tx = offset.toFixed( 2 );
+							break;
+						case 'down':
+						default:
+							ty = offset.toFixed( 2 );
+							break;
+					}
+
+					layer.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0)';
 				} );
 			} );
 		}

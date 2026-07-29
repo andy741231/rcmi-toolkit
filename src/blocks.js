@@ -782,6 +782,8 @@
 			fgImageId:   { type: 'number', default: 0 },
 			fgImageUrl:  { type: 'string', default: '' },
 			fgSpeed:     { type: 'number', default: 0.7 },
+			// Parallax direction: 'down', 'up', 'left', 'right'
+			parallaxDirection: { type: 'string', default: 'down' },
 			// Layout
 			height:      { type: 'number', default: 80 },
 			// Gradient scrim (editable overlay for text readability)
@@ -969,6 +971,20 @@
 						max: 100,
 						step: 5
 					} ),
+					isParallax ? el( 'div', { style: { marginTop: '16px' } },
+						el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Parallax direction', 'rcmi-toolkit' ) ),
+						el( 'div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
+							[ 'down', 'up', 'left', 'right' ].map( function ( d ) {
+								return el( wp.components.Button, {
+									key: 'dir-' + d,
+									onClick: function () { setAttributes( { parallaxDirection: d } ); },
+									variant: attrs.parallaxDirection === d ? 'primary' : 'secondary',
+									isPressed: attrs.parallaxDirection === d
+								}, d.charAt( 0 ).toUpperCase() + d.slice( 1 ) );
+							} )
+						),
+						el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Direction layers move as you scroll down. "Down" = layers drift downward (default). "Up" = layers rise. "Left/Right" = horizontal drift.', 'rcmi-toolkit' ) )
+					) : null,
 					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
 					alignButtons
 				),

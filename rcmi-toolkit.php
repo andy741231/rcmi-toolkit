@@ -658,6 +658,7 @@ function rcmi_register_server_side_blocks() {
 			'fgImageId'   => array( 'type' => 'number', 'default' => 0 ),
 			'fgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
 			'fgSpeed'     => array( 'type' => 'number', 'default' => 0.7 ),
+			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
 			'scrimColor'  => array( 'type' => 'string', 'default' => '#f8f5ee' ),
 			'scrimOpacity' => array( 'type' => 'number', 'default' => 0.85 ),
@@ -707,8 +708,12 @@ function rcmi_register_server_side_blocks() {
 					array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle' ),
 					array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground' ),
 				);
+				$parallax_dir = $attrs['parallaxDirection'] ?? 'down';
+				if ( ! in_array( $parallax_dir, array( 'down', 'up', 'left', 'right' ), true ) ) {
+					$parallax_dir = 'down';
+				}
 				?>
-				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class ); ?>" style="min-height: <?php echo $height; ?>vh;">
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;">
 					<?php foreach ( $layers as $layer ) : ?>
 						<?php if ( ! empty( $layer['url'] ) ) : ?>
 							<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
