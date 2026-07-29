@@ -169,9 +169,14 @@
 
 	// ============================================================
 	// Custom inline formats: always-visible toolbar controls.
-	// 1. Text Color (Highlight) — color picker in block toolbar
-	// 2. Font Family — dropdown showing actual font names
-	// 3. Font Size — dropdown with preset sizes
+	//
+	// Toolbar layout (left → right), controlled by priority:
+	//   [Block icon] [Drag] [Move ↑↓]
+	//   [Bold] [Italic]              ← core (priority 1-2)
+	//   [Font Family ▾]              ← priority 4
+	//   [Font Size ▾]                ← priority 5
+	//   [Highlight]                  ← priority 6
+	//   [Align text]                 ← core (priority 10)
 	// ============================================================
 	var registerFormatType = wp.richText.registerFormatType;
 	var unregisterFormatType = wp.richText.unregisterFormatType;
@@ -191,12 +196,122 @@
 		return s.colors || [];
 	}
 
-	// --- 1. Text Color (Highlight) ---
+	var fontFamilies = [
+		{ slug: 'display', name: 'League Gothic', fontFamily: "'League Gothic', 'Arial Narrow', sans-serif" },
+		{ slug: 'body', name: 'Source Sans 3', fontFamily: "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif" },
+		{ slug: 'serif', name: 'Crimson Pro', fontFamily: "'Crimson Pro', Georgia, serif" }
+	];
+
+	var fontSizes = [
+		{ slug: 'small', name: 'Small', size: '0.78rem' },
+		{ slug: 'medium', name: 'Medium', size: '1rem' },
+		{ slug: 'large', name: 'Large', size: '1.1rem' },
+		{ slug: 'x-large', name: 'Extra Large', size: '1.35rem' },
+		{ slug: 'xx-large', name: 'Display', size: '2rem' },
+		{ slug: 'xxx-large', name: 'Hero', size: '2.75rem' }
+	];
+
+	// --- Font Family dropdown (priority 4) ---
+	registerFormatType( 'rcmi/font-family', {
+		title: __( 'Font Family', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'has-inline-font-family',
+		attributes: { style: 'style', class: 'class' },
+		priority: 4,
+		edit: function ( props ) {
+			var activeFont = __( 'Font Family', 'rcmi-toolkit' );
+			var fmt = getActiveFormat( props.value, 'rcmi/font-family' );
+			if ( fmt && fmt.attributes.style ) {
+				var m = fmt.attributes.style.match( /font-family:\s*([^;]+)/ );
+				if ( m ) {
+					for ( var i = 0; i < fontFamilies.length; i++ ) {
+						if ( fontFamilies[ i ].fontFamily === m[ 1 ].trim() ) { activeFont = fontFamilies[ i ].name; break; }
+					}
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						}, activeFont );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '4px', minWidth: '160px' } },
+							fontFamilies.map( function ( f ) {
+								return el( 'button', {
+									key: f.slug,
+									onClick: function () {
+										props.onChange( applyFormat( props.value, {
+											type: 'rcmi/font-family',
+											attributes: { style: 'font-family: ' + f.fontFamily, class: 'has-' + f.slug + '-font' }
+										} ) );
+									},
+									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontFamily: f.fontFamily, fontSize: '14px', cursor: 'pointer', background: 'transparent', border: 'none' }
+								}, f.name );
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- Font Size dropdown (priority 5) ---
+	registerFormatType( 'rcmi/font-size', {
+		title: __( 'Font Size', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'has-inline-font-size',
+		attributes: { style: 'style' },
+		priority: 5,
+		edit: function ( props ) {
+			var activeSize = __( 'Font Size', 'rcmi-toolkit' );
+			var fmt = getActiveFormat( props.value, 'rcmi/font-size' );
+			if ( fmt && fmt.attributes.style ) {
+				var m = fmt.attributes.style.match( /font-size:\s*([^;]+)/ );
+				if ( m ) {
+					for ( var i = 0; i < fontSizes.length; i++ ) {
+						if ( fontSizes[ i ].size === m[ 1 ].trim() ) { activeSize = fontSizes[ i ].name; break; }
+					}
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						}, activeSize );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '4px', minWidth: '140px' } },
+							fontSizes.map( function ( f ) {
+								return el( 'button', {
+									key: f.slug,
+									onClick: function () {
+										props.onChange( applyFormat( props.value, {
+											type: 'rcmi/font-size',
+											attributes: { style: 'font-size: ' + f.size }
+										} ) );
+									},
+									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: f.size, cursor: 'pointer', background: 'transparent', border: 'none' }
+								}, f.name );
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- Text Color / Highlight (priority 6) ---
 	registerFormatType( 'rcmi/text-color', {
 		title: __( 'Text Color', 'rcmi-toolkit' ),
 		tagName: 'mark',
 		className: 'has-inline-color',
 		attributes: { style: 'style', class: 'class' },
+		priority: 6,
 		edit: function ( props ) {
 			var activeColor;
 			var fmt = getActiveFormat( props.value, 'rcmi/text-color' );
@@ -249,113 +364,6 @@
 										props.onChange( applyFormat( props.value, { type: 'rcmi/text-color', attributes: attrs } ) );
 									}
 								}
-							} )
-						);
-					}
-				} )
-			);
-		}
-	} );
-
-	// --- 2. Font Family dropdown ---
-	var fontFamilies = [
-		{ slug: 'display', name: 'League Gothic', fontFamily: "'League Gothic', 'Arial Narrow', sans-serif" },
-		{ slug: 'body', name: 'Source Sans 3', fontFamily: "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif" },
-		{ slug: 'serif', name: 'Crimson Pro', fontFamily: "'Crimson Pro', Georgia, serif" }
-	];
-
-	registerFormatType( 'rcmi/font-family', {
-		title: __( 'Font Family', 'rcmi-toolkit' ),
-		tagName: 'span',
-		className: 'has-inline-font-family',
-		attributes: { style: 'style', class: 'class' },
-		edit: function ( props ) {
-			var activeFont = __( 'Font Family', 'rcmi-toolkit' );
-			var fmt = getActiveFormat( props.value, 'rcmi/font-family' );
-			if ( fmt && fmt.attributes.style ) {
-				var m = fmt.attributes.style.match( /font-family:\s*([^;]+)/ );
-				if ( m ) {
-					for ( var i = 0; i < fontFamilies.length; i++ ) {
-						if ( fontFamilies[ i ].fontFamily === m[ 1 ].trim() ) { activeFont = fontFamilies[ i ].name; break; }
-					}
-				}
-			}
-			return el( BlockControls, null,
-				el( Dropdown, {
-					renderToggle: function ( ref ) {
-						return el( ToolbarButton, {
-							onClick: ref.onToggle,
-							'aria-expanded': ref.isOpen
-						}, activeFont );
-					},
-					renderContent: function () {
-						return el( 'div', { style: { padding: '4px', minWidth: '160px' } },
-							fontFamilies.map( function ( f ) {
-								return el( 'button', {
-									key: f.slug,
-									onClick: function () {
-										props.onChange( applyFormat( props.value, {
-											type: 'rcmi/font-family',
-											attributes: { style: 'font-family: ' + f.fontFamily, class: 'has-' + f.slug + '-font' }
-										} ) );
-									},
-									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontFamily: f.fontFamily, fontSize: '14px', cursor: 'pointer', background: 'transparent', border: 'none' }
-								}, f.name );
-							} )
-						);
-					}
-				} )
-			);
-		}
-	} );
-
-	// --- 3. Font Size dropdown ---
-	var fontSizes = [
-		{ slug: 'small', name: 'Small', size: '0.78rem' },
-		{ slug: 'medium', name: 'Medium', size: '1rem' },
-		{ slug: 'large', name: 'Large', size: '1.1rem' },
-		{ slug: 'x-large', name: 'Extra Large', size: '1.35rem' },
-		{ slug: 'xx-large', name: 'Display', size: '2rem' },
-		{ slug: 'xxx-large', name: 'Hero', size: '2.75rem' }
-	];
-
-	registerFormatType( 'rcmi/font-size', {
-		title: __( 'Font Size', 'rcmi-toolkit' ),
-		tagName: 'span',
-		className: 'has-inline-font-size',
-		attributes: { style: 'style' },
-		edit: function ( props ) {
-			var activeSize = __( 'Font Size', 'rcmi-toolkit' );
-			var fmt = getActiveFormat( props.value, 'rcmi/font-size' );
-			if ( fmt && fmt.attributes.style ) {
-				var m = fmt.attributes.style.match( /font-size:\s*([^;]+)/ );
-				if ( m ) {
-					for ( var i = 0; i < fontSizes.length; i++ ) {
-						if ( fontSizes[ i ].size === m[ 1 ].trim() ) { activeSize = fontSizes[ i ].name; break; }
-					}
-				}
-			}
-			return el( BlockControls, null,
-				el( Dropdown, {
-					renderToggle: function ( ref ) {
-						return el( ToolbarButton, {
-							onClick: ref.onToggle,
-							'aria-expanded': ref.isOpen
-						}, activeSize );
-					},
-					renderContent: function () {
-						return el( 'div', { style: { padding: '4px', minWidth: '140px' } },
-							fontSizes.map( function ( f ) {
-								return el( 'button', {
-									key: f.slug,
-									onClick: function () {
-										props.onChange( applyFormat( props.value, {
-											type: 'rcmi/font-size',
-											attributes: { style: 'font-size: ' + f.size }
-										} ) );
-									},
-									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: f.size, cursor: 'pointer', background: 'transparent', border: 'none' }
-								}, f.name );
 							} )
 						);
 					}
