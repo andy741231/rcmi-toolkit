@@ -1,0 +1,49 @@
+/**
+ * Spectra upsell suppression styles.
+ *
+ * Hides "Upgrade Now", "Get Access", "PREMIUM" badges, "Free vs Pro" menu,
+ * and premium filter buttons from Spectra's Design Library and admin.
+ * Text-based hiding is handled by spectra-upsell-suppression.js.
+ */
+
+/* === Admin Menu === */
+
+/* Hide "Free vs Pro" / "Get Spectra Pro" submenu item */
+#toplevel_page_spectra-blocks .wp-submenu li a[href*="free-vs-pro"] {
+	display: none !important;
+}
+
+/* === Admin Dashboard === */
+
+/* Hide upgrade/pricing links and their containers */
+a[href*="wpspectra.com/pricing"],
+a[href*="wpastra.com/pricing"],
+a[href*="brainstormforce.com/pricing"] {
+	display: none !important;
+}
+
+/* Hide upsell modal/popup overlays */
+.spectra-upsell-modal,
+[class*="upsell-modal"],
+[class*="upsell-popup"],
+[class*="upsellModal"] {
+	display: none !important;
+}
+
+/* === Design Library Modal === */
+
+/* Hide the "Premium" filter toggle (the toggle button in the filter bar) */
+.ast-block-templates-lightbox .flex.bg-background-secondary {
+	/* Container of "All" + "Premium" toggle — we hide just the Premium button via JS */
+}
+
+/* Hide the "Upgrade Now" sidebar button container */
+.ast-block-templates-lightbox .no-underline.flex.justify-center.max-w-\[248px\] {
+	display: none !important;
+}
+
+/* Hide "Get Access" / "PREMIUM" overlay badges on locked block cards */
+.ast-block-templates-lightbox [class*="pro-badge"],
+.ast-block-templates-lightbox [class*="premium-badge"] {
+	display: none !important;
+}

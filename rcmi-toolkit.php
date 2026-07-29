@@ -1,0 +1,816 @@
+<?php
+/**
+ * Plugin Name: RCMI Toolkit
+ * Description: Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, and Spectra integration.
+ * Version: 1.0.0
+ * Author: RCMI Team
+ * License: GPL-2.0-or-later
+ * Text Domain: rcmi-toolkit
+ *
+ * @package rcmi-toolkit
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'RCMI_TOOLKIT_VERSION', '1.0.0' );
+define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
+define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
+
+/**
+ * Register the custom block category.
+ *
+ * @param array  $categories Existing block categories.
+ * @return array
+ */
+function rcmi_toolkit_category( $categories ) {
+	return array_merge(
+		$categories,
+		array(
+			array(
+				'slug'  => 'rcmi-sections',
+				'title' => __( 'RCMI Sections', 'rcmi-toolkit' ),
+				'icon'  => 'layout',
+			),
+		)
+	);
+}
+add_filter( 'block_categories_all', 'rcmi_toolkit_category' );
+
+/**
+ * Enqueue editor assets (block registration JS).
+ */
+function rcmi_toolkit_editor_assets() {
+	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) : RCMI_TOOLKIT_VERSION;
+
+	wp_enqueue_script(
+		'rcmi-toolkit-editor',
+		RCMI_TOOLKIT_URL . 'src/blocks.js',
+		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-server-side-render' ),
+		$ver,
+		true
+	);
+}
+add_action( 'enqueue_block_editor_assets', 'rcmi_toolkit_editor_assets' );
+
+/**
+ * Register server-side render callbacks for RCMI blocks.
+ * This allows render_block() to work for Spectra JSON generation
+ * and for front-end rendering of the blocks.
+ */
+function rcmi_block_defaults( $block_name ) {
+	$defaults = array(
+		'rcmi/quote-block' => array(
+			'quote' => "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved.",
+			'citeName' => 'RCMI Coordinating Center', 'citeRole' => 'Guiding Principle',
+		),
+		'rcmi/cta-band' => array(
+			'heading' => 'Ready to start?', 'text' => 'Find the support you need to move your research forward.',
+			'btn1Text' => 'Request Support', 'btn1Link' => '/#start', 'btn1Style' => 'btn-outline',
+			'btn2Text' => 'Explore Research', 'btn2Link' => '/cores/#investigator', 'btn2Style' => 'btn-primary',
+		),
+		'rcmi/card-grid' => array(
+			'heading' => 'Section heading goes <strong>here</strong>', 'note' => 'A short description of what this section covers and why it matters.',
+			'card1Tag' => 'Tag', 'card1Title' => 'Card Title', 'card1Desc' => 'Card description goes here. Keep it concise and actionable.',
+			'card2Tag' => 'Tag', 'card2Title' => 'Card Title', 'card2Desc' => 'Card description goes here. Keep it concise and actionable.',
+			'card3Tag' => 'Tag', 'card3Title' => 'Card Title', 'card3Desc' => 'Card description goes here. Keep it concise and actionable.',
+			'card4Tag' => 'Tag', 'card4Title' => 'Card Title', 'card4Desc' => 'Card description goes here. Keep it concise and actionable.',
+		),
+		'rcmi/impact-stats-block' => array(
+			'stat1Value' => '62', 'stat1Label' => 'Active Investigators', 'stat1Desc' => 'Researchers advancing chronic disease science across Houston and beyond.',
+			'stat2Value' => '38', 'stat2Label' => 'Community Partnerships', 'stat2Desc' => 'Trusted relationships helping shape relevant, equitable research.',
+			'stat3Value' => '19', 'stat3Label' => 'Counties Served', 'stat3Desc' => 'Research capacity and support reaching communities throughout the region.',
+			'stat4Value' => '24', 'stat4Label' => 'Active Research Projects', 'stat4Desc' => 'Studies translating strong ideas into meaningful real-world impact.',
+			'ctaText' => 'Learn More', 'ctaLink' => '/dashboard/',
+		),
+		'rcmi/role-selector-block' => array(
+			'eyebrow' => 'Start Collaborating', 'heading' => 'I am…', 'note' => 'Choose the path that fits you best. Every route leads to the resources most relevant to you.',
+			'role1Title' => 'An early-stage investigator', 'role1Desc' => 'Find pilot funding, mentoring, and training pathways to launch your research.', 'role1Link' => '/cores/#investigator',
+			'role2Title' => 'A community organization', 'role2Desc' => 'Join the Community Advisory Board or propose a shared research priority.', 'role2Link' => '/cores/#community',
+			'role3Title' => 'A student', 'role3Desc' => 'Explore training opportunities and see where your research idea could go.', 'role3Link' => '/journey/',
+			'role4Title' => 'A faculty member', 'role4Desc' => 'Request biostatistics, data science, or research navigation support.', 'role4Link' => '/cores/#research',
+			'role5Title' => 'A healthcare organization', 'role5Desc' => 'Explore implementation support and shared chronic-disease priorities.', 'role5Link' => '/partners/',
+			'role6Title' => 'A funder', 'role6Desc' => 'Review outcomes, publications, and funding leveraged to date.', 'role6Link' => '/publications/',
+		),
+		'rcmi/impact-strip-block' => array(
+			'tabs' => array(
+				array( 'id' => 'develop', 'label' => 'Develop', 'heading' => 'Growing the next generation <strong>of research leaders</strong>', 'note' => 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', 'btnText' => 'View More', 'btnLink' => '#', 'cards' => array(
+					array( 'tag' => 'People', 'title' => 'Investigator Development', 'desc' => 'Individualized pathways that move early-stage researchers from idea to independent funding.' ), array( 'tag' => 'Funding', 'title' => 'Pilot Awards', 'desc' => 'Seed funding for promising, high-risk / high-reward chronic disease research.' ), array( 'tag' => 'Guidance', 'title' => 'Mentoring', 'desc' => 'Paired mentorship with senior faculty across biostatistics, design, and dissemination.' ), array( 'tag' => 'Skills', 'title' => 'Training', 'desc' => 'Workshops and cohort programs covering methods, grant writing, and community-engaged research.' ),
+				) ),
+				array( 'id' => 'build', 'label' => 'Build', 'heading' => 'Research capacity that scales with <strong>ambition</strong>', 'note' => 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', 'btnText' => 'View More', 'btnLink' => '#', 'cards' => array() ),
+				array( 'id' => 'partner', 'label' => 'Partner', 'heading' => 'Community at the center, <strong>not the edge</strong>', 'note' => 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', 'btnText' => 'View More', 'btnLink' => '#', 'cards' => array() ),
+				array( 'id' => 'accelerate', 'label' => 'Accelerate', 'heading' => 'From question to real-world impact, <strong>faster</strong>', 'note' => 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', 'btnText' => 'View More', 'btnLink' => '#', 'cards' => array() ),
+				array( 'id' => 'improve', 'label' => 'Improve', 'heading' => 'We measure what matters, <strong>in public</strong>', 'note' => 'Impact is a living, monthly record of progress toward better chronic disease outcomes.', 'btnText' => 'View More', 'btnLink' => '#', 'cards' => array() ),
+			),
+		),
+	);
+
+	return $defaults[ $block_name ] ?? array();
+}
+
+function rcmi_apply_block_defaults( $block_name, $attrs ) {
+	$defaults = rcmi_block_defaults( $block_name );
+	foreach ( $defaults as $key => $default ) {
+		if ( ! array_key_exists( $key, $attrs ) || '' === $attrs[ $key ] || null === $attrs[ $key ] || ( is_array( $attrs[ $key ] ) && empty( $attrs[ $key ] ) ) ) {
+			$attrs[ $key ] = $default;
+		}
+	}
+	return $attrs;
+}
+
+function rcmi_register_server_side_blocks() {
+	// rcmi/hero — renders the hero section with background image.
+	register_block_type( 'rcmi/hero', array(
+		'attributes' => array(
+			'bgImageId'  => array( 'type' => 'number', 'default' => 0 ),
+			'bgImageUrl' => array( 'type' => 'string', 'default' => '' ),
+			'headline'   => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
+			'eyebrow'    => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
+			'lede'       => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
+			'buttonText' => array( 'type' => 'string', 'default' => 'Request Support' ),
+			'buttonLink' => array( 'type' => 'string', 'default' => '#start' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$media_style = '';
+			if ( ! empty( $attrs['bgImageUrl'] ) ) {
+				$media_style = 'background: linear-gradient(180deg, #f8f5ee 0%, rgba(248,245,238,0.4) 40%, rgba(248,245,238,0) 65%), linear-gradient(90deg, rgba(248,245,238,0.85) 0%, rgba(248,245,238,0.3) 30%, rgba(248,245,238,0) 50%), url(' . esc_url( $attrs['bgImageUrl'] ) . ') center/cover no-repeat;';
+			} else {
+				$media_style = 'background: #f8f5ee;';
+			}
+
+			ob_start();
+			?>
+			<section class="hero -tight">
+				<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
+				<div class="wrap hero-inner">
+					<div class="hero-grid">
+						<div class="hero-copy">
+							<h1><?php echo wp_kses_post( $attrs['headline'] ); ?></h1>
+							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
+							<p class="lede"><?php echo esc_html( $attrs['lede'] ); ?></p>
+							<div class="hero-actions">
+								<a href="<?php echo esc_url( $attrs['buttonLink'] ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ); ?></a>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/quote-block — large pull quote with citation.
+	register_block_type( 'rcmi/quote-block', array(
+		'attributes' => array(
+			'quote'    => array( 'type' => 'string', 'default' => '' ),
+			'citeName' => array( 'type' => 'string', 'default' => '' ),
+			'citeRole' => array( 'type' => 'string', 'default' => '' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$attrs = rcmi_apply_block_defaults( 'rcmi/quote-block', $attrs );
+			ob_start();
+			?>
+			<section class="bg-alt">
+				<div class="wrap quote-block">
+					<div class="quote-mark">&ldquo;</div>
+					<div class="quote-body">
+						<p><?php echo esc_html( $attrs['quote'] ); ?></p>
+						<cite><?php echo esc_html( $attrs['citeName'] ); ?> <span><?php echo esc_html( $attrs['citeRole'] ); ?></span></cite>
+					</div>
+					<div class="quote-mark quote-mark-close">&rdquo;</div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/cta-band — CTA band with heading + 2 buttons.
+	register_block_type( 'rcmi/cta-band', array(
+		'attributes' => array(
+			'heading'   => array( 'type' => 'string', 'default' => '' ),
+			'text'      => array( 'type' => 'string', 'default' => '' ),
+			'btn1Text'  => array( 'type' => 'string', 'default' => '' ),
+			'btn1Link'  => array( 'type' => 'string', 'default' => '' ),
+			'btn1Style' => array( 'type' => 'string', 'default' => 'btn-outline' ),
+			'btn2Text'  => array( 'type' => 'string', 'default' => '' ),
+			'btn2Link'  => array( 'type' => 'string', 'default' => '' ),
+			'btn2Style' => array( 'type' => 'string', 'default' => 'btn-primary' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$attrs = rcmi_apply_block_defaults( 'rcmi/cta-band', $attrs );
+			ob_start();
+			?>
+			<section class="bg-primary">
+				<div class="wrap">
+					<div class="cta-band">
+						<div class="cta-copy">
+							<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
+							<p><?php echo esc_html( $attrs['text'] ); ?></p>
+						</div>
+						<div class="cta-actions">
+							<a href="<?php echo esc_url( $attrs['btn1Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn1Style'] ); ?>"><?php echo esc_html( $attrs['btn1Text'] ); ?></a>
+							<a href="<?php echo esc_url( $attrs['btn2Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn2Style'] ); ?>"><?php echo esc_html( $attrs['btn2Text'] ); ?></a>
+						</div>
+					</div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/card-grid — section with heading, note, 4 cards.
+	register_block_type( 'rcmi/card-grid', array(
+		'attributes' => array(
+			'heading' => array( 'type' => 'string', 'default' => '' ),
+			'note'    => array( 'type' => 'string', 'default' => '' ),
+			'card1Tag' => array( 'type' => 'string', 'default' => '' ), 'card1Title' => array( 'type' => 'string', 'default' => '' ), 'card1Desc' => array( 'type' => 'string', 'default' => '' ),
+			'card2Tag' => array( 'type' => 'string', 'default' => '' ), 'card2Title' => array( 'type' => 'string', 'default' => '' ), 'card2Desc' => array( 'type' => 'string', 'default' => '' ),
+			'card3Tag' => array( 'type' => 'string', 'default' => '' ), 'card3Title' => array( 'type' => 'string', 'default' => '' ), 'card3Desc' => array( 'type' => 'string', 'default' => '' ),
+			'card4Tag' => array( 'type' => 'string', 'default' => '' ), 'card4Title' => array( 'type' => 'string', 'default' => '' ), 'card4Desc' => array( 'type' => 'string', 'default' => '' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$attrs = rcmi_apply_block_defaults( 'rcmi/card-grid', $attrs );
+			$cards = '';
+			for ( $i = 1; $i <= 4; $i++ ) {
+				$cards .= sprintf(
+					'<div class="card"><span class="tag">%s</span><h4>%s</h4><p>%s</p></div>',
+					esc_html( $attrs[ "card{$i}Tag" ] ),
+					esc_html( $attrs[ "card{$i}Title" ] ),
+					esc_html( $attrs[ "card{$i}Desc" ] )
+				);
+			}
+			ob_start();
+			?>
+			<section>
+				<div class="wrap">
+					<div class="section-head">
+						<div><h2><?php echo wp_kses_post( $attrs['heading'] ); ?></h2></div>
+						<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
+					</div>
+					<div class="card-grid"><?php echo $cards; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/impact-stats-block — 4-stat grid + CTA.
+	register_block_type( 'rcmi/impact-stats-block', array(
+		'attributes' => array(
+			'stat1Value' => array( 'type' => 'string', 'default' => '' ), 'stat1Label' => array( 'type' => 'string', 'default' => '' ), 'stat1Desc' => array( 'type' => 'string', 'default' => '' ),
+			'stat2Value' => array( 'type' => 'string', 'default' => '' ), 'stat2Label' => array( 'type' => 'string', 'default' => '' ), 'stat2Desc' => array( 'type' => 'string', 'default' => '' ),
+			'stat3Value' => array( 'type' => 'string', 'default' => '' ), 'stat3Label' => array( 'type' => 'string', 'default' => '' ), 'stat3Desc' => array( 'type' => 'string', 'default' => '' ),
+			'stat4Value' => array( 'type' => 'string', 'default' => '' ), 'stat4Label' => array( 'type' => 'string', 'default' => '' ), 'stat4Desc' => array( 'type' => 'string', 'default' => '' ),
+			'ctaText'    => array( 'type' => 'string', 'default' => '' ),
+			'ctaLink'    => array( 'type' => 'string', 'default' => '' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$attrs = rcmi_apply_block_defaults( 'rcmi/impact-stats-block', $attrs );
+			$stats = '';
+			for ( $i = 1; $i <= 4; $i++ ) {
+				$stats .= sprintf(
+					'<article class="impact-stat"><strong>%s</strong><span>%s</span><p>%s</p></article>',
+					esc_html( $attrs[ "stat{$i}Value" ] ),
+					esc_html( $attrs[ "stat{$i}Label" ] ),
+					esc_html( $attrs[ "stat{$i}Desc" ] )
+				);
+			}
+			ob_start();
+			?>
+			<div class="wrap impact-stats-wrap" aria-label="RCMI impact statistics">
+				<div class="impact-stats">
+					<?php echo $stats; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<div class="impact-stats-cta">
+						<a href="<?php echo esc_url( $attrs['ctaLink'] ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['ctaText'] ); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+					</div>
+				</div>
+			</div>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/role-selector-block — "I am..." section with 6 role cards.
+	register_block_type( 'rcmi/role-selector-block', array(
+		'attributes' => array(
+			'eyebrow' => array( 'type' => 'string', 'default' => '' ),
+			'heading' => array( 'type' => 'string', 'default' => '' ),
+			'note'    => array( 'type' => 'string', 'default' => '' ),
+			'role1Title' => array( 'type' => 'string', 'default' => '' ), 'role1Desc' => array( 'type' => 'string', 'default' => '' ), 'role1Link' => array( 'type' => 'string', 'default' => '' ),
+			'role2Title' => array( 'type' => 'string', 'default' => '' ), 'role2Desc' => array( 'type' => 'string', 'default' => '' ), 'role2Link' => array( 'type' => 'string', 'default' => '' ),
+			'role3Title' => array( 'type' => 'string', 'default' => '' ), 'role3Desc' => array( 'type' => 'string', 'default' => '' ), 'role3Link' => array( 'type' => 'string', 'default' => '' ),
+			'role4Title' => array( 'type' => 'string', 'default' => '' ), 'role4Desc' => array( 'type' => 'string', 'default' => '' ), 'role4Link' => array( 'type' => 'string', 'default' => '' ),
+			'role5Title' => array( 'type' => 'string', 'default' => '' ), 'role5Desc' => array( 'type' => 'string', 'default' => '' ), 'role5Link' => array( 'type' => 'string', 'default' => '' ),
+			'role6Title' => array( 'type' => 'string', 'default' => '' ), 'role6Desc' => array( 'type' => 'string', 'default' => '' ), 'role6Link' => array( 'type' => 'string', 'default' => '' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$attrs = rcmi_apply_block_defaults( 'rcmi/role-selector-block', $attrs );
+			$roles = '';
+			for ( $i = 1; $i <= 6; $i++ ) {
+				$roles .= sprintf(
+					'<a href="%s" class="role-card"><h4>%s</h4><p>%s</p><span class="role-link">Start here <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"/></svg></span></a>',
+					esc_url( $attrs[ "role{$i}Link" ] ),
+					esc_html( $attrs[ "role{$i}Title" ] ),
+					esc_html( $attrs[ "role{$i}Desc" ] )
+				);
+			}
+			ob_start();
+			?>
+			<section id="start" class="collaborating-section">
+				<div class="wrap">
+					<div class="section-head">
+						<div>
+							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
+							<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
+						</div>
+						<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
+					</div>
+					<div class="role-grid"><?php echo $roles; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
+	// rcmi/impact-strip-block — interactive tabbed section with 5 tabs.
+	register_block_type( 'rcmi/impact-strip-block', array(
+		'attributes' => array(
+			'tabs' => array( 'type' => 'array', 'default' => array() ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
+			$tabs = ! empty( $attrs['tabs'] ) ? $attrs['tabs'] : $defaults['tabs'];
+
+			// Tab strip.
+			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"><div class="impact-steps" role="tablist">';
+			foreach ( $tabs as $i => $tab ) {
+				$active = 0 === $i ? ' is-active' : '';
+				$selected = 0 === $i ? 'true' : 'false';
+				$strip .= sprintf(
+					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
+					esc_attr( $active ),
+					esc_attr( $selected ),
+					esc_attr( $tab['id'] ),
+					esc_html( $tab['label'] )
+				);
+			}
+			$strip .= '</div></div></div></section>';
+
+			// Tab panels.
+			$panels = '<div class="tab-panels">';
+			foreach ( $tabs as $i => $tab ) {
+				$active = 0 === $i ? ' is-active' : '';
+				$bg_alt = $i % 2 === 1 ? ' bg-alt' : '';
+				$cards_html = '';
+				foreach ( ( $tab['cards'] ?? array() ) as $card ) {
+					$cards_html .= sprintf(
+						'<div class="card"><span class="tag">%s</span><h4>%s</h4><p>%s</p></div>',
+						esc_html( $card['tag'] ),
+						esc_html( $card['title'] ),
+						esc_html( $card['desc'] )
+					);
+				}
+				$panels .= sprintf(
+					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div><div style="margin-top:var(--space-5);display:flex;gap:var(--space-2);flex-wrap:wrap;"><a href="%s" class="btn btn-primary">%s</a></div></div></section>',
+					esc_attr( $tab['id'] ),
+					esc_attr( $active ),
+					esc_attr( $bg_alt ),
+					! empty( $tab['bgImageUrl'] ) ? 'background-image: url(' . esc_url( $tab['bgImageUrl'] ) . ');' : '',
+					wp_kses_post( $tab['heading'] ),
+					esc_html( $tab['note'] ),
+					$cards_html,
+					esc_url( $tab['btnLink'] ?? '#' ),
+					esc_html( $tab['btnText'] ?? 'View More' )
+				);
+			}
+			$panels .= '</div>';
+
+			return $strip . $panels;
+		},
+	) );
+	// rcmi/parallax — hero with three parallax image layers.
+	register_block_type( 'rcmi/parallax', array(
+		'attributes' => array(
+			'bgImageId'   => array( 'type' => 'number', 'default' => 0 ),
+			'bgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
+			'bgSpeed'     => array( 'type' => 'number', 'default' => 0.2 ),
+			'midImageId'  => array( 'type' => 'number', 'default' => 0 ),
+			'midImageUrl' => array( 'type' => 'string', 'default' => '' ),
+			'midSpeed'    => array( 'type' => 'number', 'default' => 0.45 ),
+			'fgImageId'   => array( 'type' => 'number', 'default' => 0 ),
+			'fgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
+			'fgSpeed'     => array( 'type' => 'number', 'default' => 0.7 ),
+			'height'      => array( 'type' => 'number', 'default' => 80 ),
+			'eyebrow'     => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
+			'headline'    => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
+			'lede'        => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
+			'buttonText'  => array( 'type' => 'string', 'default' => 'Request Support' ),
+			'buttonLink'  => array( 'type' => 'string', 'default' => '#start' ),
+		),
+		'render_callback' => function ( $attrs ) {
+			$layers = array(
+				array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background' ),
+				array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle' ),
+				array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground' ),
+			);
+			$height = intval( $attrs['height'] ?? 80 );
+			if ( $height < 40 ) { $height = 40; }
+			if ( $height > 100 ) { $height = 100; }
+
+			ob_start();
+			?>
+			<section class="rcmi-parallax alignfull" style="min-height: <?php echo $height; ?>vh;">
+				<?php foreach ( $layers as $layer ) : ?>
+					<?php if ( ! empty( $layer['url'] ) ) : ?>
+						<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
+							data-speed="<?php echo esc_attr( $layer['speed'] ); ?>"
+							style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>);"
+							aria-hidden="true"></div>
+					<?php endif; ?>
+				<?php endforeach; ?>
+				<div class="rcmi-parallax-scrim" aria-hidden="true"></div>
+				<div class="wrap rcmi-parallax-inner">
+					<div class="rcmi-parallax-copy">
+						<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
+						<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
+						<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
+						<div class="hero-actions">
+							<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
+						</div>
+					</div>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+}
+add_action( 'init', 'rcmi_register_server_side_blocks' );
+
+/**
+ * Enqueue front-end assets (tab switching JS).
+ * The theme's nav.js already handles tabs, but we enqueue here too
+ * so the plugin is self-contained if used without the theme.
+ */
+function rcmi_toolkit_frontend_assets() {
+	if ( is_admin() ) {
+		return;
+	}
+	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) : RCMI_TOOLKIT_VERSION;
+
+	wp_enqueue_script(
+		'rcmi-toolkit-frontend',
+		RCMI_TOOLKIT_URL . 'src/frontend.js',
+		array(),
+		$ver,
+		true
+	);
+}
+add_action( 'wp_enqueue_scripts', 'rcmi_toolkit_frontend_assets' );
+
+// ============================================================================
+// Spectra upsell suppression
+// Hides "Upgrade Now", "Get Access", "PREMIUM" badges, "Free vs Pro" menu
+// from Spectra's Design Library and admin dashboard.
+// ============================================================================
+
+/**
+ * Enqueue upsell suppression CSS + JS in admin (editor + dashboard).
+ */
+function rcmi_spectra_upsell_suppression_assets() {
+	$css_ver = file_exists( RCMI_TOOLKIT_PATH . 'assets/css/spectra-upsell-suppression.css' )
+		? filemtime( RCMI_TOOLKIT_PATH . 'assets/css/spectra-upsell-suppression.css' )
+		: RCMI_TOOLKIT_VERSION;
+	$js_ver = file_exists( RCMI_TOOLKIT_PATH . 'assets/js/spectra-upsell-suppression.js' )
+		? filemtime( RCMI_TOOLKIT_PATH . 'assets/js/spectra-upsell-suppression.js' )
+		: RCMI_TOOLKIT_VERSION;
+
+	wp_enqueue_style(
+		'rcmi-spectra-upsell-suppression',
+		RCMI_TOOLKIT_URL . 'assets/css/spectra-upsell-suppression.css',
+		array(),
+		$css_ver
+	);
+
+	wp_enqueue_script(
+		'rcmi-spectra-upsell-suppression',
+		RCMI_TOOLKIT_URL . 'assets/js/spectra-upsell-suppression.js',
+		array(),
+		$js_ver,
+		true
+	);
+}
+add_action( 'admin_enqueue_scripts', 'rcmi_spectra_upsell_suppression_assets' );
+add_action( 'enqueue_block_assets', 'rcmi_spectra_upsell_suppression_assets' );
+
+/**
+ * Filter Spectra's "Get Pro" URLs to point nowhere (disables upgrade links).
+ */
+function rcmi_spectra_disable_pro_url( $url ) {
+	return '#';
+}
+add_filter( 'spectra_blocks_get_pro_url', 'rcmi_spectra_disable_pro_url' );
+add_filter( 'ast_block_templates_pro_url', 'rcmi_spectra_disable_pro_url' );
+
+/**
+ * Tell Spectra that Pro is active (suppresses "Upgrade" prompts at the source).
+ * This sets the isPro flag in the localized JS vars.
+ */
+function rcmi_spectra_fake_pro_status( $vars ) {
+	$vars['isPro'] = true;
+	$vars['getProURL'] = '#';
+	$vars['license_status'] = true;
+	$vars['spectra_blocks_pro_status'] = 'active';
+	$vars['spectra_pro_status'] = 'active';
+	$vars['astra_sites_pro_status'] = 'active';
+	return $vars;
+}
+add_filter( 'ast_block_templates_localize_vars', 'rcmi_spectra_fake_pro_status' );
+
+/**
+ * Remove the "Free vs Pro" admin submenu page entirely.
+ */
+function rcmi_spectra_remove_free_vs_pro_menu() {
+	remove_submenu_page( 'spectra-blocks', 'spectra-blocks&path=free-vs-pro' );
+}
+add_action( 'admin_menu', 'rcmi_spectra_remove_free_vs_pro_menu', 999 );
+
+// ============================================================================
+// Spectra Design Library integration — block import interception
+// When the user clicks "Insert" in the Design Library, Spectra makes an AJAX
+// call (ast_block_templates_data_option) to its CLOUD API to fetch the full
+// block data by ID. Our RCMI block IDs (99001-99007) don't exist on Spectra's
+// cloud, so we intercept the AJAX call and serve local data for RCMI IDs.
+// ============================================================================
+
+/**
+ * Intercept Spectra's block data AJAX request.
+ * For RCMI block IDs (99000-99999), serve local data instead of hitting
+ * Spectra's cloud API. Runs at priority 5 so it fires before Spectra's handler.
+ */
+function rcmi_intercept_block_data_request() {
+	// Only handle our AJAX action.
+	if ( ! isset( $_REQUEST['action'] ) || 'ast_block_templates_data_option' !== $_REQUEST['action'] ) {
+		return;
+	}
+
+	// Verify nonce.
+	check_ajax_referer( 'ast-block-templates-ajax-nonce', '_ajax_nonce' );
+
+	$block_id = isset( $_REQUEST['id'] ) ? absint( $_REQUEST['id'] ) : 0;
+
+	// Only intercept RCMI block IDs (99000-99999 range).
+	if ( $block_id < 99000 || $block_id > 99999 ) {
+		return; // Let Spectra handle non-RCMI blocks.
+	}
+
+	if ( ! current_user_can( 'manage_ast_block_templates' ) ) {
+		wp_send_json_error( __( 'You are not allowed to perform this action', 'rcmi-toolkit' ) );
+	}
+
+	// Load the block data from the local JSON file.
+	$json_dir  = trailingslashit( wp_upload_dir()['basedir'] ) . 'ast-block-templates-json/';
+	$page1_file = $json_dir . 'ast-block-templates-blocks-1.json';
+	if ( ! file_exists( $page1_file ) ) {
+		wp_send_json_error( array( 'message' => 'RCMI block data not found' ) );
+	}
+
+	$page1 = json_decode( file_get_contents( $page1_file ), true );
+	if ( ! is_array( $page1 ) ) {
+		wp_send_json_error( array( 'message' => 'RCMI block data invalid' ) );
+	}
+
+	$key = 'id-' . $block_id;
+	if ( ! isset( $page1[ $key ] ) ) {
+		wp_send_json_error( array( 'message' => 'RCMI block not found: ' . $block_id ) );
+	}
+
+	$block_data = $page1[ $key ];
+
+	// Build the response object that Spectra's JS expects.
+	// The JS uses `data.original_content` for the import, and `data.ID` for the block ID.
+	$response = array(
+		'ID'               => $block_id,
+		'id'               => $block_id,
+		'title'            => $block_data['title'],
+		'content'          => $block_data['content'],
+		'original_content' => $block_data['content'],
+		'type'             => 'block',
+		'category'         => $block_data['category'],
+		'blocks-category'  => array( $block_data['category'] ),
+		'spectra-ver'      => 'v3',
+		'astra-sites-type' => 'free',
+		'page-builder'     => 'gutenberg',
+		'required-plugins' => array(),
+		'post-meta'         => array(
+			'astra-blocks-required-plugins' => '',
+		),
+	);
+
+	wp_send_json_success( $response );
+}
+add_action( 'wp_ajax_ast_block_templates_data_option', 'rcmi_intercept_block_data_request', 5 );
+
+// ============================================================================
+// Spectra Design Library integration
+// Registers RCMI patterns in Spectra's template library so they appear in
+// the Spectra Design Library UI alongside Spectra's built-in templates.
+// ============================================================================
+
+/**
+ * Ensure the RCMI patterns JSON file exists in Spectra's JSON directory.
+ * Regenerates it from the theme's pattern files if missing or outdated.
+ * This protects against Spectra cloud sync overwriting our custom additions.
+ */
+function rcmi_ensure_spectra_patterns() {
+	$json_dir = trailingslashit( wp_upload_dir()['basedir'] ) . 'ast-block-templates-json/';
+	$page1_file = $json_dir . 'ast-block-templates-blocks-1.json';
+	$theme_patterns_dir = get_template_directory() . '/patterns/';
+	$theme_assets_url   = get_template_directory_uri() . '/assets/';
+
+	// Ensure the uploads JSON directory exists (Spectra may not have created it yet).
+	if ( ! is_dir( $json_dir ) ) {
+		wp_mkdir_p( $json_dir );
+	}
+
+	// Read the theme's main CSS file and convert relative URLs to absolute.
+	// This CSS is injected into Spectra's shadow DOM preview as the "stylesheet" field.
+	$rcmi_css = '';
+	$rcmi_css_path = get_template_directory() . '/assets/css/rcmi.css';
+	if ( file_exists( $rcmi_css_path ) ) {
+		$rcmi_css = file_get_contents( $rcmi_css_path );
+		// Convert relative asset paths (url(../images/...)) to absolute URLs.
+		$rcmi_css = preg_replace_callback(
+			'/url\(\s*["\']?(?:\.\.\/)+(images\/[^"\')]+)["\']?\s*\)/',
+			function ( $m ) use ( $theme_assets_url ) {
+				return 'url("' . $theme_assets_url . $m[1] . '")';
+			},
+			$rcmi_css
+		);
+		// Also handle url(images/...) without the ../ prefix.
+		$rcmi_css = preg_replace_callback(
+			'/url\(\s*["\']?(images\/[^"\')]+)["\']?\s*\)/',
+			function ( $m ) use ( $theme_assets_url ) {
+				return 'url("' . $theme_assets_url . $m[1] . '")';
+			},
+			$rcmi_css
+		);
+	}
+
+	// Build the RCMI blocks from theme pattern files.
+	$pattern_files = array(
+		'hero'           => 'hero.php',
+		'impact-stats'   => 'impact-stats.php',
+		'impact-strip'   => 'impact-strip.php',
+		'card-grid'      => 'card-grid.php',
+		'quote-block'    => 'quote-block.php',
+		'role-selector'  => 'role-selector.php',
+		'cta-band'       => 'cta-band.php',
+	);
+
+	$spectra_blocks = array();
+	$i = 0;
+	foreach ( $pattern_files as $slug => $filename ) {
+		$filepath = $theme_patterns_dir . $filename;
+		if ( ! file_exists( $filepath ) ) {
+			continue;
+		}
+		$php_content = file_get_contents( $filepath );
+
+		// Extract block content from the pattern.
+		// Strategy: First try raw HTML (wp:html) for Spectra JSON generation.
+		// If no wp:html blocks, try rendering custom RCMI blocks (wp:rcmi/*).
+		$html = '';
+
+		// First: extract raw HTML between <!-- wp:html --> and <!-- /wp:html -->.
+		preg_match_all( '/<!-- wp:html -->(.*?)<!-- \/wp:html -->/s', $php_content, $matches );
+		$html = implode( "\n", array_map( 'trim', $matches[1] ) );
+
+		// If no wp:html found, try rendering custom RCMI blocks.
+		if ( empty( $html ) ) {
+			preg_match_all( '/<!-- wp:(rcmi\/[a-z-]+)\s+(\{[^}]*\})\s*\/?-->/', $php_content, $block_matches, PREG_SET_ORDER );
+			foreach ( $block_matches as $bm ) {
+				$block_name = $bm[1];
+				$attrs_json = $bm[2];
+				// The pattern file may contain PHP code in the JSON attrs.
+				// Evaluate it to get the actual values.
+				if ( strpos( $attrs_json, '<?php' ) !== false ) {
+					ob_start();
+					eval( 'echo ' . var_export( $attrs_json, true ) . ';' );
+					$attrs_json = ob_get_clean();
+				}
+				$attrs = json_decode( $attrs_json, true );
+				if ( ! is_array( $attrs ) ) {
+					$attrs = array();
+				}
+				$rendered = render_block( array(
+					'blockName'    => $block_name,
+					'attrs'        => $attrs,
+					'innerContent' => array(),
+				) );
+				$html .= trim( $rendered ) . "\n";
+			}
+		}
+
+		// Convert relative image src paths in the HTML to absolute URLs.
+		$html = preg_replace_callback(
+			'/src=["\'](?:\.\.\/)+(images\/[^"\']+)["\']/',
+			function ( $m ) use ( $theme_assets_url ) {
+				return 'src="' . $theme_assets_url . $m[1] . '"';
+			},
+			$html
+		);
+		$html = preg_replace_callback(
+			'/src=["\']images\/([^"\']+)["\']/',
+			function ( $m ) use ( $theme_assets_url ) {
+				return 'src="' . $theme_assets_url . 'images/' . $m[1] . '"';
+			},
+			$html
+		);
+
+		$block_id = 99001 + $i;
+		$spectra_blocks[ 'id-' . $block_id ] = array(
+			'title'             => 'RCMI ' . ucwords( str_replace( '-', ' ', $slug ) ),
+			'url'               => home_url( '/?rcmi-pattern=' . $slug ),
+			'tag'               => array( 'rcmi' ),
+			'category'          => 9901,
+			'primary-category'  => 'rcmi-sections',
+			'type'              => 'block',
+			'astra-sites-type'  => 'free',
+			'page-builder'      => 'gutenberg',
+			'required-plugins'  => array(),
+			'stylesheet'        => $rcmi_css,
+			'content'           => $html,
+			'spectra-ver'       => 'v3',
+		);
+		$i++;
+	}
+
+	if ( empty( $spectra_blocks ) ) {
+		return;
+	}
+
+	// Merge RCMI blocks into page 1 (the first page Spectra fetches).
+	// This ensures they appear in the default fetch range (pages 1-50).
+	if ( file_exists( $page1_file ) ) {
+		$page1 = json_decode( file_get_contents( $page1_file ), true );
+		if ( ! is_array( $page1 ) ) {
+			$page1 = array();
+		}
+	} else {
+		$page1 = array();
+	}
+
+	// Remove any existing RCMI blocks (IDs 99001-99099) before re-adding.
+	$page1 = array_filter(
+		$page1,
+		function ( $key ) {
+			$id = (int) str_replace( 'id-', '', $key );
+			return $id < 99000 || $id > 99099;
+		},
+		ARRAY_FILTER_USE_KEY
+	);
+
+	// Merge RCMI blocks into page 1.
+	$page1 = array_merge( $page1, $spectra_blocks );
+	file_put_contents( $page1_file, wp_json_encode( $page1 ) );
+
+	// Ensure the RCMI category exists in the categories file.
+	$cats_file = $json_dir . 'ast-block-templates-categories.json';
+	if ( file_exists( $cats_file ) ) {
+		$categories = json_decode( file_get_contents( $cats_file ), true );
+		if ( ! is_array( $categories ) ) {
+			$categories = array();
+		}
+		// Remove existing RCMI category if present, then re-add with correct count.
+		$categories = array_filter(
+			$categories,
+			function ( $c ) {
+				return ! isset( $c['id'] ) || 9901 !== (int) $c['id'];
+			}
+		);
+		$categories[] = array(
+			'id'     => 9901,
+			'name'   => 'RCMI Sections',
+			'slug'   => 'rcmi-sections',
+			'parent' => 0,
+			'count'  => count( $spectra_blocks ),
+		);
+		file_put_contents( $cats_file, wp_json_encode( $categories ) );
+	}
+}
+add_action( 'admin_init', 'rcmi_ensure_spectra_patterns' );
+
+/**
+ * Re-inject RCMI patterns after Spectra cloud sync overwrites the JSON files.
+ */
+function rcmi_restore_after_spectra_sync() {
+	rcmi_ensure_spectra_patterns();
+}
+add_action( 'ast_block_templates_after_sync', 'rcmi_restore_after_spectra_sync' );
