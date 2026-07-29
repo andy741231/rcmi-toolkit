@@ -674,7 +674,6 @@ function rcmi_register_server_side_blocks() {
 			'scrimType'   => array( 'type' => 'string', 'default' => 'linear' ),
 			'scrimAngle'  => array( 'type' => 'number', 'default' => 90 ),
 			'contentAlign' => array( 'type' => 'string', 'default' => 'left' ),
-			'textColor'   => array( 'type' => 'string', 'default' => '' ),
 			'eyebrow'     => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
 			'headline'    => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
 			'lede'        => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
@@ -700,9 +699,6 @@ function rcmi_register_server_side_blocks() {
 
 			// Alignment is handled by the rcmi-align-* CSS classes on the section.
 			$copy_style = '';
-			if ( ! empty( $attrs['textColor'] ) ) {
-				$copy_style .= 'color: ' . sanitize_hex_color( $attrs['textColor'] ) . ';';
-			}
 
 			ob_start();
 
@@ -731,8 +727,8 @@ function rcmi_register_server_side_blocks() {
 					<div class="wrap rcmi-parallax-inner">
 						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
 							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
-							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
-							<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
+							<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
+							<p class="lede"><?php echo wp_kses_post( $attrs['lede'] ?? '' ); ?></p>
 							<div class="hero-actions">
 								<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
 							</div>
@@ -756,8 +752,8 @@ function rcmi_register_server_side_blocks() {
 						<div class="hero-grid">
 							<div class="hero-copy" style="<?php echo esc_attr( $copy_style ); ?>">
 								<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
-								<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
-								<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
+								<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
+								<p class="lede"><?php echo wp_kses_post( $attrs['lede'] ?? '' ); ?></p>
 								<div class="hero-actions">
 									<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
 								</div>

@@ -12,6 +12,7 @@
 	var TextControl = wp.components.TextControl;
 	var TextareaControl = wp.components.TextareaControl;
 	var MediaUpload = wp.blockEditor.MediaUpload;
+	var RichText = wp.blockEditor.RichText;
 	var __ = wp.i18n.__;
 
 	// ============================================================
@@ -818,8 +819,6 @@
 			scrimAngle:  { type: 'number', default: 90 },
 			// Content alignment
 			contentAlign: { type: 'string', default: 'left' }, // 'left', 'center', 'right'
-			// Text color (hex or CSS color)
-			textColor:   { type: 'string', default: '' },
 			// Content fields
 			eyebrow:     { type: 'string', default: 'Accelerating Real‑World Impact.' },
 			headline:    { type: 'string', default: 'Advancing Chronic<br> Disease Research.' },
@@ -1001,52 +1000,9 @@
 						} )
 					) : null,
 					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
-					alignButtons,
-					// Text color picker with UH brand color presets.
-					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '16px' } }, __( 'Text color', 'rcmi-toolkit' ) ),
-					el( 'input', {
-						type: 'color',
-						value: attrs.textColor || '#334155',
-						onChange: function ( e ) { setAttributes( { textColor: e.target.value } ); },
-						style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }
-					} ),
-					el( 'div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' } },
-						[
-							{ color: '#C8102E', name: 'UH Red' },
-							{ color: '#FFFFFF', name: 'White' },
-							{ color: '#000000', name: 'Black' },
-							{ color: '#54585A', name: 'Slate' },
-							{ color: '#00B388', name: 'Teal' },
-							{ color: '#F6BE00', name: 'Gold' },
-							{ color: '#960C22', name: 'Brick' },
-							{ color: '#005950', name: 'Forest' }
-						].map( function ( c ) {
-							return el( 'button', {
-								key: 'text-color-' + c.color,
-								onClick: function () { setAttributes( { textColor: c.color } ); },
-								title: c.name,
-								style: {
-									width: '28px',
-									height: '28px',
-									border: attrs.textColor === c.color ? '2px solid #007cba' : '1px solid #ccc',
-									borderRadius: '4px',
-									background: c.color,
-									cursor: 'pointer',
-									padding: 0
-								}
-							} );
-						} )
-					),
-					el( wp.components.Button, {
-						onClick: function () { setAttributes( { textColor: '' } ); },
-						variant: 'tertiary',
-						isSmall: true
-					}, __( 'Reset to default', 'rcmi-toolkit' ) )
+					alignButtons
 				),
 				el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
-					el( TextControl, { label: __( 'Eyebrow', 'rcmi-toolkit' ), value: attrs.eyebrow, onChange: function ( v ) { setAttributes( { eyebrow: v } ); } } ),
-					el( TextareaControl, { label: __( 'Headline (HTML allowed)', 'rcmi-toolkit' ), value: attrs.headline, onChange: function ( v ) { setAttributes( { headline: v } ); } } ),
-					el( TextareaControl, { label: __( 'Lede', 'rcmi-toolkit' ), value: attrs.lede, onChange: function ( v ) { setAttributes( { lede: v } ); } } ),
 					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.buttonText, onChange: function ( v ) { setAttributes( { buttonText: v } ); } } ),
 					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.buttonLink, onChange: function ( v ) { setAttributes( { buttonLink: v } ); } } )
 				)
@@ -1083,9 +1039,6 @@
 
 			// Content preview.
 			var copyStyle = {};
-			if ( attrs.textColor ) {
-				copyStyle.color = attrs.textColor;
-			}
 			if ( attrs.contentAlign === 'center' ) {
 				copyStyle.textAlign = 'center';
 				copyStyle.margin = '0 auto';
@@ -1097,9 +1050,31 @@
 			previewChildren.push(
 				el( 'div', { className: 'wrap rcmi-parallax-inner' },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
-						el( 'h1', { dangerouslySetInnerHTML: { __html: attrs.headline } } ),
-						el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-						el( 'p', { className: 'lede' }, attrs.lede ),
+						el( RichText, {
+							tagName: 'h1',
+							value: attrs.headline,
+							onChange: function ( v ) { setAttributes( { headline: v } ); },
+							placeholder: __( 'Headline…', 'rcmi-toolkit' ),
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ],
+							style: { margin: '0 0 10px' }
+						} ),
+						el( RichText, {
+							tagName: 'span',
+							className: 'eyebrow',
+							value: attrs.eyebrow,
+							onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
+							placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ],
+							style: { display: 'block', margin: '0 0 12px' }
+						} ),
+						el( RichText, {
+							tagName: 'p',
+							className: 'lede',
+							value: attrs.lede,
+							onChange: function ( v ) { setAttributes( { lede: v } ); },
+							placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+						} ),
 						el( 'div', { className: 'hero-actions' },
 							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
 						)
