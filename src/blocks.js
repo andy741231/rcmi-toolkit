@@ -1021,31 +1021,31 @@
 			tabs: {
 				type: 'array',
 				default: [
-					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
+					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', buttons: [ { text: 'View More', link: '#' } ], btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'People', title: 'Investigator Development', desc: 'Individualized pathways that move early-stage researchers from idea to independent funding.' },
 						{ tag: 'Funding', title: 'Pilot Awards', desc: 'Seed funding for promising, high-risk / high-reward chronic disease research.' },
 						{ tag: 'Guidance', title: 'Mentoring', desc: 'Paired mentorship with senior faculty across biostatistics, design, and dissemination.' },
 						{ tag: 'Skills', title: 'Training', desc: 'Workshops and cohort programs covering methods, grant writing, and community-engaged research.' }
 					] },
-					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
+					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', buttons: [ { text: 'View More', link: '#' } ], btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Capacity', title: 'Research Capacity', desc: 'Institutional infrastructure that supports rigorous, reproducible science at every stage.' },
 						{ tag: 'Methods', title: 'Biostatistics', desc: 'Consultation on study design, analysis plans, and power calculations.' },
 						{ tag: 'Data', title: 'Data Science', desc: 'Support for data management, integration, and advanced analytics.' },
 						{ tag: 'Access', title: 'Research Resources', desc: 'Shared tools, templates, and navigation support across the research lifecycle.' }
 					] },
-					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
+					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', buttons: [ { text: 'View More', link: '#' } ], btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Engagement', title: 'Community Engagement', desc: 'Ongoing, two-way relationships between researchers and community organizations.' },
 						{ tag: 'Governance', title: 'Community Advisory Board', desc: 'Community leaders shape priorities, review protocols, and guide dissemination.' },
 						{ tag: 'Model', title: 'Value-Based Community Engagement', desc: 'A framework that measures and reinforces mutual value across every partnership.' },
 						{ tag: 'Network', title: 'Community Partnerships', desc: 'A growing network of trusted organizations across Houston\u2019s diverse communities.' }
 					] },
-					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
+					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', buttons: [ { text: 'View More', link: '#' } ], btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Portfolio', title: 'Research Projects', desc: 'An active portfolio spanning prevention, treatment, and implementation science.' },
 						{ tag: 'Infrastructure', title: 'Core Services', desc: 'Shared cores in biostatistics, community engagement, and administration.' },
 						{ tag: 'Growth', title: 'Innovation', desc: 'New methods and technologies piloted to strengthen chronic disease research.' },
 						{ tag: 'Bridge', title: 'Translational Science', desc: 'Moving discoveries from bench and community into practice and policy.' }
 					] },
-					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
+					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', buttons: [ { text: 'View More', link: '#' } ], btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Voices', title: 'Impact Stories', desc: 'Real accounts of problems studied, lessons learned, and what\u2019s next.' },
 						{ tag: 'Evidence', title: 'Publications', desc: 'Findings organized by theme, not by committee.' },
 						{ tag: 'Live', title: 'Outcomes Dashboard', desc: 'Monthly-updated metrics on investigators, funding, and communities served.' },
@@ -1086,6 +1086,56 @@
 						var nc = Object.assign( {}, c );
 						nc[ key ] = val;
 						return nc;
+					} );
+					return nt;
+				} );
+				setAttributes( { tabs: newTabs } );
+			};
+			var addCard = function ( tabIdx ) {
+				var newTabs = tabs.map( function ( t, i ) {
+					if ( i !== tabIdx ) return t;
+					var nt = Object.assign( {}, t );
+					nt.cards = ( nt.cards || [] ).concat( [ { tag: '', title: '', desc: '' } ] );
+					return nt;
+				} );
+				setAttributes( { tabs: newTabs } );
+			};
+			var removeCard = function ( tabIdx, cardIdx ) {
+				var newTabs = tabs.map( function ( t, i ) {
+					if ( i !== tabIdx ) return t;
+					var nt = Object.assign( {}, t );
+					nt.cards = ( nt.cards || [] ).filter( function ( _, ci ) { return ci !== cardIdx; } );
+					return nt;
+				} );
+				setAttributes( { tabs: newTabs } );
+			};
+			var addButton = function ( tabIdx ) {
+				var newTabs = tabs.map( function ( t, i ) {
+					if ( i !== tabIdx ) return t;
+					var nt = Object.assign( {}, t );
+					nt.buttons = ( nt.buttons || [] ).concat( [ { text: '', link: '#' } ] );
+					return nt;
+				} );
+				setAttributes( { tabs: newTabs } );
+			};
+			var removeButton = function ( tabIdx, btnIdx ) {
+				var newTabs = tabs.map( function ( t, i ) {
+					if ( i !== tabIdx ) return t;
+					var nt = Object.assign( {}, t );
+					nt.buttons = ( nt.buttons || [] ).filter( function ( _, bi ) { return bi !== btnIdx; } );
+					return nt;
+				} );
+				setAttributes( { tabs: newTabs } );
+			};
+			var updateButton = function ( tabIdx, btnIdx, key, val ) {
+				var newTabs = tabs.map( function ( t, i ) {
+					if ( i !== tabIdx ) return t;
+					var nt = Object.assign( {}, t );
+					nt.buttons = ( nt.buttons || [] ).map( function ( b, bi ) {
+						if ( bi !== btnIdx ) return b;
+						var nb = Object.assign( {}, b );
+						nb[ key ] = val;
+						return nb;
 					} );
 					return nt;
 				} );
@@ -1177,8 +1227,55 @@
 						} );
 						setAttributes( u );
 					} ) ),
-					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: tab.btnText, onChange: function ( v ) { updateTab( idx, 'btnText', v ); } } ),
-					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: tab.btnLink, onChange: function ( v ) { updateTab( idx, 'btnLink', v ); } } )
+					// Cards section: list each card with remove button + add card button.
+					el( 'div', { style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
+						el( 'strong', null, __( 'Cards', 'rcmi-toolkit' ) ),
+						( tab.cards || [] ).map( function ( card, ci ) {
+							return el( 'div', { key: 'card-' + ci, style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
+								el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
+									el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, __( 'Card ' + ( ci + 1 ), 'rcmi-toolkit' ) ),
+									( tab.cards || [] ).length > 1 ? el( wp.components.Button, {
+										onClick: function () { removeCard( idx, ci ); },
+										variant: 'tertiary',
+										isDestructive: true,
+										isSmall: true
+									}, __( 'Remove', 'rcmi-toolkit' ) ) : null
+								),
+								el( TextControl, { label: __( 'Tag', 'rcmi-toolkit' ), value: card.tag, onChange: function ( v ) { updateCard( idx, ci, 'tag', v ); } } ),
+								el( TextControl, { label: __( 'Title', 'rcmi-toolkit' ), value: card.title, onChange: function ( v ) { updateCard( idx, ci, 'title', v ); } } ),
+								el( TextareaControl, { label: __( 'Description', 'rcmi-toolkit' ), value: card.desc, onChange: function ( v ) { updateCard( idx, ci, 'desc', v ); } } )
+							);
+						} ),
+						( tab.cards || [] ).length < 8 ? el( wp.components.Button, {
+							onClick: function () { addCard( idx ); },
+							variant: 'secondary',
+							isSmall: true
+						}, __( '+ Add Card', 'rcmi-toolkit' ) ) : null
+					),
+					// Buttons section: list each button with remove + add button.
+					el( 'div', { style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
+						el( 'strong', null, __( 'Buttons', 'rcmi-toolkit' ) ),
+						( tab.buttons || [] ).map( function ( btn, bi ) {
+							return el( 'div', { key: 'btn-' + bi, style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
+								el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
+									el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, __( 'Button ' + ( bi + 1 ), 'rcmi-toolkit' ) ),
+									el( wp.components.Button, {
+										onClick: function () { removeButton( idx, bi ); },
+										variant: 'tertiary',
+										isDestructive: true,
+										isSmall: true
+									}, __( 'Remove', 'rcmi-toolkit' ) )
+								),
+								el( TextControl, { label: __( 'Text', 'rcmi-toolkit' ), value: btn.text, onChange: function ( v ) { updateButton( idx, bi, 'text', v ); } } ),
+								el( TextControl, { label: __( 'Link', 'rcmi-toolkit' ), value: btn.link, onChange: function ( v ) { updateButton( idx, bi, 'link', v ); } } )
+							);
+						} ),
+						el( wp.components.Button, {
+							onClick: function () { addButton( idx ); },
+							variant: 'secondary',
+							isSmall: true
+						}, __( '+ Add Button', 'rcmi-toolkit' ) )
+					)
 				);
 			} );
 
@@ -1259,7 +1356,20 @@
 										} )
 									);
 								} )
-							)
+							),
+							( activeTabData.buttons || [] ).length > 0 ? el( 'div', { style: { marginTop: 'var(--space-5)', display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' } },
+								( activeTabData.buttons || [] ).map( function ( btn, bi ) {
+									return el( RichText, {
+										key: 'pb-' + bi,
+										tagName: 'a',
+										className: 'btn btn-primary',
+										value: btn.text,
+										onChange: function ( v ) { updateButton( activeTabIndex, bi, 'text', v ); },
+										placeholder: __( 'Button text…', 'rcmi-toolkit' ),
+										allowedFormats: []
+									} );
+								} )
+							) : null
 						)
 					)
 				)
