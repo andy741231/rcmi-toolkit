@@ -308,10 +308,10 @@
 	// --- Text Color (priority 6) ---
 	// Icon: "A" with a color bar underneath that reflects the active color.
 	function makeTextColorIcon( color ) {
-		var bar = color || 'currentColor';
-		return el( 'svg', { width: 20, height: 20, viewBox: '0 0 20 20', xmlns: 'http://www.w3.org/2000/svg' },
-			el( 'path', { d: 'M5 4v3h10V4H5zm4.5 5H8l3 7 3-7h-1.5L11 14.5 9.5 9z', fill: 'currentColor' } ),
-			el( 'rect', { x: 5, y: 15, width: 10, height: 2.5, rx: 0.5, fill: bar } )
+		var swatch = color || 'currentColor';
+		return el( 'svg', { width: 20, height: 20, viewBox: '0 0 20 20', xmlns: 'http://www.w3.org/2000/svg', 'aria-hidden': true },
+			el( 'path', { d: 'M10 2.5 4.5 15h2.2l1.1-2.8h4.4l1.1 2.8h2.2L10 2.5zm0 3.2 1.5 4.6h-3L10 5.7z', fill: 'currentColor' } ),
+			el( 'rect', { x: 3.5, y: 16, width: 13, height: 2, rx: 1, fill: swatch } )
 		);
 	}
 
@@ -387,10 +387,10 @@
 	// --- Highlight (background color, priority 7) ---
 	// Icon: marker pen with a color bar that reflects the active highlight color.
 	function makeHighlightIcon( color ) {
-		var bar = color || 'currentColor';
-		return el( 'svg', { width: 20, height: 20, viewBox: '0 0 20 20', xmlns: 'http://www.w3.org/2000/svg' },
-			el( 'path', { d: 'M3 14l4-4 6 6-4 4-6-6zm9.5-7.5l3-3 3 3-3 3-3-3z', fill: 'currentColor', opacity: 0.7 } ),
-			el( 'rect', { x: 3, y: 15, width: 14, height: 2.5, rx: 0.5, fill: bar } )
+		var swatch = color || 'currentColor';
+		return el( 'svg', { width: 20, height: 20, viewBox: '0 0 20 20', xmlns: 'http://www.w3.org/2000/svg', 'aria-hidden': true },
+			el( 'path', { d: 'm4 13.8 7.8-7.8 3.5 3.5-7.8 7.8H4v-3.5zm8.8-8.8 1.1-1.1a1.6 1.6 0 0 1 2.3 0l.7.7a1.6 1.6 0 0 1 0 2.3l-1.1 1.1-3-3z', fill: 'currentColor' } ),
+			el( 'path', { d: 'M3 17.5h14', stroke: swatch, 'stroke-width': 2.5, 'stroke-linecap': 'round' } )
 		);
 	}
 
@@ -1242,6 +1242,12 @@
 			fgSpeed:     { type: 'number', default: 0.7 },
 			// Content layer speed (text + button as 4th parallax layer)
 			contentSpeed: { type: 'number', default: 0.1 },
+			// Layer z-index (stacking order). Lower = further back.
+			// Defaults match the original CSS: bg=0, mid=1, fg=2, content=4.
+			bgZIndex:     { type: 'number', default: 0 },
+			midZIndex:    { type: 'number', default: 1 },
+			fgZIndex:     { type: 'number', default: 2 },
+			contentZIndex:{ type: 'number', default: 4 },
 			// Parallax direction: 'down', 'up', 'left', 'right'
 			parallaxDirection: { type: 'string', default: 'down' },
 			// Layout
@@ -1398,6 +1404,48 @@
 
 			// Gradient scrim controls — always available.
 			inspectorChildren.push(
+				el( PanelBody, { title: __( 'Layer Order', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Control the stacking order of layers. Lower numbers appear further back, higher numbers appear in front. The scrim stays between image layers and text.', 'rcmi-toolkit' ) ),
+					isParallax ? el( Fragment, null,
+						el( RangeControl, {
+							label: __( 'Background layer z-index', 'rcmi-toolkit' ),
+							value: attrs.bgZIndex,
+							onChange: function ( v ) { setAttributes( { bgZIndex: v } ); },
+							min: 0, max: 10, step: 1
+						} ),
+						el( RangeControl, {
+							label: __( 'Middle layer z-index', 'rcmi-toolkit' ),
+							value: attrs.midZIndex,
+							onChange: function ( v ) { setAttributes( { midZIndex: v } ); },
+							min: 0, max: 10, step: 1
+						} ),
+						el( RangeControl, {
+							label: __( 'Foreground layer z-index', 'rcmi-toolkit' ),
+							value: attrs.fgZIndex,
+							onChange: function ( v ) { setAttributes( { fgZIndex: v } ); },
+							min: 0, max: 10, step: 1
+						} )
+					) : el( RangeControl, {
+						label: __( 'Background image z-index', 'rcmi-toolkit' ),
+						value: attrs.bgZIndex,
+						onChange: function ( v ) { setAttributes( { bgZIndex: v } ); },
+						min: 0, max: 10, step: 1
+					} ),
+					el( RangeControl, {
+						label: __( 'Text content z-index', 'rcmi-toolkit' ),
+						value: attrs.contentZIndex,
+						onChange: function ( v ) { setAttributes( { contentZIndex: v } ); },
+						min: 0, max: 10, step: 1,
+						help: __( 'Set higher than image layers to keep text on top, or lower to hide text behind images.', 'rcmi-toolkit' )
+					} ),
+					el( 'div', { style: { marginTop: '12px', display: 'flex', gap: '8px' } },
+						el( wp.components.Button, {
+							onClick: function () { setAttributes( { bgZIndex: 0, midZIndex: 1, fgZIndex: 2, contentZIndex: 4 } ); },
+							variant: 'secondary',
+							isSmall: true
+						}, __( 'Reset to defaults', 'rcmi-toolkit' ) )
+					)
+				),
 				el( PanelBody, { title: __( 'Gradient Scrim', 'rcmi-toolkit' ), initialOpen: false },
 					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Overlay that darkens/tints the background for text readability.', 'rcmi-toolkit' ) ),
 					renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
