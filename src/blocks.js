@@ -991,8 +991,10 @@
 			},
 			transition: { type: 'string', default: 'none' },
 			height: { type: 'number', default: 0 },
-			tabBtnBgColor: { type: 'string', default: '' },
-			tabBtnTextColor: { type: 'string', default: '' }
+			tabBtnBgColor: { type: 'string', default: '#fbf7f0' },
+			tabBtnTextColor: { type: 'string', default: '#7d2832' },
+			tabBtnActiveBgColor: { type: 'string', default: '#ffffff' },
+			tabBtnActiveTextColor: { type: 'string', default: '#c8102e' }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -1053,17 +1055,31 @@
 					min: 0, max: 800, step: 10,
 					help: __( 'Fixed height for all tab panels. Set to 0 for auto height.', 'rcmi-toolkit' )
 				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px' } }, __( 'Tab Button Background', 'rcmi-toolkit' ) ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px' } }, __( 'Inactive Button Background', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnBgColor,
 					onChange: function ( v ) { setAttributes( { tabBtnBgColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
 				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Tab Button Text Color', 'rcmi-toolkit' ) ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Inactive Button Text Color', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnTextColor,
 					onChange: function ( v ) { setAttributes( { tabBtnTextColor: v || '' } ); },
+					disableCustomColors: false,
+					clearable: true
+				} ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '16px' } }, __( 'Active Button Background', 'rcmi-toolkit' ) ),
+				el( ColorPalette, {
+					value: attrs.tabBtnActiveBgColor,
+					onChange: function ( v ) { setAttributes( { tabBtnActiveBgColor: v || '' } ); },
+					disableCustomColors: false,
+					clearable: true
+				} ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Active Button Text Color', 'rcmi-toolkit' ) ),
+				el( ColorPalette, {
+					value: attrs.tabBtnActiveTextColor,
+					onChange: function ( v ) { setAttributes( { tabBtnActiveTextColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
 				} )
@@ -1136,10 +1152,16 @@
 							el( 'div', { className: 'impact-strip' },
 								el( 'div', { className: 'impact-steps', role: 'tablist' },
 									tabs.map( function ( tab, idx ) {
+										var isActive = idx === activeTabIndex;
 										var btnStyle = {};
-										if ( attrs.tabBtnBgColor ) { btnStyle.backgroundColor = attrs.tabBtnBgColor; }
-										if ( attrs.tabBtnTextColor ) { btnStyle.color = attrs.tabBtnTextColor; }
-										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( idx === activeTabIndex ? ' is-active' : '' ), role: 'tab', type: 'button', style: btnStyle, onClick: function () { setActiveTabIndex( idx ); } },
+										if ( isActive ) {
+											if ( attrs.tabBtnActiveBgColor ) { btnStyle.backgroundColor = attrs.tabBtnActiveBgColor; }
+											if ( attrs.tabBtnActiveTextColor ) { btnStyle.color = attrs.tabBtnActiveTextColor; }
+										} else {
+											if ( attrs.tabBtnBgColor ) { btnStyle.backgroundColor = attrs.tabBtnBgColor; }
+											if ( attrs.tabBtnTextColor ) { btnStyle.color = attrs.tabBtnTextColor; }
+										}
+										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( isActive ? ' is-active' : '' ), role: 'tab', type: 'button', style: btnStyle, onClick: function () { setActiveTabIndex( idx ); } },
 											el( 'span', { className: 'impact-step-copy' }, el( 'strong', null, tab.label ) )
 										);
 									} )

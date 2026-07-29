@@ -745,8 +745,10 @@ function rcmi_register_server_side_blocks() {
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
 			'transition' => array( 'type' => 'string', 'default' => 'none' ),
 			'height' => array( 'type' => 'number', 'default' => 0 ),
-			'tabBtnBgColor' => array( 'type' => 'string', 'default' => '' ),
-			'tabBtnTextColor' => array( 'type' => 'string', 'default' => '' ),
+			'tabBtnBgColor' => array( 'type' => 'string', 'default' => '#fbf7f0' ),
+			'tabBtnTextColor' => array( 'type' => 'string', 'default' => '#7d2832' ),
+			'tabBtnActiveBgColor' => array( 'type' => 'string', 'default' => '#ffffff' ),
+			'tabBtnActiveTextColor' => array( 'type' => 'string', 'default' => '#c8102e' ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
@@ -760,13 +762,21 @@ function rcmi_register_server_side_blocks() {
 			// Tab strip.
 			$btn_bg = sanitize_hex_color( $attrs['tabBtnBgColor'] ?? '' );
 			$btn_text = sanitize_hex_color( $attrs['tabBtnTextColor'] ?? '' );
-			$btn_style = '';
-			if ( $btn_bg ) { $btn_style .= ' background-color:' . $btn_bg . ';'; }
-			if ( $btn_text ) { $btn_style .= ' color:' . $btn_text . ';'; }
+			$btn_active_bg = sanitize_hex_color( $attrs['tabBtnActiveBgColor'] ?? '' );
+			$btn_active_text = sanitize_hex_color( $attrs['tabBtnActiveTextColor'] ?? '' );
 			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"><div class="impact-steps" role="tablist">';
 			foreach ( $tabs as $i => $tab ) {
 				$active = 0 === $i ? ' is-active' : '';
 				$selected = 0 === $i ? 'true' : 'false';
+				$is_active = 0 === $i;
+				$btn_style = '';
+				if ( $is_active ) {
+					if ( $btn_active_bg ) { $btn_style .= ' background-color:' . $btn_active_bg . ';'; }
+					if ( $btn_active_text ) { $btn_style .= ' color:' . $btn_active_text . ';'; }
+				} else {
+					if ( $btn_bg ) { $btn_style .= ' background-color:' . $btn_bg . ';'; }
+					if ( $btn_text ) { $btn_style .= ' color:' . $btn_text . ';'; }
+				}
 				$strip .= sprintf(
 					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s" style="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
 					esc_attr( $active ),
