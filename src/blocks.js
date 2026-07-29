@@ -789,7 +789,15 @@
 		description: __( 'Hero section with background image. Switch to Parallax mode for a 3-layer depth effect. Includes editable gradient scrim and content alignment.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'images-alt2',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,      // Enables text-color format button in RichText toolbar
+				background: false,
+				gradient: false,
+			},
+		},
 		attributes: {
 			mode:        { type: 'string', default: 'static' }, // 'static' or 'parallax'
 			// Static mode: single background image

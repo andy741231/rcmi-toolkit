@@ -652,6 +652,15 @@ function rcmi_register_server_side_blocks() {
 	// image) or 'parallax' (3-layer depth effect). Includes editable
 	// gradient scrim and content alignment controls.
 	register_block_type( 'rcmi/parallax', array(
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+			),
+		),
 		'attributes' => array(
 			'mode'        => array( 'type' => 'string', 'default' => 'static' ),
 			'bgImageId'   => array( 'type' => 'number', 'default' => 0 ),
