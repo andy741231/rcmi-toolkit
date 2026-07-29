@@ -16,6 +16,28 @@
 	var RichText = wp.blockEditor.RichText;
 	var __ = wp.i18n.__;
 
+	// UH brand color palette (matches theme.json). Used as the default
+	// swatch set for ColorPalette controls in our custom blocks.
+	var UH_COLORS = [
+		{ name: 'White',          color: '#FFFFFF' },
+		{ name: 'Black',          color: '#000000' },
+		{ name: 'UH Red',         color: '#C8102E' },
+		{ name: 'Slate',          color: '#54585A' },
+		{ name: 'Brick',          color: '#960C22' },
+		{ name: 'Chocolate',      color: '#640817' },
+		{ name: 'Cream',          color: '#FFF9D9' },
+		{ name: 'Gray',           color: '#888B8D' },
+		{ name: 'Gold',           color: '#F6BE00' },
+		{ name: 'Mustard',        color: '#D89B00' },
+		{ name: 'Ocher',          color: '#B97800' },
+		{ name: 'Teal',           color: '#00B388' },
+		{ name: 'Green',          color: '#00866C' },
+		{ name: 'Forest',         color: '#005950' },
+		{ name: 'Background Alt', color: '#F4F5F5' },
+		{ name: 'Background Dark',color: '#101112' },
+		{ name: 'Border',         color: '#DEE1E2' }
+	];
+
 	// ============================================================
 	// Reusable multi-stop gradient picker.
 	// Builds inspector controls for up to 6 color stops with
@@ -1058,6 +1080,7 @@
 				el( 'p', { style: { fontWeight: '600', marginBottom: '4px' } }, __( 'Inactive Button Background', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnBgColor,
+					colors: UH_COLORS,
 					onChange: function ( v ) { setAttributes( { tabBtnBgColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
@@ -1065,6 +1088,7 @@
 				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Inactive Button Text Color', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnTextColor,
+					colors: UH_COLORS,
 					onChange: function ( v ) { setAttributes( { tabBtnTextColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
@@ -1072,6 +1096,7 @@
 				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '16px' } }, __( 'Active Button Background', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnActiveBgColor,
+					colors: UH_COLORS,
 					onChange: function ( v ) { setAttributes( { tabBtnActiveBgColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
@@ -1079,6 +1104,7 @@
 				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Active Button Text Color', 'rcmi-toolkit' ) ),
 				el( ColorPalette, {
 					value: attrs.tabBtnActiveTextColor,
+					colors: UH_COLORS,
 					onChange: function ( v ) { setAttributes( { tabBtnActiveTextColor: v || '' } ); },
 					disableCustomColors: false,
 					clearable: true
