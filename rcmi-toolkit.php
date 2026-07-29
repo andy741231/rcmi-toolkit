@@ -17,6 +17,204 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'RCMI_TOOLKIT_VERSION', '1.0.0' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
+define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
+define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
+
+// ============================================================================
+// GitHub-based auto-update system
+// Checks for new GitHub releases and surfaces them in WP Admin → Plugins
+// as native "Update now" links. No third-party libraries required.
+// ============================================================================
+
+/**
+ * Fetch the latest release info from the GitHub API.
+ * Cached for 6 hours in a transient to avoid rate-limiting.
+ *
+ * @return array|false Release data or false on failure.
+ */
+function rcmi_toolkit_get_github_release() {
+	$cache = get_transient( 'rcmi_toolkit_github_release' );
+	if ( false !== $cache ) {
+		return $cache;
+	}
+
+	$url = sprintf(
+		'https://api.github.com/repos/%s/%s/releases/latest',
+		RCMI_TOOLKIT_GITHUB_USER,
+		RCMI_TOOLKIT_GITHUB_REPO
+	);
+
+	$response = wp_remote_get( $url, array(
+		'headers' => array( 'Accept' => 'application/vnd.github.v3+json' ),
+		'timeout' => 10,
+	) );
+
+	if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+		set_transient( 'rcmi_toolkit_github_release', false, 30 * MINUTE_IN_SECONDS );
+		return false;
+	}
+
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+	if ( empty( $body['tag_name'] ) ) {
+		set_transient( 'rcmi_toolkit_github_release', false, 30 * MINUTE_IN_SECONDS );
+		return false;
+	}
+
+	// Normalize version: strip leading "v" from tags like "v1.1.0".
+	$version = ltrim( $body['tag_name'], 'v' );
+
+	// Find the ZIP asset URL. Prefer uploaded assets; fall back to the
+	// GitHub-generated source ZIP (zipball_url).
+	$download_url = '';
+	if ( ! empty( $body['assets'] ) ) {
+		foreach ( $body['assets'] as $asset ) {
+			if ( ! empty( $asset['browser_download_url'] ) ) {
+				$download_url = $asset['browser_download_url'];
+				break;
+			}
+		}
+	}
+	if ( empty( $download_url ) ) {
+		$download_url = $body['zipball_url'] ?? '';
+	}
+
+	$release = array(
+		'version'       => $version,
+		'download_url'  => $download_url,
+		'release_url'   => $body['html_url'] ?? '',
+		'release_notes' => $body['body'] ?? '',
+		'date'          => $body['published_at'] ?? '',
+	);
+
+	set_transient( 'rcmi_toolkit_github_release', $release, 6 * HOUR_IN_SECONDS );
+	return $release;
+}
+
+/**
+ * Inject update data into the WP update transient.
+ *
+ * @param object $transient The update_plugins transient.
+ * @return object
+ */
+function rcmi_toolkit_check_for_updates( $transient ) {
+	if ( empty( $transient->checked ) ) {
+		return $transient;
+	}
+
+	$release = rcmi_toolkit_get_github_release();
+	if ( ! $release ) {
+		return $transient;
+	}
+
+	// Only offer an update if the GitHub version is newer.
+	if ( version_compare( $release['version'], RCMI_TOOLKIT_VERSION, '<=' ) ) {
+		return $transient;
+	}
+
+	$plugin_slug = plugin_basename( __FILE__ );
+
+	$update = (object) array(
+		'slug'        => dirname( $plugin_slug ),
+		'plugin'      => $plugin_slug,
+		'new_version' => $release['version'],
+		'url'         => $release['release_url'],
+		'package'     => $release['download_url'],
+		'tested'      => '7.0',
+		'icons'       => array(),
+		'banners'     => array(),
+	);
+
+	$transient->response[ $plugin_slug ] = $update;
+
+	return $transient;
+}
+add_filter( 'pre_set_site_transient_update_plugins', 'rcmi_toolkit_check_for_updates' );
+
+/**
+ * Populate the "View details" popup with GitHub release info.
+ *
+ * @param false|object|array $result  The result object or array.
+ * @param string             $action  The plugins_api action.
+ * @param object             $args    Extra arguments.
+ * @return false|object
+ */
+function rcmi_toolkit_plugins_api_info( $result, $action, $args ) {
+	if ( 'plugin_information' !== $action ) {
+		return $result;
+	}
+	if ( empty( $args->slug ) || 'rcmi-toolkit' !== $args->slug ) {
+		return $result;
+	}
+
+	$release = rcmi_toolkit_get_github_release();
+	if ( ! $release ) {
+		return $result;
+	}
+
+	return (object) array(
+		'name'          => 'RCMI Toolkit',
+		'slug'          => 'rcmi-toolkit',
+		'version'       => $release['version'],
+		'author'        => 'RCMI Team',
+		'homepage'      => $release['release_url'],
+		'short_description' => 'Custom Gutenberg blocks and tools for the RCMI theme.',
+		'sections'      => array(
+			'description' => 'Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, and Spectra integration.',
+			'changelog'   => $release['release_notes'] ?: 'See GitHub releases for changelog.',
+		),
+		'last_updated'  => $release['date'],
+		'download_link' => $release['download_url'],
+	);
+}
+add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
+
+/**
+ * Post-install cleanup: rename the GitHub ZIP's top-level folder
+ * (which is "rcmi-toolkit-<hash>" for source ZIPs or the asset name)
+ * back to "rcmi-toolkit" so WordPress doesn't end up with two folders.
+ *
+ * @param bool   $response    Install response.
+ * @param array  $hook_extra  Extra arguments.
+ * @param array  $result      Installation result data.
+ * @return array
+ */
+function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
+	if ( ! isset( $hook_extra['plugin'] ) ) {
+		return $result;
+	}
+	if ( false === strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) ) {
+		return $result;
+	}
+
+	$expected = 'rcmi-toolkit';
+	$actual   = basename( $result['destination'] );
+
+	if ( $expected === $actual ) {
+		return $result;
+	}
+
+	$new_destination = dirname( $result['destination'] ) . '/' . $expected;
+	if ( rename( $result['destination'], $new_destination ) ) {
+		$result['destination'] = $new_destination;
+		$result['destination_name'] = $expected;
+	}
+
+	return $result;
+}
+add_filter( 'upgrader_post_install', 'rcmi_toolkit_post_install_rename', 10, 3 );
+
+/**
+ * Force a re-check of updates (clears the transient cache).
+ * Hooked to admin_init so visiting the Plugins page triggers a fresh
+ * GitHub API call if the cache has expired.
+ */
+function rcmi_toolkit_maybe_refresh_release_cache() {
+	if ( isset( $_GET['rcmi_toolkit_check_updates'] ) ) {
+		delete_transient( 'rcmi_toolkit_github_release' );
+		rcmi_toolkit_get_github_release();
+	}
+}
+add_action( 'admin_init', 'rcmi_toolkit_maybe_refresh_release_cache' );
 
 /**
  * Register the custom block category.
