@@ -745,8 +745,8 @@ function rcmi_register_server_side_blocks() {
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
 			'transition' => array( 'type' => 'string', 'default' => 'none' ),
 			'height' => array( 'type' => 'number', 'default' => 0 ),
-			'tabBgColor' => array( 'type' => 'string', 'default' => '' ),
-			'tabTextColor' => array( 'type' => 'string', 'default' => '' ),
+			'tabBtnBgColor' => array( 'type' => 'string', 'default' => '' ),
+			'tabBtnTextColor' => array( 'type' => 'string', 'default' => '' ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
@@ -758,15 +758,21 @@ function rcmi_register_server_side_blocks() {
 			}
 
 			// Tab strip.
+			$btn_bg = sanitize_hex_color( $attrs['tabBtnBgColor'] ?? '' );
+			$btn_text = sanitize_hex_color( $attrs['tabBtnTextColor'] ?? '' );
+			$btn_style = '';
+			if ( $btn_bg ) { $btn_style .= ' background-color:' . $btn_bg . ';'; }
+			if ( $btn_text ) { $btn_style .= ' color:' . $btn_text . ';'; }
 			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"><div class="impact-steps" role="tablist">';
 			foreach ( $tabs as $i => $tab ) {
 				$active = 0 === $i ? ' is-active' : '';
 				$selected = 0 === $i ? 'true' : 'false';
 				$strip .= sprintf(
-					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
+					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s" style="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
 					esc_attr( $active ),
 					esc_attr( $selected ),
 					esc_attr( $tab['id'] ),
+					esc_attr( $btn_style ),
 					esc_html( $tab['label'] )
 				);
 			}
@@ -802,14 +808,6 @@ function rcmi_register_server_side_blocks() {
 				$panel_height = intval( $attrs['height'] ?? 0 );
 				if ( $panel_height > 0 ) {
 					$panel_style .= ' min-height:' . $panel_height . 'px;';
-				}
-				$tab_bg = sanitize_hex_color( $attrs['tabBgColor'] ?? '' );
-				if ( $tab_bg ) {
-					$panel_style .= ' background-color:' . $tab_bg . ';';
-				}
-				$tab_text = sanitize_hex_color( $attrs['tabTextColor'] ?? '' );
-				if ( $tab_text ) {
-					$panel_style .= ' color:' . $tab_text . ';';
 				}
 
 				$panels .= sprintf(
