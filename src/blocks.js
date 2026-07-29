@@ -1077,6 +1077,27 @@
 				} );
 				setAttributes( { tabs: newTabs } );
 			};
+			var addTab = function () {
+				var newId = 'tab-' + Date.now();
+				var newTab = {
+					id: newId, label: __( 'New Tab', 'rcmi-toolkit' ),
+					heading: '', note: '',
+					buttons: [ { text: '', link: '#' } ],
+					bgImageId: 0, bgImageUrl: '',
+					scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ],
+					scrimType: 'linear', scrimAngle: 90,
+					cards: [ { tag: '', title: '', desc: '' } ]
+				};
+				setAttributes( { tabs: tabs.concat( [ newTab ] ) } );
+			};
+			var removeTab = function ( idx ) {
+				if ( tabs.length <= 1 ) return;
+				var newTabs = tabs.filter( function ( _, i ) { return i !== idx; } );
+				setAttributes( { tabs: newTabs } );
+				if ( activeTabIndex >= newTabs.length ) {
+					setActiveTabIndex( newTabs.length - 1 );
+				}
+			};
 			var updateCard = function ( tabIdx, cardIdx, key, val ) {
 				var newTabs = tabs.map( function ( t, i ) {
 					if ( i !== tabIdx ) return t;
@@ -1173,6 +1194,57 @@
 				renderColorSelector( __( 'Inactive Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnTextColor, function ( v ) { setAttributes( { tabBtnTextColor: v } ); } ),
 				renderColorSelector( __( 'Active Button Background', 'rcmi-toolkit' ), attrs.tabBtnActiveBgColor, function ( v ) { setAttributes( { tabBtnActiveBgColor: v } ); } ),
 				renderColorSelector( __( 'Active Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnActiveTextColor, function ( v ) { setAttributes( { tabBtnActiveTextColor: v } ); } )
+			);
+
+			// Tabs management panel: add/remove tabs.
+			var tabsPanel = el( PanelBody, { title: __( 'Tabs', 'rcmi-toolkit' ), initialOpen: false },
+				tabs.map( function ( tab, idx ) {
+					return el( 'div', { key: 'tab-mgmt-' + idx, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' } },
+						el( 'span', { style: { fontSize: '13px' } }, ( idx + 1 ) + '. ' + tab.label ),
+						el( 'div', null,
+							idx > 0 ? el( wp.components.Button, {
+								onClick: function () {
+									var newTabs = tabs.slice();
+									var tmp = newTabs[ idx - 1 ];
+									newTabs[ idx - 1 ] = newTabs[ idx ];
+									newTabs[ idx ] = tmp;
+									setAttributes( { tabs: newTabs } );
+									if ( activeTabIndex === idx ) setActiveTabIndex( idx - 1 );
+									else if ( activeTabIndex === idx - 1 ) setActiveTabIndex( idx );
+								},
+								variant: 'tertiary',
+								isSmall: true,
+								icon: 'arrow-up-alt2'
+							} ) : null,
+							idx < tabs.length - 1 ? el( wp.components.Button, {
+								onClick: function () {
+									var newTabs = tabs.slice();
+									var tmp = newTabs[ idx + 1 ];
+									newTabs[ idx + 1 ] = newTabs[ idx ];
+									newTabs[ idx ] = tmp;
+									setAttributes( { tabs: newTabs } );
+									if ( activeTabIndex === idx ) setActiveTabIndex( idx + 1 );
+									else if ( activeTabIndex === idx + 1 ) setActiveTabIndex( idx );
+								},
+								variant: 'tertiary',
+								isSmall: true,
+								icon: 'arrow-down-alt2'
+							} ) : null,
+							tabs.length > 1 ? el( wp.components.Button, {
+								onClick: function () { removeTab( idx ); },
+								variant: 'tertiary',
+								isDestructive: true,
+								isSmall: true
+							}, __( 'Remove', 'rcmi-toolkit' ) ) : null
+						)
+					);
+				} ),
+				el( wp.components.Button, {
+					onClick: function () { addTab(); },
+					variant: 'secondary',
+					isSmall: true,
+					style: { marginTop: '10px' }
+				}, __( '+ Add Tab', 'rcmi-toolkit' ) )
 			);
 
 			// Build inspector controls for each tab.
@@ -1282,7 +1354,7 @@
 			// Build editor preview — show tab buttons + active tab content.
 			var activeTabData = tabs[ activeTabIndex ] || tabs[ 0 ] || {};
 			return el( Fragment, null,
-				el( InspectorControls, null, [ transitionPanel, layoutPanel ].concat( tabPanels ) ),
+				el( InspectorControls, null, [ transitionPanel, layoutPanel, tabsPanel ].concat( tabPanels ) ),
 				el( 'div', blockProps,
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
