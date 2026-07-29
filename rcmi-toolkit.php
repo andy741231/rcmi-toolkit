@@ -289,11 +289,12 @@ function rcmi_toolkit_skip_clear_destination( $removed, $local_destination, $rem
 	if ( false === strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) ) {
 		return $removed;
 	}
-	// Return true without actually deleting — our post_install filter
-	// will handle file replacement via recursive copy.
+	// Override WordPress's delete_old_plugin (which fails on Windows
+	// because locked files can't be deleted). Return true so the install
+	// proceeds — our post_install filter handles file replacement.
 	return true;
 }
-add_filter( 'upgrader_clear_destination', 'rcmi_toolkit_skip_clear_destination', 10, 4 );
+add_filter( 'upgrader_clear_destination', 'rcmi_toolkit_skip_clear_destination', 20, 4 );
 
 /**
  * Recursively copy files from $src to $dst using PHP's native copy().
