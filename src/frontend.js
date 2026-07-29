@@ -147,6 +147,16 @@
 				// CSS-based background images (#id.is-active) are present throughout
 				// the transition. Without this, the background image pops in abruptly
 				// at cleanup when is-active is finally added.
+				//
+				// Pre-set opacity:0 via inline style BEFORE adding is-active so the
+				// panel is already invisible when its display changes to block.
+				// Without this, there's a race where the browser paints the panel
+				// at full opacity (from is-active) before GSAP's .set(opacity:0) runs,
+				// causing a brief flash of the next image. GSAP will take over the
+				// opacity management once the timeline is created.
+				if ( hasGsap && gsapTransitions[ transition ] ) {
+					targetPanel.style.opacity = '0';
+				}
 				targetPanel.classList.add( 'is-active' );
 
 				if ( hasGsap && gsapTransitions[ transition ] ) {
