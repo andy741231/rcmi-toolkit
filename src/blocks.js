@@ -782,6 +782,8 @@
 			fgImageId:   { type: 'number', default: 0 },
 			fgImageUrl:  { type: 'string', default: '' },
 			fgSpeed:     { type: 'number', default: 0.7 },
+			// Content layer speed (text + button as 4th parallax layer)
+			contentSpeed: { type: 'number', default: 0.1 },
 			// Parallax direction: 'down', 'up', 'left', 'right'
 			parallaxDirection: { type: 'string', default: 'down' },
 			// Layout
@@ -983,7 +985,16 @@
 								}, d.charAt( 0 ).toUpperCase() + d.slice( 1 ) );
 							} )
 						),
-						el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Direction layers move as you scroll down. "Down" = layers drift downward (default). "Up" = layers rise. "Left/Right" = horizontal drift.', 'rcmi-toolkit' ) )
+						el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Direction layers move as you scroll down. "Down" = layers drift downward (default). "Up" = layers rise. "Left/Right" = horizontal drift.', 'rcmi-toolkit' ) ),
+						el( RangeControl, {
+							label: __( 'Content layer speed (text + button)', 'rcmi-toolkit' ),
+							value: attrs.contentSpeed,
+							onChange: function ( v ) { setAttributes( { contentSpeed: v } ); },
+							min: 0,
+							max: 1,
+							step: 0.05,
+							help: __( '0 = content stays fixed, higher = content drifts with parallax', 'rcmi-toolkit' )
+						} )
 					) : null,
 					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
 					alignButtons

@@ -63,7 +63,9 @@
 
 		var items = [];
 		sections.forEach( function ( section ) {
-			var layers = section.querySelectorAll( '.rcmi-parallax-layer' );
+			// Query any element with data-speed inside the section —
+			// this includes image layers AND the content layer.
+			var layers = section.querySelectorAll( '[data-speed]' );
 			if ( layers.length ) {
 				items.push( { section: section, layers: layers } );
 			}

@@ -658,6 +658,7 @@ function rcmi_register_server_side_blocks() {
 			'fgImageId'   => array( 'type' => 'number', 'default' => 0 ),
 			'fgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
 			'fgSpeed'     => array( 'type' => 'number', 'default' => 0.7 ),
+			'contentSpeed' => array( 'type' => 'number', 'default' => 0.1 ),
 			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
 			'scrimColor'  => array( 'type' => 'string', 'default' => '#f8f5ee' ),
@@ -724,7 +725,7 @@ function rcmi_register_server_side_blocks() {
 					<?php endforeach; ?>
 					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
 					<div class="wrap rcmi-parallax-inner">
-						<div class="rcmi-parallax-copy" style="<?php echo esc_attr( $copy_style ); ?>">
+						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
 							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
 							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
 							<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
