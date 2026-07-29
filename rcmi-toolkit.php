@@ -743,10 +743,16 @@ function rcmi_register_server_side_blocks() {
 		),
 		'attributes' => array(
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
+			'transition' => array( 'type' => 'string', 'default' => 'none' ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
 			$tabs = ! empty( $attrs['tabs'] ) ? $attrs['tabs'] : $defaults['tabs'];
+
+			$transition = $attrs['transition'] ?? 'none';
+			if ( ! in_array( $transition, array( 'none', 'fade', 'slide', 'curtain' ), true ) ) {
+				$transition = 'none';
+			}
 
 			// Tab strip.
 			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"><div class="impact-steps" role="tablist">';
@@ -764,7 +770,7 @@ function rcmi_register_server_side_blocks() {
 			$strip .= '</div></div></div></section>';
 
 			// Tab panels.
-			$panels = '<div class="tab-panels">';
+			$panels = '<div class="tab-panels" data-transition="' . esc_attr( $transition ) . '">';
 			foreach ( $tabs as $i => $tab ) {
 				$active = 0 === $i ? ' is-active' : '';
 				$bg_alt = $i % 2 === 1 ? ' bg-alt' : '';
@@ -811,7 +817,7 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
-			return '<div class="rcmi-impact-strip-wrapper' . esc_attr( $color_class ) . '"' . ( $color_style ? ' style="' . esc_attr( $color_style ) . '"' : '' ) . '>' . $strip . $panels . '</div>';
+			return '<div class="rcmi-impact-strip-wrapper' . esc_attr( $color_class ) . '" data-transition="' . esc_attr( $transition ) . '"' . ( $color_style ? ' style="' . esc_attr( $color_style ) . '"' : '' ) . '>' . $strip . $panels . '</div>';
 		},
 	) );
 	// rcmi/parallax — hero block with static or parallax mode.

@@ -18,20 +18,101 @@
 			}
 			return;
 		}
+		// Bind tabs for each impact-strip wrapper.
+		strips.forEach( function ( strip ) {
+			var tabs = strip.querySelectorAll( '.impact-step' );
+			var panelsContainer = strip.querySelector( '.tab-panels' );
+			var panels = panelsContainer ? panelsContainer.querySelectorAll( '.tab-panel' ) : [];
+			if ( tabs.length && panels.length ) {
+				bindTabs( tabs, panels, panelsContainer );
+			}
+		} );
 	}
 
-	function bindTabs( tabs, panels ) {
+	function bindTabs( tabs, panels, panelsContainer ) {
+		var isAnimating = false;
 		tabs.forEach( function ( tab ) {
 			tab.addEventListener( 'click', function () {
+				if ( isAnimating ) return;
 				var tabId = tab.getAttribute( 'data-tab' );
+
+				// Find the currently active panel.
+				var currentPanel = null;
+				panels.forEach( function ( p ) {
+					if ( p.classList.contains( 'is-active' ) ) { currentPanel = p; }
+				} );
+
+				// Find the target panel.
+				var targetPanel = null;
+				panels.forEach( function ( p ) {
+					if ( p.id === tabId ) { targetPanel = p; }
+				} );
+
+				if ( ! targetPanel || targetPanel === currentPanel ) {
+					// Just update tab states if no transition needed.
+					tabs.forEach( function ( t ) {
+						var isActive = t.getAttribute( 'data-tab' ) === tabId;
+						t.classList.toggle( 'is-active', isActive );
+						t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
+					} );
+					return;
+				}
+
+				// Read transition type from the panels container.
+				var transition = panelsContainer ? panelsContainer.getAttribute( 'data-transition' ) : 'none';
+				if ( ! transition || transition === 'none' ) {
+					// Instant switch.
+					tabs.forEach( function ( t ) {
+						var isActive = t.getAttribute( 'data-tab' ) === tabId;
+						t.classList.toggle( 'is-active', isActive );
+						t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
+					} );
+					panels.forEach( function ( p ) {
+						p.classList.toggle( 'is-active', p.id === tabId );
+					} );
+					return;
+				}
+
+				// Animated transition.
+				isAnimating = true;
 				tabs.forEach( function ( t ) {
 					var isActive = t.getAttribute( 'data-tab' ) === tabId;
 					t.classList.toggle( 'is-active', isActive );
 					t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
 				} );
-				panels.forEach( function ( p ) {
-					p.classList.toggle( 'is-active', p.id === tabId );
+
+				// Set up the transition: old panel leaves, new panel enters.
+				if ( panelsContainer ) {
+					panelsContainer.classList.add( 'is-animating' );
+				}
+
+				// Make the target panel visible (display:block) but at opacity 0.
+				targetPanel.classList.add( 'tab-entering', 'is-active' );
+
+				// Force a reflow so the initial state is applied before the transition.
+				void targetPanel.offsetHeight;
+
+				// Trigger the enter animation on the next frame.
+				requestAnimationFrame( function () {
+					targetPanel.classList.add( 'tab-entered' );
 				} );
+
+				// Start the leave animation on the current panel.
+				if ( currentPanel ) {
+					currentPanel.classList.add( 'tab-leaving' );
+				}
+
+				// Clean up after the transition completes (0.4s = 400ms).
+				setTimeout( function () {
+					if ( currentPanel ) {
+						currentPanel.classList.remove( 'is-active', 'tab-leaving' );
+					}
+					targetPanel.classList.remove( 'tab-entering', 'tab-entered' );
+					if ( panelsContainer ) {
+						panelsContainer.classList.remove( 'is-animating' );
+					}
+					isAnimating = false;
+				}, 420 );
 			} );
 		} );
 	}

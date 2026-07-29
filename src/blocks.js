@@ -988,7 +988,8 @@
 						{ tag: 'Focus', title: 'Chronic Disease Priorities', desc: 'Priorities set together with the communities most affected.' }
 					] }
 				]
-			}
+			},
+			transition: { type: 'string', default: 'none' }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -1021,6 +1022,22 @@
 				} );
 				setAttributes( { tabs: newTabs } );
 			};
+
+			// Transition settings panel.
+			var transitionPanel = el( PanelBody, { title: __( 'Tab Transition', 'rcmi-toolkit' ), initialOpen: true },
+				el( SelectControl, {
+					label: __( 'Transition effect', 'rcmi-toolkit' ),
+					value: attrs.transition,
+					options: [
+						{ value: 'none',    label: __( 'None (instant switch)', 'rcmi-toolkit' ) },
+						{ value: 'fade',    label: __( 'Fade (ease in/out)', 'rcmi-toolkit' ) },
+						{ value: 'slide',   label: __( 'Slide (horizontal scroll)', 'rcmi-toolkit' ) },
+						{ value: 'curtain', label: __( 'Curtain (scroll in/out)', 'rcmi-toolkit' ) }
+					],
+					onChange: function ( v ) { setAttributes( { transition: v } ); }
+				} ),
+				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Animation played when switching between tabs. "Fade" cross-fades the old and new panel. "Slide" scrolls the new panel in horizontally. "Curtain" scrolls the new panel in vertically.', 'rcmi-toolkit' ) )
+			);
 
 			// Build inspector controls for each tab.
 			var tabPanels = tabs.map( function ( tab, idx ) {
@@ -1082,7 +1099,7 @@
 			// Build editor preview — show tab buttons + active tab content.
 			var activeTabData = tabs[ activeTabIndex ] || tabs[ 0 ] || {};
 			return el( Fragment, null,
-				el( InspectorControls, null, tabPanels ),
+				el( InspectorControls, null, [ transitionPanel ].concat( tabPanels ) ),
 				el( 'div', blockProps,
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
