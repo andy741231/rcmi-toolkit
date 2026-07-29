@@ -822,24 +822,14 @@
 			eyebrow: { type: 'string', default: 'Start Collaborating' },
 			heading: { type: 'string', default: 'I am\u2026' },
 			note:    { type: 'string', default: 'Choose the path that fits you best. Every route leads to the resources most relevant to you.' },
-			role1Title: { type: 'string', default: 'An early-stage investigator' },
-			role1Desc:  { type: 'string', default: 'Find pilot funding, mentoring, and training pathways to launch your research.' },
-			role1Link:  { type: 'string', default: '/cores/#investigator' },
-			role2Title: { type: 'string', default: 'A community organization' },
-			role2Desc:  { type: 'string', default: 'Join the Community Advisory Board or propose a shared research priority.' },
-			role2Link:  { type: 'string', default: '/cores/#community' },
-			role3Title: { type: 'string', default: 'A student' },
-			role3Desc:  { type: 'string', default: 'Explore training opportunities and see where your research idea could go.' },
-			role3Link:  { type: 'string', default: '/journey/' },
-			role4Title: { type: 'string', default: 'A faculty member' },
-			role4Desc:  { type: 'string', default: 'Request biostatistics, data science, or research navigation support.' },
-			role4Link:  { type: 'string', default: '/cores/#research' },
-			role5Title: { type: 'string', default: 'A healthcare organization' },
-			role5Desc:  { type: 'string', default: 'Explore implementation support and shared chronic-disease priorities.' },
-			role5Link:  { type: 'string', default: '/partners/' },
-			role6Title: { type: 'string', default: 'A funder' },
-			role6Desc:  { type: 'string', default: 'Review outcomes, publications, and funding leveraged to date.' },
-			role6Link:  { type: 'string', default: '/publications/' },
+			roles: { type: 'array', default: [
+				{ title: 'An early-stage investigator', desc: 'Find pilot funding, mentoring, and training pathways to launch your research.', link: '/cores/#investigator' },
+				{ title: 'A community organization', desc: 'Join the Community Advisory Board or propose a shared research priority.', link: '/cores/#community' },
+				{ title: 'A student', desc: 'Explore training opportunities and see where your research idea could go.', link: '/journey/' },
+				{ title: 'A faculty member', desc: 'Request biostatistics, data science, or research navigation support.', link: '/cores/#research' },
+				{ title: 'A healthcare organization', desc: 'Explore implementation support and shared chronic-disease priorities.', link: '/partners/' },
+				{ title: 'A funder', desc: 'Review outcomes, publications, and funding leveraged to date.', link: '/publications/' }
+			] },
 			scrimStops: { type: 'array', default: [
 				{ color: '#ffffff', opacity: 0.9, position: 0 },
 				{ color: '#ffffff', opacity: 0.54, position: 50 },
@@ -860,26 +850,82 @@
 				backgroundPosition: 'center'
 			} : undefined
 		} );
-			var roleFields = function ( n ) {
-				var prefix = 'role' + n;
-				return el( PanelBody, { title: __( 'Role ' + n, 'rcmi-toolkit' ), initialOpen: false },
-					el( TextControl, { label: __( 'Link URL', 'rcmi-toolkit' ), value: attrs[prefix + 'Link'], onChange: function ( v ) { var u = {}; u[prefix + 'Link'] = v; setAttributes( u ); } } )
-				);
+			var roles = attrs.roles || [];
+
+			var updateRole = function ( idx, key, val ) {
+				var newRoles = roles.map( function ( r, i ) {
+					if ( i !== idx ) return r;
+					var nr = Object.assign( {}, r );
+					nr[ key ] = val;
+					return nr;
+				} );
+				setAttributes( { roles: newRoles } );
 			};
-			var roleEl = function ( n ) {
-				var prefix = 'role' + n;
-				return el( 'a', { href: attrs[prefix + 'Link'], className: 'role-card', onClick: function ( e ) { e.preventDefault(); } },
+			var addRole = function () {
+				setAttributes( { roles: roles.concat( [ { title: '', desc: '', link: '#' } ] ) } );
+			};
+			var removeRole = function ( idx ) {
+				if ( roles.length <= 1 ) return;
+				setAttributes( { roles: roles.filter( function ( _, i ) { return i !== idx; } ) } );
+			};
+
+			// Roles management panel: add/remove/reorder role cards.
+			var rolesPanel = el( PanelBody, { title: __( 'Role Cards', 'rcmi-toolkit' ), initialOpen: false },
+				roles.map( function ( role, idx ) {
+					return el( 'div', { key: 'role-mgmt-' + idx, style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
+						el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
+							el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, __( 'Card ' + ( idx + 1 ), 'rcmi-toolkit' ) ),
+							el( 'div', null,
+								idx > 0 ? el( wp.components.Button, {
+									onClick: function () {
+										var newRoles = roles.slice();
+										var tmp = newRoles[ idx - 1 ];
+										newRoles[ idx - 1 ] = newRoles[ idx ];
+										newRoles[ idx ] = tmp;
+										setAttributes( { roles: newRoles } );
+									},
+									variant: 'tertiary', isSmall: true, icon: 'arrow-up-alt2'
+								} ) : null,
+								idx < roles.length - 1 ? el( wp.components.Button, {
+									onClick: function () {
+										var newRoles = roles.slice();
+										var tmp = newRoles[ idx + 1 ];
+										newRoles[ idx + 1 ] = newRoles[ idx ];
+										newRoles[ idx ] = tmp;
+										setAttributes( { roles: newRoles } );
+									},
+									variant: 'tertiary', isSmall: true, icon: 'arrow-down-alt2'
+								} ) : null,
+								roles.length > 1 ? el( wp.components.Button, {
+									onClick: function () { removeRole( idx ); },
+									variant: 'tertiary', isDestructive: true, isSmall: true
+								}, __( 'Remove', 'rcmi-toolkit' ) ) : null
+							)
+						),
+						el( TextControl, { label: __( 'Title', 'rcmi-toolkit' ), value: role.title, onChange: function ( v ) { updateRole( idx, 'title', v ); } } ),
+						el( TextareaControl, { label: __( 'Description', 'rcmi-toolkit' ), value: role.desc, onChange: function ( v ) { updateRole( idx, 'desc', v ); } } ),
+						el( TextControl, { label: __( 'Link URL', 'rcmi-toolkit' ), value: role.link, onChange: function ( v ) { updateRole( idx, 'link', v ); } } )
+					);
+				} ),
+				el( wp.components.Button, {
+					onClick: function () { addRole(); },
+					variant: 'secondary', isSmall: true, style: { marginTop: '10px' }
+				}, __( '+ Add Card', 'rcmi-toolkit' ) )
+			);
+
+			var roleEl = function ( role, idx ) {
+				return el( 'a', { key: 'role-' + idx, href: role.link, className: 'role-card', onClick: function ( e ) { e.preventDefault(); } },
 					el( RichText, {
 						tagName: 'h4',
-						value: attrs[prefix + 'Title'],
-						onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); },
+						value: role.title,
+						onChange: function ( v ) { updateRole( idx, 'title', v ); },
 						placeholder: __( 'Role title…', 'rcmi-toolkit' ),
 						allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
-						value: attrs[prefix + 'Desc'],
-						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
+						value: role.desc,
+						onChange: function ( v ) { updateRole( idx, 'desc', v ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
 						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
@@ -918,7 +964,7 @@
 							setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
 						} )
 					),
-					roleFields( 1 ), roleFields( 2 ), roleFields( 3 ), roleFields( 4 ), roleFields( 5 ), roleFields( 6 )
+					rolesPanel
 				),
 				el( 'section', blockProps,
 					el( 'div', { className: 'wrap' },
@@ -950,45 +996,15 @@
 							} )
 						),
 						el( 'div', { className: 'role-grid' },
-							roleEl( 1 ), roleEl( 2 ), roleEl( 3 ), roleEl( 4 ), roleEl( 5 ), roleEl( 6 )
+							roles.map( function ( role, idx ) { return roleEl( role, idx ); } )
 						)
 					)
 				)
 			);
 		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var sectionStyle = {};
-			if ( attrs.bgImageUrl ) {
-				sectionStyle.backgroundImage = 'url(' + attrs.bgImageUrl + ')';
-				sectionStyle.backgroundSize = 'cover';
-				sectionStyle.backgroundPosition = 'center';
-			}
-			var blockProps = useBlockProps.save( { className: 'collaborating-section', id: 'start', style: sectionStyle } );
-			var roleEl = function ( n ) {
-				var prefix = 'role' + n;
-				return el( 'a', { href: attrs[prefix + 'Link'], className: 'role-card' },
-					el( 'h4', null, attrs[prefix + 'Title'] ),
-					el( 'p', null, attrs[prefix + 'Desc'] ),
-					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
-				);
-			};
-			var scrimStyle = { background: buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle ) };
-			return el( 'section', blockProps,
-				el( 'div', { className: 'rcmi-section-scrim', 'aria-hidden': 'true', style: scrimStyle } ),
-				el( 'div', { className: 'wrap' },
-					el( 'div', { className: 'section-head' },
-						el( 'div', null,
-							el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-							el( 'h2', null, attrs.heading )
-						),
-						el( 'p', { className: 'section-note' }, attrs.note )
-					),
-					el( 'div', { className: 'role-grid' },
-						roleEl( 1 ), roleEl( 2 ), roleEl( 3 ), roleEl( 4 ), roleEl( 5 ), roleEl( 6 )
-					)
-				)
-			);
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
 		}
 	} );
 

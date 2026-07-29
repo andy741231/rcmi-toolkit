@@ -416,6 +416,14 @@ function rcmi_block_defaults( $block_name ) {
 		),
 		'rcmi/role-selector-block' => array(
 			'eyebrow' => 'Start Collaborating', 'heading' => 'I am…', 'note' => 'Choose the path that fits you best. Every route leads to the resources most relevant to you.',
+			'roles' => array(
+				array( 'title' => 'An early-stage investigator', 'desc' => 'Find pilot funding, mentoring, and training pathways to launch your research.', 'link' => '/cores/#investigator' ),
+				array( 'title' => 'A community organization', 'desc' => 'Join the Community Advisory Board or propose a shared research priority.', 'link' => '/cores/#community' ),
+				array( 'title' => 'A student', 'desc' => 'Explore training opportunities and see where your research idea could go.', 'link' => '/journey/' ),
+				array( 'title' => 'A faculty member', 'desc' => 'Request biostatistics, data science, or research navigation support.', 'link' => '/cores/#research' ),
+				array( 'title' => 'A healthcare organization', 'desc' => 'Explore implementation support and shared chronic-disease priorities.', 'link' => '/partners/' ),
+				array( 'title' => 'A funder', 'desc' => 'Review outcomes, publications, and funding leveraged to date.', 'link' => '/publications/' ),
+			),
 			'role1Title' => 'An early-stage investigator', 'role1Desc' => 'Find pilot funding, mentoring, and training pathways to launch your research.', 'role1Link' => '/cores/#investigator',
 			'role2Title' => 'A community organization', 'role2Desc' => 'Join the Community Advisory Board or propose a shared research priority.', 'role2Link' => '/cores/#community',
 			'role3Title' => 'A student', 'role3Desc' => 'Explore training opportunities and see where your research idea could go.', 'role3Link' => '/journey/',
@@ -662,6 +670,7 @@ function rcmi_register_server_side_blocks() {
 			'eyebrow' => array( 'type' => 'string', 'default' => '' ),
 			'heading' => array( 'type' => 'string', 'default' => '' ),
 			'note'    => array( 'type' => 'string', 'default' => '' ),
+			'roles'   => array( 'type' => 'array', 'default' => array() ),
 			'role1Title' => array( 'type' => 'string', 'default' => '' ), 'role1Desc' => array( 'type' => 'string', 'default' => '' ), 'role1Link' => array( 'type' => 'string', 'default' => '' ),
 			'role2Title' => array( 'type' => 'string', 'default' => '' ), 'role2Desc' => array( 'type' => 'string', 'default' => '' ), 'role2Link' => array( 'type' => 'string', 'default' => '' ),
 			'role3Title' => array( 'type' => 'string', 'default' => '' ), 'role3Desc' => array( 'type' => 'string', 'default' => '' ), 'role3Link' => array( 'type' => 'string', 'default' => '' ),
@@ -681,12 +690,25 @@ function rcmi_register_server_side_blocks() {
 			'render_callback' => function ( $attrs ) {
 				$attrs = rcmi_apply_block_defaults( 'rcmi/role-selector-block', $attrs );
 				$roles = '';
-				for ( $i = 1; $i <= 6; $i++ ) {
+				$role_list = $attrs['roles'] ?? array();
+				// Fallback to legacy role1Title..role6Title attributes if roles array is empty.
+				if ( empty( $role_list ) ) {
+					for ( $i = 1; $i <= 6; $i++ ) {
+						$title = $attrs[ "role{$i}Title" ] ?? '';
+						if ( ! $title ) continue;
+						$role_list[] = array(
+							'title' => $title,
+							'desc'  => $attrs[ "role{$i}Desc" ] ?? '',
+							'link'  => $attrs[ "role{$i}Link" ] ?? '#',
+						);
+					}
+				}
+				foreach ( $role_list as $role ) {
 					$roles .= sprintf(
 						'<a href="%s" class="role-card"><h4>%s</h4><p>%s</p><span class="role-link">Start here <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"/></svg></span></a>',
-						esc_url( $attrs[ "role{$i}Link" ] ),
-						wp_kses_post( $attrs[ "role{$i}Title" ] ?? '' ),
-						wp_kses_post( $attrs[ "role{$i}Desc" ] ?? '' )
+						esc_url( $role['link'] ?? '#' ),
+						wp_kses_post( $role['title'] ?? '' ),
+						wp_kses_post( $role['desc'] ?? '' )
 					);
 				}
 
