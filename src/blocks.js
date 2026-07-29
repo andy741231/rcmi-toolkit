@@ -185,6 +185,10 @@
 				gradient: false,
 				link: false,
 			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
+			},
 		},
 		attributes: {
 			quote:    { type: 'string', default: "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved." },
@@ -260,6 +264,10 @@
 				background: false,
 				gradient: false,
 				link: false,
+			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
 			},
 		},
 		attributes: {
@@ -352,6 +360,10 @@
 				background: false,
 				gradient: false,
 				link: false,
+			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
 			},
 		},
 		attributes: {
@@ -462,6 +474,10 @@
 				background: false,
 				gradient: false,
 				link: false,
+			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
 			},
 		},
 		attributes: {
@@ -658,6 +674,10 @@
 				gradient: false,
 				link: false,
 			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
+			},
 		},
 		attributes: {
 			tabs: {
@@ -780,18 +800,8 @@
 						} );
 						setAttributes( u );
 					} ) ),
-					el( TextareaControl, { label: __( 'Heading (HTML allowed)', 'rcmi-toolkit' ), value: tab.heading, onChange: function ( v ) { updateTab( idx, 'heading', v ); } } ),
-					el( TextareaControl, { label: __( 'Note', 'rcmi-toolkit' ), value: tab.note, onChange: function ( v ) { updateTab( idx, 'note', v ); } } ),
 					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: tab.btnText, onChange: function ( v ) { updateTab( idx, 'btnText', v ); } } ),
-					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: tab.btnLink, onChange: function ( v ) { updateTab( idx, 'btnLink', v ); } } ),
-					( tab.cards || [] ).map( function ( card, ci ) {
-						return el( 'div', { key: 'card-' + idx + '-' + ci, style: { borderBottom: '1px solid #e0e0e0', paddingBottom: '12px', marginBottom: '12px' } },
-							el( 'strong', null, __( 'Card ' + ( ci + 1 ), 'rcmi-toolkit' ) ),
-							el( TextControl, { label: __( 'Tag', 'rcmi-toolkit' ), value: card.tag, onChange: function ( v ) { updateCard( idx, ci, 'tag', v ); } } ),
-							el( TextControl, { label: __( 'Title', 'rcmi-toolkit' ), value: card.title, onChange: function ( v ) { updateCard( idx, ci, 'title', v ); } } ),
-							el( TextareaControl, { label: __( 'Description', 'rcmi-toolkit' ), value: card.desc, onChange: function ( v ) { updateCard( idx, ci, 'desc', v ); } } )
-						);
-					} )
+					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: tab.btnLink, onChange: function ( v ) { updateTab( idx, 'btnLink', v ); } } )
 				);
 			} );
 
@@ -817,15 +827,47 @@
 						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( activeTabData.scrimStops, activeTabData.scrimType, activeTabData.scrimAngle ) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },
-								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: activeTabData.heading } } ) ),
-								el( 'p', { className: 'section-note' }, activeTabData.note )
+								el( 'div', null, el( RichText, {
+									tagName: 'h2',
+									value: activeTabData.heading,
+									onChange: function ( v ) { updateTab( activeTabIndex, 'heading', v ); },
+									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+								} ) ),
+								el( RichText, {
+									tagName: 'p',
+									className: 'section-note',
+									value: activeTabData.note,
+									onChange: function ( v ) { updateTab( activeTabIndex, 'note', v ); },
+									placeholder: __( 'Note…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+								} )
 							),
 							el( 'div', { className: 'card-grid' },
 								( activeTabData.cards || [] ).map( function ( card, ci ) {
 									return el( 'div', { className: 'card', key: 'pc-' + ci },
-										el( 'span', { className: 'tag' }, card.tag ),
-										el( 'h4', null, card.title ),
-										el( 'p', null, card.desc )
+										el( RichText, {
+											tagName: 'span',
+											className: 'tag',
+											value: card.tag,
+											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'tag', v ); },
+											placeholder: __( 'Tag…', 'rcmi-toolkit' ),
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+										} ),
+										el( RichText, {
+											tagName: 'h4',
+											value: card.title,
+											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'title', v ); },
+											placeholder: __( 'Title…', 'rcmi-toolkit' ),
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+										} ),
+										el( RichText, {
+											tagName: 'p',
+											value: card.desc,
+											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'desc', v ); },
+											placeholder: __( 'Description…', 'rcmi-toolkit' ),
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
+										} )
 									);
 								} )
 							)
@@ -905,6 +947,10 @@
 				background: false,
 				gradient: false,
 				link: false,     // Don't color <a> elements (button keeps its own color)
+			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
 			},
 		},
 		attributes: {

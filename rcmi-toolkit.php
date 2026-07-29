@@ -473,6 +473,10 @@ function rcmi_register_server_side_blocks() {
 				'gradient'   => false,
 				'link'       => false,
 			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
+			),
 		),
 		'render_callback' => function ( $attrs ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/quote-block', $attrs );
@@ -524,6 +528,10 @@ function rcmi_register_server_side_blocks() {
 				'gradient'   => false,
 				'link'       => false,
 			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
+			),
 		),
 		'render_callback' => function ( $attrs ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/cta-band', $attrs );
@@ -568,6 +576,10 @@ function rcmi_register_server_side_blocks() {
 				'background' => false,
 				'gradient'   => false,
 				'link'       => false,
+			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
 			),
 		),
 		'attributes' => array(
@@ -632,6 +644,10 @@ function rcmi_register_server_side_blocks() {
 				'background' => false,
 				'gradient'   => false,
 				'link'       => false,
+			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
 			),
 		),
 		'attributes' => array(
@@ -720,6 +736,10 @@ function rcmi_register_server_side_blocks() {
 				'gradient'   => false,
 				'link'       => false,
 			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
+			),
 		),
 		'attributes' => array(
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
@@ -807,6 +827,10 @@ function rcmi_register_server_side_blocks() {
 				'background' => false,
 				'gradient'   => false,
 				'link'       => false,
+			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
 			),
 		),
 		'attributes' => array(
