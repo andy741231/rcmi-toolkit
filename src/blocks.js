@@ -1499,9 +1499,9 @@
 			if ( isParallax ) {
 				previewChildren.push(
 					el( 'div', { className: 'rcmi-parallax-layers' },
-						layerPreview( attrs.bgImageUrl, __( 'Background', 'rcmi-toolkit' ), 1 ),
-						layerPreview( attrs.midImageUrl, __( 'Middle', 'rcmi-toolkit' ), 2 ),
-						layerPreview( attrs.fgImageUrl, __( 'Foreground', 'rcmi-toolkit' ), 3 )
+						layerPreview( attrs.bgImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex ),
+						layerPreview( attrs.midImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex ),
+						layerPreview( attrs.fgImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex )
 					)
 				);
 			} else {
@@ -1511,19 +1511,20 @@
 					bgStyle = { backgroundImage: 'url(' + attrs.bgImageUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' };
 				}
 				previewChildren.push(
-					el( 'div', { className: 'rcmi-parallax-layer-preview', style: Object.assign( { zIndex: 1 }, bgStyle ) },
+					el( 'div', { className: 'rcmi-parallax-layer-preview', style: Object.assign( { zIndex: attrs.bgZIndex }, bgStyle ) },
 						! attrs.bgImageUrl ? el( 'span', { className: 'rcmi-layer-label' }, __( 'Background', 'rcmi-toolkit' ) ) : null
 					)
 				);
 			}
 
-			// Scrim overlay preview.
+			// Scrim overlay preview (z-index = midpoint between top image layer and content).
+			var scrimZ = Math.floor( ( Math.max( attrs.bgZIndex, attrs.midZIndex, attrs.fgZIndex ) + attrs.contentZIndex ) / 2 );
 			previewChildren.push(
-				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient } } )
+				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient, zIndex: scrimZ } } )
 			);
 
 			// Content preview.
-			var copyStyle = {};
+			var copyStyle = { zIndex: attrs.contentZIndex };
 			if ( attrs.contentAlign === 'center' ) {
 				copyStyle.textAlign = 'center';
 				copyStyle.margin = '0 auto';
@@ -1533,7 +1534,7 @@
 			}
 
 			previewChildren.push(
-				el( 'div', { className: 'wrap rcmi-parallax-inner' },
+				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
 						el( RichText, {
 							tagName: 'h1',

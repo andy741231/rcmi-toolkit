@@ -845,6 +845,10 @@ function rcmi_register_server_side_blocks() {
 			'fgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
 			'fgSpeed'     => array( 'type' => 'number', 'default' => 0.7 ),
 			'contentSpeed' => array( 'type' => 'number', 'default' => 0.1 ),
+			'bgZIndex'      => array( 'type' => 'number', 'default' => 0 ),
+			'midZIndex'     => array( 'type' => 'number', 'default' => 1 ),
+			'fgZIndex'      => array( 'type' => 'number', 'default' => 2 ),
+			'contentZIndex' => array( 'type' => 'number', 'default' => 4 ),
 			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
 			'scrimStops'  => array( 'type' => 'array', 'default' => array(
@@ -899,26 +903,30 @@ function rcmi_register_server_side_blocks() {
 			if ( $mode === 'parallax' ) {
 				// Parallax mode: 3 layers with data-speed attributes.
 				$layers = array(
-					array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background' ),
-					array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle' ),
-					array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground' ),
+					array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background',  'z' => intval( $attrs['bgZIndex'] ?? 0 ) ),
+					array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle',     'z' => intval( $attrs['midZIndex'] ?? 1 ) ),
+					array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground', 'z' => intval( $attrs['fgZIndex'] ?? 2 ) ),
 				);
 				$parallax_dir = $attrs['parallaxDirection'] ?? 'down';
 				if ( ! in_array( $parallax_dir, array( 'down', 'up', 'left', 'right' ), true ) ) {
 					$parallax_dir = 'down';
 				}
+				// Scrim z-index: midpoint between top image layer and content.
+				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
+				$top_image_z = max( $layers[0]['z'], $layers[1]['z'], $layers[2]['z'] );
+				$scrim_z = (int) floor( ( $top_image_z + $content_z ) / 2 );
 				?>
 				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php foreach ( $layers as $layer ) : ?>
 						<?php if ( ! empty( $layer['url'] ) ) : ?>
 							<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
 								data-speed="<?php echo esc_attr( $layer['speed'] ); ?>"
-								style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>);"
+								style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>); z-index: <?php echo esc_attr( $layer['z'] ); ?>;"
 								aria-hidden="true"></div>
 						<?php endif; ?>
 					<?php endforeach; ?>
-					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
-					<div class="wrap rcmi-parallax-inner">
+					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
+					<div class="wrap rcmi-parallax-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
 							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
 							<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
@@ -932,17 +940,22 @@ function rcmi_register_server_side_blocks() {
 				<?php
 			} else {
 				// Static mode: single background image (like the old hero block).
+				$bg_z      = intval( $attrs['bgZIndex'] ?? 0 );
+				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
+				$scrim_z   = (int) floor( ( $bg_z + $content_z ) / 2 );
+
 				$media_style = '';
 				if ( ! empty( $attrs['bgImageUrl'] ) ) {
 					$media_style = 'background-image: url(' . esc_url( $attrs['bgImageUrl'] ) . '); background-size: cover; background-position: center;';
 				} else {
 					$media_style = 'background: #f8f5ee;';
 				}
+				$media_style .= ' z-index: ' . $bg_z . ';';
 				?>
 				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
-					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
-					<div class="wrap hero-inner">
+					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
+					<div class="wrap hero-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="hero-grid">
 							<div class="hero-copy" style="<?php echo esc_attr( $copy_style ); ?>">
 								<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
