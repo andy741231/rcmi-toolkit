@@ -1262,10 +1262,11 @@
 			// Content layer speed (text + button as 4th parallax layer)
 			contentSpeed: { type: 'number', default: 0.1 },
 			// Layer z-index (stacking order). Lower = further back.
-			// Defaults match the original CSS: bg=0, mid=1, fg=2, content=4.
+			// Defaults match the original CSS: bg=0, mid=1, fg=2, scrim=3, content=4.
 			bgZIndex:     { type: 'number', default: 0 },
 			midZIndex:    { type: 'number', default: 1 },
 			fgZIndex:     { type: 'number', default: 2 },
+			scrimZIndex:  { type: 'number', default: 3 },
 			contentZIndex:{ type: 'number', default: 4 },
 			// Parallax direction: 'down', 'up', 'left', 'right'
 			parallaxDirection: { type: 'string', default: 'down' },
@@ -1536,10 +1537,9 @@
 				);
 			}
 
-			// Scrim overlay preview (z-index = midpoint between top image layer and content).
-			var scrimZ = Math.floor( ( Math.max( attrs.bgZIndex, attrs.midZIndex, attrs.fgZIndex ) + attrs.contentZIndex ) / 2 );
+			// Scrim overlay preview (z-index from scrimZIndex attribute).
 			previewChildren.push(
-				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient, zIndex: scrimZ } } )
+				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient, zIndex: attrs.scrimZIndex } } )
 			);
 
 			// Content preview.

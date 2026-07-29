@@ -948,7 +948,7 @@ function rcmi_register_server_side_blocks() {
 				// Static mode: single background image (like the old hero block).
 				$bg_z      = intval( $attrs['bgZIndex'] ?? 0 );
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
-				$scrim_z   = (int) floor( ( $bg_z + $content_z ) / 2 );
+				$scrim_z   = intval( $attrs['scrimZIndex'] ?? 3 );
 
 				$media_style = '';
 				if ( ! empty( $attrs['bgImageUrl'] ) ) {
