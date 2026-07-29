@@ -86,25 +86,26 @@ function rcmi_toolkit_build_gradient( $stops, $type = 'linear', $angle = 90 ) {
 }
 
 // ============================================================================
-// GitHub-based auto-update system
-// Checks for new GitHub releases and surfaces them in WP Admin → Plugins
-// as native "Update now" links. No third-party libraries required.
+// GitHub-based auto-update system (commit-based, no tags required)
+// Checks the latest commit on the main branch and surfaces updates in
+// WP Admin → Plugins as native "Update now" links. No third-party libs.
 // ============================================================================
 
 /**
- * Fetch the latest release info from the GitHub API.
+ * Fetch the latest commit info from the GitHub API.
  * Cached for 6 hours in a transient to avoid rate-limiting.
  *
- * @return array|false Release data or false on failure.
+ * @return array|false Commit data or false on failure.
  */
-function rcmi_toolkit_get_github_release() {
-	$cache = get_transient( 'rcmi_toolkit_github_release' );
+function rcmi_toolkit_get_github_commit() {
+	$cache = get_transient( 'rcmi_toolkit_github_commit' );
 	if ( false !== $cache ) {
 		return $cache;
 	}
 
+	// Fetch the latest commit on the main branch.
 	$url = sprintf(
-		'https://api.github.com/repos/%s/%s/releases/latest',
+		'https://api.github.com/repos/%s/%s/commits/main',
 		RCMI_TOOLKIT_GITHUB_USER,
 		RCMI_TOOLKIT_GITHUB_REPO
 	);
@@ -115,48 +116,67 @@ function rcmi_toolkit_get_github_release() {
 	) );
 
 	if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-		set_transient( 'rcmi_toolkit_github_release', false, 30 * MINUTE_IN_SECONDS );
+		set_transient( 'rcmi_toolkit_github_commit', false, 30 * MINUTE_IN_SECONDS );
 		return false;
 	}
 
 	$body = json_decode( wp_remote_retrieve_body( $response ), true );
-	if ( empty( $body['tag_name'] ) ) {
-		set_transient( 'rcmi_toolkit_github_release', false, 30 * MINUTE_IN_SECONDS );
+	if ( empty( $body['sha'] ) ) {
+		set_transient( 'rcmi_toolkit_github_commit', false, 30 * MINUTE_IN_SECONDS );
 		return false;
 	}
 
-	// Normalize version: strip leading "v" from tags like "v1.1.0".
-	$version = ltrim( $body['tag_name'], 'v' );
+	$sha       = $body['sha'];
+	$short_sha = substr( $sha, 0, 7 );
+	$commit    = $body['commit'] ?? array();
+	$message   = $commit['message'] ?? '';
+	$date      = $commit['committer']['date'] ?? '';
+	$html_url  = $body['html_url'] ?? '';
 
-	// Find the ZIP asset URL. Prefer uploaded assets; fall back to the
-	// GitHub-generated source ZIP (zipball_url).
-	$download_url = '';
-	if ( ! empty( $body['assets'] ) ) {
-		foreach ( $body['assets'] as $asset ) {
-			if ( ! empty( $asset['browser_download_url'] ) ) {
-				$download_url = $asset['browser_download_url'];
-				break;
-			}
-		}
-	}
-	if ( empty( $download_url ) ) {
-		$download_url = $body['zipball_url'] ?? '';
-	}
-
-	$release = array(
-		'version'       => $version,
-		'download_url'  => $download_url,
-		'release_url'   => $body['html_url'] ?? '',
-		'release_notes' => $body['body'] ?? '',
-		'date'          => $body['published_at'] ?? '',
+	// Download URL: codeload ZIP of the main branch at this commit.
+	// Using the SHA ensures we download the exact version we checked.
+	$download_url = sprintf(
+		'https://codeload.github.com/%s/%s/zip/refs/heads/main',
+		RCMI_TOOLKIT_GITHUB_USER,
+		RCMI_TOOLKIT_GITHUB_REPO
 	);
 
-	set_transient( 'rcmi_toolkit_github_release', $release, 6 * HOUR_IN_SECONDS );
-	return $release;
+	$data = array(
+		'sha'          => $sha,
+		'short_sha'    => $short_sha,
+		'message'      => $message,
+		'date'         => $date,
+		'html_url'     => $html_url,
+		'download_url' => $download_url,
+	);
+
+	set_transient( 'rcmi_toolkit_github_commit', $data, 6 * HOUR_IN_SECONDS );
+	return $data;
+}
+
+/**
+ * Get the commit SHA that is currently installed.
+ *
+ * Stored as a WP option, updated after each successful upgrade.
+ * Falls back to RCMI_TOOLKIT_VERSION for backward compatibility.
+ *
+ * @return string Installed commit SHA or version string.
+ */
+function rcmi_toolkit_get_installed_sha() {
+	$sha = get_option( 'rcmi_toolkit_installed_sha' );
+	if ( ! empty( $sha ) ) {
+		return $sha;
+	}
+	// Backward compat: if no SHA stored, use the plugin version.
+	// This ensures existing installs get an update offer on first check.
+	return RCMI_TOOLKIT_VERSION;
 }
 
 /**
  * Inject update data into the WP update transient.
+ *
+ * Compares the installed commit SHA against the latest GitHub commit.
+ * If they differ, offers an update.
  *
  * @param object $transient The update_plugins transient.
  * @return object
@@ -166,13 +186,15 @@ function rcmi_toolkit_check_for_updates( $transient ) {
 		return $transient;
 	}
 
-	$release = rcmi_toolkit_get_github_release();
-	if ( ! $release ) {
+	$commit = rcmi_toolkit_get_github_commit();
+	if ( ! $commit ) {
 		return $transient;
 	}
 
-	// Only offer an update if the GitHub version is newer.
-	if ( version_compare( $release['version'], RCMI_TOOLKIT_VERSION, '<=' ) ) {
+	$installed_sha = rcmi_toolkit_get_installed_sha();
+
+	// Only offer an update if the remote SHA differs from what's installed.
+	if ( $commit['sha'] === $installed_sha ) {
 		return $transient;
 	}
 
@@ -181,9 +203,9 @@ function rcmi_toolkit_check_for_updates( $transient ) {
 	$update = (object) array(
 		'slug'        => dirname( $plugin_slug ),
 		'plugin'      => $plugin_slug,
-		'new_version' => $release['version'],
-		'url'         => $release['release_url'],
-		'package'     => $release['download_url'],
+		'new_version' => $commit['short_sha'],
+		'url'         => $commit['html_url'],
+		'package'     => $commit['download_url'],
 		'tested'      => '7.0',
 		'icons'       => array(),
 		'banners'     => array(),
@@ -196,7 +218,7 @@ function rcmi_toolkit_check_for_updates( $transient ) {
 add_filter( 'pre_set_site_transient_update_plugins', 'rcmi_toolkit_check_for_updates' );
 
 /**
- * Populate the "View details" popup with GitHub release info.
+ * Populate the "View details" popup with GitHub commit info.
  *
  * @param false|object|array $result  The result object or array.
  * @param string             $action  The plugins_api action.
@@ -211,24 +233,28 @@ function rcmi_toolkit_plugins_api_info( $result, $action, $args ) {
 		return $result;
 	}
 
-	$release = rcmi_toolkit_get_github_release();
-	if ( ! $release ) {
+	$commit = rcmi_toolkit_get_github_commit();
+	if ( ! $commit ) {
 		return $result;
 	}
+
+	// Build a readable changelog from the commit message.
+	$changelog = $commit['message'] ?: 'See GitHub commit history for details.';
+	$changelog = wp_kses_post( nl2br( esc_html( $changelog ) ) );
 
 	return (object) array(
 		'name'          => 'RCMI Toolkit',
 		'slug'          => 'rcmi-toolkit',
-		'version'       => $release['version'],
+		'version'       => $commit['short_sha'],
 		'author'        => 'RCMI Team',
-		'homepage'      => $release['release_url'],
+		'homepage'      => $commit['html_url'],
 		'short_description' => 'Custom Gutenberg blocks and tools for the RCMI theme.',
 		'sections'      => array(
-			'description' => 'Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, and Spectra integration.',
-			'changelog'   => $release['release_notes'] ?: 'See GitHub releases for changelog.',
+			'description' => 'Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, quote block, CTA band, and Spectra integration.',
+			'changelog'   => $changelog,
 		),
-		'last_updated'  => $release['date'],
-		'download_link' => $release['download_url'],
+		'last_updated'  => $commit['date'],
+		'download_link' => $commit['download_url'],
 	);
 }
 add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
@@ -237,6 +263,8 @@ add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
  * Post-install cleanup: rename the GitHub ZIP's top-level folder
  * (which is "rcmi-toolkit-<hash>" for source ZIPs or the asset name)
  * back to "rcmi-toolkit" so WordPress doesn't end up with two folders.
+ * Also records the installed commit SHA so we know what version is
+ * currently running.
  *
  * @param bool   $response    Install response.
  * @param array  $hook_extra  Extra arguments.
@@ -254,15 +282,23 @@ function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
 	$expected = 'rcmi-toolkit';
 	$actual   = basename( $result['destination'] );
 
-	if ( $expected === $actual ) {
-		return $result;
+	if ( $expected !== $actual ) {
+		$new_destination = dirname( $result['destination'] ) . '/' . $expected;
+		if ( rename( $result['destination'], $new_destination ) ) {
+			$result['destination'] = $new_destination;
+			$result['destination_name'] = $expected;
+		}
 	}
 
-	$new_destination = dirname( $result['destination'] ) . '/' . $expected;
-	if ( rename( $result['destination'], $new_destination ) ) {
-		$result['destination'] = $new_destination;
-		$result['destination_name'] = $expected;
+	// Record the commit SHA we just installed so we don't re-offer the
+	// same update. The SHA is fetched from GitHub (cached transient).
+	$commit = rcmi_toolkit_get_github_commit();
+	if ( $commit && ! empty( $commit['sha'] ) ) {
+		update_option( 'rcmi_toolkit_installed_sha', $commit['sha'] );
 	}
+
+	// Clear the commit cache so the next check fetches fresh data.
+	delete_transient( 'rcmi_toolkit_github_commit' );
 
 	return $result;
 }
@@ -275,14 +311,14 @@ add_filter( 'upgrader_post_install', 'rcmi_toolkit_post_install_rename', 10, 3 )
  */
 function rcmi_toolkit_maybe_refresh_release_cache() {
 	if ( isset( $_GET['rcmi_toolkit_check_updates'] ) ) {
-		// Clear the cached release data so the next call hits GitHub.
-		delete_transient( 'rcmi_toolkit_github_release' );
+		// Clear the cached commit data so the next call hits GitHub.
+		delete_transient( 'rcmi_toolkit_github_commit' );
 
 		// Clear WordPress's own update transient so our filter runs again.
 		delete_site_transient( 'update_plugins' );
 
-		// Re-fetch the release and re-populate the update transient.
-		rcmi_toolkit_get_github_release();
+		// Re-fetch the commit and re-populate the update transient.
+		rcmi_toolkit_get_github_commit();
 
 		// Redirect back to the plugins page without the query arg,
 		// so a refresh doesn't re-trigger the check.
