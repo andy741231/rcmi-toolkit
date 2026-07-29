@@ -39,6 +39,53 @@
 	];
 
 	// ============================================================
+	// Compact color selector: a small swatch button that opens a
+	// dropdown with UH brand color swatches + custom color picker.
+	// Saves vertical space vs. the full inline ColorPalette.
+	// ============================================================
+	function renderColorSelector( label, value, onChange ) {
+		return el( 'div', { style: { marginBottom: '12px' } },
+			el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', fontSize: '11px' } }, label ),
+			el( Dropdown, {
+				renderToggle: function ( ref ) {
+					return el( wp.components.Button, {
+						onClick: ref.onToggle,
+						'aria-expanded': ref.isOpen,
+						variant: 'secondary',
+						style: { width: '100%', justifyContent: 'flex-start', padding: '4px 8px', height: '28px' }
+					},
+						el( 'span', {
+							style: {
+								display: 'inline-block', width: '16px', height: '16px',
+								borderRadius: '50%', marginRight: '8px',
+								background: value || 'transparent',
+								border: value ? '1px solid #ccc' : '1px dashed #ccc',
+								verticalAlign: 'middle'
+							}
+						} ),
+						el( 'span', { style: { fontSize: '12px', verticalAlign: 'middle' } },
+							value ? value : __( 'Select color', 'rcmi-toolkit' )
+						)
+					);
+				},
+				renderContent: function () {
+					return el( 'div', { style: { padding: '8px', width: '220px' } },
+						el( ColorPalette, {
+							value: value,
+							colors: UH_COLORS,
+							onChange: function ( color ) {
+								onChange( color || '' );
+							},
+							disableCustomColors: false,
+							clearable: true
+						} )
+					);
+				}
+			} )
+		);
+	}
+
+	// ============================================================
 	// Reusable multi-stop gradient picker.
 	// Builds inspector controls for up to 6 color stops with
 	// color, opacity, and position, plus type (linear/radial)
@@ -1077,38 +1124,10 @@
 					min: 0, max: 800, step: 10,
 					help: __( 'Fixed height for all tab panels. Set to 0 for auto height.', 'rcmi-toolkit' )
 				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px' } }, __( 'Inactive Button Background', 'rcmi-toolkit' ) ),
-				el( ColorPalette, {
-					value: attrs.tabBtnBgColor,
-					colors: UH_COLORS,
-					onChange: function ( v ) { setAttributes( { tabBtnBgColor: v || '' } ); },
-					disableCustomColors: false,
-					clearable: true
-				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Inactive Button Text Color', 'rcmi-toolkit' ) ),
-				el( ColorPalette, {
-					value: attrs.tabBtnTextColor,
-					colors: UH_COLORS,
-					onChange: function ( v ) { setAttributes( { tabBtnTextColor: v || '' } ); },
-					disableCustomColors: false,
-					clearable: true
-				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '16px' } }, __( 'Active Button Background', 'rcmi-toolkit' ) ),
-				el( ColorPalette, {
-					value: attrs.tabBtnActiveBgColor,
-					colors: UH_COLORS,
-					onChange: function ( v ) { setAttributes( { tabBtnActiveBgColor: v || '' } ); },
-					disableCustomColors: false,
-					clearable: true
-				} ),
-				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Active Button Text Color', 'rcmi-toolkit' ) ),
-				el( ColorPalette, {
-					value: attrs.tabBtnActiveTextColor,
-					colors: UH_COLORS,
-					onChange: function ( v ) { setAttributes( { tabBtnActiveTextColor: v || '' } ); },
-					disableCustomColors: false,
-					clearable: true
-				} )
+				renderColorSelector( __( 'Inactive Button Background', 'rcmi-toolkit' ), attrs.tabBtnBgColor, function ( v ) { setAttributes( { tabBtnBgColor: v } ); } ),
+				renderColorSelector( __( 'Inactive Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnTextColor, function ( v ) { setAttributes( { tabBtnTextColor: v } ); } ),
+				renderColorSelector( __( 'Active Button Background', 'rcmi-toolkit' ), attrs.tabBtnActiveBgColor, function ( v ) { setAttributes( { tabBtnActiveBgColor: v } ); } ),
+				renderColorSelector( __( 'Active Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnActiveTextColor, function ( v ) { setAttributes( { tabBtnActiveTextColor: v } ); } )
 			);
 
 			// Build inspector controls for each tab.
