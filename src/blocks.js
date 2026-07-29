@@ -796,6 +796,7 @@
 				text: true,      // Enables text-color format button in RichText toolbar
 				background: false,
 				gradient: false,
+				link: false,     // Don't color <a> elements (button keeps its own color)
 			},
 		},
 		attributes: {

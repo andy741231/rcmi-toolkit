@@ -695,6 +695,7 @@ function rcmi_register_server_side_blocks() {
 				'text'       => true,
 				'background' => false,
 				'gradient'   => false,
+				'link'       => false,
 			),
 		),
 		'attributes' => array(
@@ -742,6 +743,19 @@ function rcmi_register_server_side_blocks() {
 			$align = $attrs['contentAlign'] ?? 'left';
 			$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
 
+			// Build text color classes/style from block supports (supports.color.text).
+			// WordPress stores preset colors as a slug in textColor, custom colors
+			// in style.color.text. We need to manually add the classes since we
+			// use a custom render callback (not get_block_wrapper_attributes).
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
 			// Alignment is handled by the rcmi-align-* CSS classes on the section.
 			$copy_style = '';
 
@@ -759,7 +773,7 @@ function rcmi_register_server_side_blocks() {
 					$parallax_dir = 'down';
 				}
 				?>
-				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;">
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php foreach ( $layers as $layer ) : ?>
 						<?php if ( ! empty( $layer['url'] ) ) : ?>
 							<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
@@ -790,7 +804,7 @@ function rcmi_register_server_side_blocks() {
 					$media_style = 'background: #f8f5ee;';
 				}
 				?>
-				<section class="hero -tight <?php echo esc_attr( $align_class ); ?>" style="min-height: <?php echo $height; ?>vh;">
+				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
 					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
 					<div class="wrap hero-inner">
