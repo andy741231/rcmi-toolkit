@@ -368,13 +368,6 @@ function rcmi_block_defaults( $block_name ) {
 			'btn1Text' => 'Request Support', 'btn1Link' => '/#start', 'btn1Style' => 'btn-outline',
 			'btn2Text' => 'Explore Research', 'btn2Link' => '/cores/#investigator', 'btn2Style' => 'btn-primary',
 		),
-		'rcmi/card-grid' => array(
-			'heading' => 'Section heading goes <strong>here</strong>', 'note' => 'A short description of what this section covers and why it matters.',
-			'card1Tag' => 'Tag', 'card1Title' => 'Card Title', 'card1Desc' => 'Card description goes here. Keep it concise and actionable.',
-			'card2Tag' => 'Tag', 'card2Title' => 'Card Title', 'card2Desc' => 'Card description goes here. Keep it concise and actionable.',
-			'card3Tag' => 'Tag', 'card3Title' => 'Card Title', 'card3Desc' => 'Card description goes here. Keep it concise and actionable.',
-			'card4Tag' => 'Tag', 'card4Title' => 'Card Title', 'card4Desc' => 'Card description goes here. Keep it concise and actionable.',
-		),
 		'rcmi/impact-stats-block' => array(
 			'stat1Value' => '62', 'stat1Label' => 'Active Investigators', 'stat1Desc' => 'Researchers advancing chronic disease science across Houston and beyond.',
 			'stat2Value' => '38', 'stat2Label' => 'Community Partnerships', 'stat2Desc' => 'Trusted relationships helping shape relevant, equitable research.',
@@ -479,43 +472,6 @@ function rcmi_register_server_side_blocks() {
 							<a href="<?php echo esc_url( $attrs['btn2Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn2Style'] ); ?>"><?php echo esc_html( $attrs['btn2Text'] ); ?></a>
 						</div>
 					</div>
-				</div>
-			</section>
-			<?php
-			return ob_get_clean();
-		},
-	) );
-
-	// rcmi/card-grid — section with heading, note, 4 cards.
-	register_block_type( 'rcmi/card-grid', array(
-		'attributes' => array(
-			'heading' => array( 'type' => 'string', 'default' => '' ),
-			'note'    => array( 'type' => 'string', 'default' => '' ),
-			'card1Tag' => array( 'type' => 'string', 'default' => '' ), 'card1Title' => array( 'type' => 'string', 'default' => '' ), 'card1Desc' => array( 'type' => 'string', 'default' => '' ),
-			'card2Tag' => array( 'type' => 'string', 'default' => '' ), 'card2Title' => array( 'type' => 'string', 'default' => '' ), 'card2Desc' => array( 'type' => 'string', 'default' => '' ),
-			'card3Tag' => array( 'type' => 'string', 'default' => '' ), 'card3Title' => array( 'type' => 'string', 'default' => '' ), 'card3Desc' => array( 'type' => 'string', 'default' => '' ),
-			'card4Tag' => array( 'type' => 'string', 'default' => '' ), 'card4Title' => array( 'type' => 'string', 'default' => '' ), 'card4Desc' => array( 'type' => 'string', 'default' => '' ),
-		),
-		'render_callback' => function ( $attrs ) {
-			$attrs = rcmi_apply_block_defaults( 'rcmi/card-grid', $attrs );
-			$cards = '';
-			for ( $i = 1; $i <= 4; $i++ ) {
-				$cards .= sprintf(
-					'<div class="card"><span class="tag">%s</span><h4>%s</h4><p>%s</p></div>',
-					esc_html( $attrs[ "card{$i}Tag" ] ),
-					esc_html( $attrs[ "card{$i}Title" ] ),
-					esc_html( $attrs[ "card{$i}Desc" ] )
-				);
-			}
-			ob_start();
-			?>
-			<section>
-				<div class="wrap">
-					<div class="section-head">
-						<div><h2><?php echo wp_kses_post( $attrs['heading'] ); ?></h2></div>
-						<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
-					</div>
-					<div class="card-grid"><?php echo $cards; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 				</div>
 			</section>
 			<?php
@@ -1033,7 +989,6 @@ function rcmi_ensure_spectra_patterns() {
 		'hero'           => 'hero.php',
 		'impact-stats'   => 'impact-stats.php',
 		'impact-strip'   => 'impact-strip.php',
-		'card-grid'      => 'card-grid.php',
 		'quote-block'    => 'quote-block.php',
 		'role-selector'  => 'role-selector.php',
 		'cta-band'       => 'cta-band.php',
