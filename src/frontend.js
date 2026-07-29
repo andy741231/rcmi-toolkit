@@ -39,10 +39,14 @@
 		// Panels overlap via position:absolute during the animation.
 		var gsapTransitions = {
 			fade: function ( oldPanel, newPanel ) {
+				// Cross-fade: new panel fades in ON TOP of old panel.
+				// Old panel stays at full opacity underneath so its ::before
+				// gradient and .rcmi-tab-scrim overlay don't double up at the
+				// midpoint (which causes a visible flash/jitter).
 				return gsap.timeline()
-					.set( newPanel, { opacity: 0, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
-					.to( oldPanel, { opacity: 0, duration: 0.4, ease: 'power2.inOut' }, 0 )
-					.to( newPanel, { opacity: 1, duration: 0.4, ease: 'power2.inOut' }, 0 );
+					.set( newPanel, { opacity: 0, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 } )
+					.set( oldPanel, { zIndex: 1 } )
+					.to( newPanel, { opacity: 1, duration: 0.4, ease: 'power2.inOut' } );
 			},
 			slide: function ( oldPanel, newPanel ) {
 				return gsap.timeline()
@@ -65,10 +69,12 @@
 			},
 			reveal: function ( oldPanel, newPanel ) {
 				// Zoom-pan reveal: new panel scales up from 1.08 → 1 while fading in.
+				// Old panel stays in place underneath (no fade-out) to avoid
+				// double-overlay jitter at the midpoint.
 				return gsap.timeline()
-					.set( newPanel, { opacity: 0, scale: 1.08, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, transformOrigin: 'center center' } )
-					.to( oldPanel, { opacity: 0, scale: 0.96, duration: 0.5, ease: 'power2.inOut', transformOrigin: 'center center' }, 0 )
-					.to( newPanel, { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' }, 0 );
+					.set( newPanel, { opacity: 0, scale: 1.08, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, transformOrigin: 'center center', zIndex: 2 } )
+					.set( oldPanel, { zIndex: 1 } )
+					.to( newPanel, { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' } );
 			}
 		};
 
