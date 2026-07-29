@@ -203,7 +203,7 @@
 							value: attrs.quote,
 							onChange: function ( v ) { setAttributes( { quote: v } ); },
 							placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 						} ),
 						el( 'cite', null,
 							el( RichText, {
@@ -211,14 +211,14 @@
 								value: attrs.citeName,
 								onChange: function ( v ) { setAttributes( { citeName: v } ); },
 								placeholder: __( 'Citation name…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
 							} ),
 							el( RichText, {
 								tagName: 'span',
 								value: attrs.citeRole,
 								onChange: function ( v ) { setAttributes( { citeRole: v } ); },
 								placeholder: __( 'Citation role…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
 							} )
 						)
 					),
@@ -295,14 +295,14 @@
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 								} ),
 								el( RichText, {
 									tagName: 'p',
 									value: attrs.text,
 									onChange: function ( v ) { setAttributes( { text: v } ); },
 									placeholder: __( 'Text…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 								} )
 							),
 							el( 'div', { className: 'cta-actions' },
@@ -341,7 +341,7 @@
 	registerBlockType( 'rcmi/impact-stats-block', {
 		apiVersion: 3,
 		title: __( 'RCMI Impact Stats (Editable)', 'rcmi-toolkit' ),
-		description: __( 'Four-stat grid with large numbers, labels, descriptions, and a CTA button.', 'rcmi-toolkit' ),
+		description: __( '1–6 stat grid with large numbers, labels, descriptions, and a CTA button.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'chart-bar',
 		supports: {
@@ -355,6 +355,7 @@
 			},
 		},
 		attributes: {
+			statCount:  { type: 'number', default: 4 },
 			stat1Value: { type: 'string', default: '62' },
 			stat1Label: { type: 'string', default: 'Active Investigators' },
 			stat1Desc:  { type: 'string', default: 'Researchers advancing chronic disease science across Houston and beyond.' },
@@ -367,6 +368,12 @@
 			stat4Value: { type: 'string', default: '24' },
 			stat4Label: { type: 'string', default: 'Active Research Projects' },
 			stat4Desc:  { type: 'string', default: 'Studies translating strong ideas into meaningful real-world impact.' },
+			stat5Value: { type: 'string', default: '' },
+			stat5Label: { type: 'string', default: '' },
+			stat5Desc:  { type: 'string', default: '' },
+			stat6Value: { type: 'string', default: '' },
+			stat6Label: { type: 'string', default: '' },
+			stat6Desc:  { type: 'string', default: '' },
 			ctaText:    { type: 'string', default: 'Learn More' },
 			ctaLink:    { type: 'string', default: '/dashboard/' }
 		},
@@ -376,25 +383,44 @@
 			var statEl = function ( n ) {
 				var prefix = 'stat' + n;
 				return el( 'article', { className: 'impact-stat' },
-					el( 'strong', null, attrs[prefix + 'Value'] ),
+					el( RichText, {
+						tagName: 'strong',
+						value: attrs[prefix + 'Value'],
+						onChange: function ( v ) { var u = {}; u[prefix + 'Value'] = v; setAttributes( u ); },
+						placeholder: __( 'Value…', 'rcmi-toolkit' ),
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
+					} ),
 					el( RichText, {
 						tagName: 'span',
 						value: attrs[prefix + 'Label'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Label'] = v; setAttributes( u ); },
 						placeholder: __( 'Label…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 					} )
 				);
 			};
+			var stats = [];
+			for ( var i = 1; i <= ( attrs.statCount || 4 ); i++ ) {
+				stats.push( statEl( i ) );
+			}
 			return el( Fragment, null,
 				el( InspectorControls, null,
+					el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: true },
+						el( RangeControl, {
+							label: __( 'Number of Stats', 'rcmi-toolkit' ),
+							value: attrs.statCount || 4,
+							min: 1,
+							max: 6,
+							onChange: function ( v ) { setAttributes( { statCount: v } ); }
+						} )
+					),
 					el( PanelBody, { title: __( 'CTA Button', 'rcmi-toolkit' ), initialOpen: false },
 						el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.ctaText, onChange: function ( v ) { setAttributes( { ctaText: v } ); } } ),
 						el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.ctaLink, onChange: function ( v ) { setAttributes( { ctaLink: v } ); } } )
@@ -402,8 +428,8 @@
 				),
 				el( 'div', blockProps,
 					el( 'div', { className: 'wrap impact-stats-wrap' },
-						el( 'div', { className: 'impact-stats' },
-							statEl( 1 ), statEl( 2 ), statEl( 3 ), statEl( 4 ),
+						el( 'div', { className: 'impact-stats', style: { gridTemplateColumns: 'repeat(' + ( attrs.statCount || 4 ) + ', 1fr)' } },
+							stats,
 							el( 'div', { className: 'impact-stats-cta' },
 								el( 'a', { href: attrs.ctaLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.ctaText + ' \u2192' )
 							)
@@ -412,27 +438,9 @@
 				)
 			);
 		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var blockProps = useBlockProps.save();
-			var statEl = function ( n ) {
-				var prefix = 'stat' + n;
-				return el( 'article', { className: 'impact-stat' },
-					el( 'strong', null, attrs[prefix + 'Value'] ),
-					el( 'span', null, attrs[prefix + 'Label'] ),
-					el( 'p', null, attrs[prefix + 'Desc'] )
-				);
-			};
-			return el( 'div', blockProps,
-				el( 'div', { className: 'wrap impact-stats-wrap' },
-					el( 'div', { className: 'impact-stats' },
-						statEl( 1 ), statEl( 2 ), statEl( 3 ), statEl( 4 ),
-						el( 'div', { className: 'impact-stats-cta' },
-							el( 'a', { href: attrs.ctaLink, className: 'btn btn-primary' }, attrs.ctaText + ' \u2192' )
-						)
-					)
-				)
-			);
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
 		}
 	} );
 
@@ -505,14 +513,14 @@
 						value: attrs[prefix + 'Title'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); },
 						placeholder: __( 'Role title…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 					} ),
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
@@ -561,14 +569,14 @@
 									value: attrs.eyebrow,
 									onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align' ]
 								} ),
 								el( RichText, {
 									tagName: 'h2',
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 								} )
 							),
 							el( RichText, {
@@ -577,7 +585,7 @@
 								value: attrs.note,
 								onChange: function ( v ) { setAttributes( { note: v } ); },
 								placeholder: __( 'Note…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 							} )
 						),
 						el( 'div', { className: 'role-grid' },
@@ -634,7 +642,16 @@
 		description: __( 'Interactive tabbed section with five tabs, each showing a section head and card grid.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'table-row-after',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+		},
 		attributes: {
 			tabs: {
 				type: 'array',
@@ -1148,7 +1165,7 @@
 							value: attrs.headline,
 							onChange: function ( v ) { setAttributes( { headline: v } ); },
 							placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ],
 							style: { margin: '0 0 10px' }
 						} ),
 						el( RichText, {
@@ -1157,7 +1174,7 @@
 							value: attrs.eyebrow,
 							onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 							placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ],
 							style: { display: 'block', margin: '0 0 12px' }
 						} ),
 						el( RichText, {
@@ -1166,7 +1183,7 @@
 							value: attrs.lede,
 							onChange: function ( v ) { setAttributes( { lede: v } ); },
 							placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align' ]
 						} ),
 						el( 'div', { className: 'hero-actions' },
 							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )

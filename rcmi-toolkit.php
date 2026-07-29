@@ -405,10 +405,13 @@ function rcmi_block_defaults( $block_name ) {
 			'btn2Text' => 'Explore Research', 'btn2Link' => '/cores/#investigator', 'btn2Style' => 'btn-primary',
 		),
 		'rcmi/impact-stats-block' => array(
+			'statCount' => 4,
 			'stat1Value' => '62', 'stat1Label' => 'Active Investigators', 'stat1Desc' => 'Researchers advancing chronic disease science across Houston and beyond.',
 			'stat2Value' => '38', 'stat2Label' => 'Community Partnerships', 'stat2Desc' => 'Trusted relationships helping shape relevant, equitable research.',
 			'stat3Value' => '19', 'stat3Label' => 'Counties Served', 'stat3Desc' => 'Research capacity and support reaching communities throughout the region.',
 			'stat4Value' => '24', 'stat4Label' => 'Active Research Projects', 'stat4Desc' => 'Studies translating strong ideas into meaningful real-world impact.',
+			'stat5Value' => '', 'stat5Label' => '', 'stat5Desc' => '',
+			'stat6Value' => '', 'stat6Label' => '', 'stat6Desc' => '',
 			'ctaText' => 'Learn More', 'ctaLink' => '/dashboard/',
 		),
 		'rcmi/role-selector-block' => array(
@@ -568,10 +571,13 @@ function rcmi_register_server_side_blocks() {
 			),
 		),
 		'attributes' => array(
+			'statCount'  => array( 'type' => 'number', 'default' => 4 ),
 			'stat1Value' => array( 'type' => 'string', 'default' => '' ), 'stat1Label' => array( 'type' => 'string', 'default' => '' ), 'stat1Desc' => array( 'type' => 'string', 'default' => '' ),
 			'stat2Value' => array( 'type' => 'string', 'default' => '' ), 'stat2Label' => array( 'type' => 'string', 'default' => '' ), 'stat2Desc' => array( 'type' => 'string', 'default' => '' ),
 			'stat3Value' => array( 'type' => 'string', 'default' => '' ), 'stat3Label' => array( 'type' => 'string', 'default' => '' ), 'stat3Desc' => array( 'type' => 'string', 'default' => '' ),
 			'stat4Value' => array( 'type' => 'string', 'default' => '' ), 'stat4Label' => array( 'type' => 'string', 'default' => '' ), 'stat4Desc' => array( 'type' => 'string', 'default' => '' ),
+			'stat5Value' => array( 'type' => 'string', 'default' => '' ), 'stat5Label' => array( 'type' => 'string', 'default' => '' ), 'stat5Desc' => array( 'type' => 'string', 'default' => '' ),
+			'stat6Value' => array( 'type' => 'string', 'default' => '' ), 'stat6Label' => array( 'type' => 'string', 'default' => '' ), 'stat6Desc' => array( 'type' => 'string', 'default' => '' ),
 			'ctaText'    => array( 'type' => 'string', 'default' => '' ),
 			'ctaLink'    => array( 'type' => 'string', 'default' => '' ),
 		),
@@ -588,11 +594,15 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
+			$stat_count = intval( $attrs['statCount'] ?? 4 );
+			if ( $stat_count < 1 ) { $stat_count = 1; }
+			if ( $stat_count > 6 ) { $stat_count = 6; }
+			$grid_style = 'grid-template-columns: repeat(' . $stat_count . ', 1fr);';
 			$stats = '';
-			for ( $i = 1; $i <= 4; $i++ ) {
+			for ( $i = 1; $i <= $stat_count; $i++ ) {
 				$stats .= sprintf(
 					'<article class="impact-stat"><strong>%s</strong><span>%s</span><p>%s</p></article>',
-					esc_html( $attrs[ "stat{$i}Value" ] ),
+					wp_kses_post( $attrs[ "stat{$i}Value" ] ?? '' ),
 					wp_kses_post( $attrs[ "stat{$i}Label" ] ?? '' ),
 					wp_kses_post( $attrs[ "stat{$i}Desc" ] ?? '' )
 				);
@@ -600,7 +610,7 @@ function rcmi_register_server_side_blocks() {
 			ob_start();
 			?>
 			<div class="wrap impact-stats-wrap<?php echo esc_attr( $color_class ); ?>" aria-label="RCMI impact statistics"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
-				<div class="impact-stats">
+				<div class="impact-stats" style="<?php echo esc_attr( $grid_style ); ?>">
 					<?php echo $stats; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="impact-stats-cta">
 						<a href="<?php echo esc_url( $attrs['ctaLink'] ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['ctaText'] ); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
@@ -701,6 +711,16 @@ function rcmi_register_server_side_blocks() {
 
 	// rcmi/impact-strip-block — interactive tabbed section with 5 tabs.
 	register_block_type( 'rcmi/impact-strip-block', array(
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+		),
 		'attributes' => array(
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
 		),
@@ -732,9 +752,9 @@ function rcmi_register_server_side_blocks() {
 				foreach ( ( $tab['cards'] ?? array() ) as $card ) {
 					$cards_html .= sprintf(
 						'<div class="card"><span class="tag">%s</span><h4>%s</h4><p>%s</p></div>',
-						esc_html( $card['tag'] ),
-						esc_html( $card['title'] ),
-						esc_html( $card['desc'] )
+						wp_kses_post( $card['tag'] ),
+						wp_kses_post( $card['title'] ),
+						wp_kses_post( $card['desc'] )
 					);
 				}
 				// Build per-tab scrim style from multi-stop gradient.
@@ -753,7 +773,7 @@ function rcmi_register_server_side_blocks() {
 					! empty( $tab['bgImageUrl'] ) ? 'background-image: url(' . esc_url( $tab['bgImageUrl'] ) . ');' : '',
 					esc_attr( $tab_scrim_style ),
 					wp_kses_post( $tab['heading'] ),
-					esc_html( $tab['note'] ),
+					wp_kses_post( $tab['note'] ),
 					$cards_html,
 					esc_url( $tab['btnLink'] ?? '#' ),
 					esc_html( $tab['btnText'] ?? 'View More' )
@@ -761,7 +781,17 @@ function rcmi_register_server_side_blocks() {
 			}
 			$panels .= '</div>';
 
-			return $strip . $panels;
+			// Text color support (preset slug or custom hex).
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
+			return '<div class="rcmi-impact-strip-wrapper' . esc_attr( $color_class ) . '"' . ( $color_style ? ' style="' . esc_attr( $color_style ) . '"' : '' ) . '>' . $strip . $panels . '</div>';
 		},
 	) );
 	// rcmi/parallax — hero block with static or parallax mode.
