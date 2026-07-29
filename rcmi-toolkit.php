@@ -794,25 +794,23 @@ function rcmi_register_server_side_blocks() {
 			$btn_text = sanitize_hex_color( $attrs['tabBtnTextColor'] ?? '' );
 			$btn_active_bg = sanitize_hex_color( $attrs['tabBtnActiveBgColor'] ?? '' );
 			$btn_active_text = sanitize_hex_color( $attrs['tabBtnActiveTextColor'] ?? '' );
-			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"><div class="impact-steps" role="tablist">';
+			// Pass colors as CSS custom properties on the wrapper so the
+			// .is-active class can override inline styles via CSS specificity.
+			$wrapper_vars = '';
+			if ( $btn_bg ) { $wrapper_vars .= ' --tab-btn-bg:' . $btn_bg . ';'; }
+			if ( $btn_text ) { $wrapper_vars .= ' --tab-btn-text:' . $btn_text . ';'; }
+			if ( $btn_active_bg ) { $wrapper_vars .= ' --tab-btn-active-bg:' . $btn_active_bg . ';'; }
+			if ( $btn_active_text ) { $wrapper_vars .= ' --tab-btn-active-text:' . $btn_active_text . ';'; }
+			$wrapper_style = $wrapper_vars ? ' style="' . esc_attr( $wrapper_vars ) . '"' : '';
+			$strip = '<section class="impact-overview" id="impact-strip" aria-label="How RCMI works"><div class="wrap"><div class="impact-strip"' . $wrapper_style . '><div class="impact-steps" role="tablist">';
 			foreach ( $tabs as $i => $tab ) {
 				$active = 0 === $i ? ' is-active' : '';
 				$selected = 0 === $i ? 'true' : 'false';
-				$is_active = 0 === $i;
-				$btn_style = '';
-				if ( $is_active ) {
-					if ( $btn_active_bg ) { $btn_style .= ' background-color:' . $btn_active_bg . ';'; }
-					if ( $btn_active_text ) { $btn_style .= ' color:' . $btn_active_text . ';'; }
-				} else {
-					if ( $btn_bg ) { $btn_style .= ' background-color:' . $btn_bg . ';'; }
-					if ( $btn_text ) { $btn_style .= ' color:' . $btn_text . ';'; }
-				}
 				$strip .= sprintf(
-					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s" style="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
+					'<button class="impact-step%s" role="tab" aria-selected="%s" data-tab="%s"><span class="impact-step-copy"><strong>%s</strong></span></button>',
 					esc_attr( $active ),
 					esc_attr( $selected ),
 					esc_attr( $tab['id'] ),
-					esc_attr( $btn_style ),
 					esc_html( $tab['label'] )
 				);
 			}

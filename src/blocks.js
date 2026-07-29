@@ -1373,24 +1373,23 @@
 
 			// Build editor preview — show tab buttons + active tab content.
 			var activeTabData = tabs[ activeTabIndex ] || tabs[ 0 ] || {};
+			// Pass tab button colors as CSS custom properties on .impact-strip
+			// so the .is-active class can apply the correct colors via CSS.
+			var stripStyle = {};
+			if ( attrs.tabBtnBgColor ) { stripStyle['--tab-btn-bg'] = attrs.tabBtnBgColor; }
+			if ( attrs.tabBtnTextColor ) { stripStyle['--tab-btn-text'] = attrs.tabBtnTextColor; }
+			if ( attrs.tabBtnActiveBgColor ) { stripStyle['--tab-btn-active-bg'] = attrs.tabBtnActiveBgColor; }
+			if ( attrs.tabBtnActiveTextColor ) { stripStyle['--tab-btn-active-text'] = attrs.tabBtnActiveTextColor; }
 			return el( Fragment, null,
 				el( InspectorControls, null, [ transitionPanel, layoutPanel, tabsPanel ].concat( tabPanels ) ),
 				el( 'div', blockProps,
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
-							el( 'div', { className: 'impact-strip' },
+							el( 'div', { className: 'impact-strip', style: stripStyle },
 								el( 'div', { className: 'impact-steps', role: 'tablist' },
 									tabs.map( function ( tab, idx ) {
 										var isActive = idx === activeTabIndex;
-										var btnStyle = {};
-										if ( isActive ) {
-											if ( attrs.tabBtnActiveBgColor ) { btnStyle.backgroundColor = attrs.tabBtnActiveBgColor; }
-											if ( attrs.tabBtnActiveTextColor ) { btnStyle.color = attrs.tabBtnActiveTextColor; }
-										} else {
-											if ( attrs.tabBtnBgColor ) { btnStyle.backgroundColor = attrs.tabBtnBgColor; }
-											if ( attrs.tabBtnTextColor ) { btnStyle.color = attrs.tabBtnTextColor; }
-										}
-										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( isActive ? ' is-active' : '' ), role: 'tab', type: 'button', style: btnStyle, onClick: function () { setActiveTabIndex( idx ); } },
+										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( isActive ? ' is-active' : '' ), role: 'tab', type: 'button', onClick: function () { setActiveTabIndex( idx ); } },
 											el( 'span', { className: 'impact-step-copy' }, el( 'strong', null, tab.label ) )
 										);
 									} )
