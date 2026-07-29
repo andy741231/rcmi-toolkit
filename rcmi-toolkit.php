@@ -825,7 +825,7 @@ function rcmi_register_server_side_blocks() {
 				}
 				$panel_height = intval( $attrs['height'] ?? 0 );
 				if ( $panel_height > 0 ) {
-					$panel_style .= ' min-height:' . $panel_height . 'px;';
+					$panel_style .= ' height:' . $panel_height . 'px;';
 				}
 
 				$panels .= sprintf(

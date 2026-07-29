@@ -1210,7 +1210,7 @@
 						)
 					),
 					el( 'section', { className: 'tab-panel is-active', style: Object.assign(
-						{ minHeight: attrs.height ? attrs.height + 'px' : undefined },
+						{ height: attrs.height ? attrs.height + 'px' : undefined },
 						activeTabData.bgImageUrl ? { backgroundImage: 'url(' + activeTabData.bgImageUrl + ')' } : {}
 					) },
 						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( activeTabData.scrimStops, activeTabData.scrimType, activeTabData.scrimAngle ) } } ),
