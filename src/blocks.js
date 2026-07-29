@@ -208,6 +208,10 @@
 				step: 15
 			} ) : null,
 			// Live preview bar.
+			el( 'label', {
+				key: 'grad-preview-label',
+				style: { display: 'block', fontWeight: '600', marginBottom: '4px' }
+			}, __( 'Gradient preview', 'rcmi-toolkit' ) ),
 			el( 'div', {
 				key: 'grad-preview',
 				style: {
