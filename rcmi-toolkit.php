@@ -750,7 +750,7 @@ function rcmi_register_server_side_blocks() {
 			$tabs = ! empty( $attrs['tabs'] ) ? $attrs['tabs'] : $defaults['tabs'];
 
 			$transition = $attrs['transition'] ?? 'none';
-			if ( ! in_array( $transition, array( 'none', 'fade', 'slide', 'curtain' ), true ) ) {
+			if ( ! in_array( $transition, array( 'none', 'fade', 'slide', 'curtain', 'wipe', 'reveal' ), true ) ) {
 				$transition = 'none';
 			}
 
@@ -992,12 +992,21 @@ function rcmi_toolkit_frontend_assets() {
 	if ( is_admin() ) {
 		return;
 	}
+	$gsap_ver = file_exists( RCMI_TOOLKIT_PATH . 'assets/js/gsap.min.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'assets/js/gsap.min.js' ) : RCMI_TOOLKIT_VERSION;
+	wp_enqueue_script(
+		'gsap',
+		RCMI_TOOLKIT_URL . 'assets/js/gsap.min.js',
+		array(),
+		$gsap_ver,
+		true
+	);
+
 	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) : RCMI_TOOLKIT_VERSION;
 
 	wp_enqueue_script(
 		'rcmi-toolkit-frontend',
 		RCMI_TOOLKIT_URL . 'src/frontend.js',
-		array(),
+		array( 'gsap' ),
 		$ver,
 		true
 	);
@@ -1069,6 +1078,7 @@ add_filter( 'ast_block_templates_localize_vars', 'rcmi_spectra_fake_pro_status' 
 function rcmi_spectra_remove_free_vs_pro_menu() {
 	remove_submenu_page( 'spectra-blocks', 'spectra-blocks&path=free-vs-pro' );
 }
+add_action( 'admin_menu', 'rcmi_spectra_remove_free_vs_pro_menu', 999 );
 add_action( 'admin_menu', 'rcmi_spectra_remove_free_vs_pro_menu', 999 );
 
 // ============================================================================

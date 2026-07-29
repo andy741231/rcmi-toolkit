@@ -1032,11 +1032,13 @@
 						{ value: 'none',    label: __( 'None (instant switch)', 'rcmi-toolkit' ) },
 						{ value: 'fade',    label: __( 'Fade (ease in/out)', 'rcmi-toolkit' ) },
 						{ value: 'slide',   label: __( 'Slide (horizontal scroll)', 'rcmi-toolkit' ) },
-						{ value: 'curtain', label: __( 'Curtain (scroll in/out)', 'rcmi-toolkit' ) }
+						{ value: 'curtain', label: __( 'Curtain (vertical scroll)', 'rcmi-toolkit' ) },
+						{ value: 'wipe',    label: __( 'Wipe (clip-path reveal)', 'rcmi-toolkit' ) },
+						{ value: 'reveal',  label: __( 'Reveal (zoom + fade)', 'rcmi-toolkit' ) }
 					],
 					onChange: function ( v ) { setAttributes( { transition: v } ); }
 				} ),
-				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Animation played when switching between tabs. "Fade" cross-fades the old and new panel. "Slide" scrolls the new panel in horizontally. "Curtain" scrolls the new panel in vertically.', 'rcmi-toolkit' ) )
+				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Animation played when switching tabs. "Fade" cross-fades. "Slide" scrolls horizontally. "Curtain" scrolls vertically. "Wipe" reveals the new panel with a clip-path sweep. "Reveal" zooms the new panel in while fading.', 'rcmi-toolkit' ) )
 			);
 
 			// Build inspector controls for each tab.

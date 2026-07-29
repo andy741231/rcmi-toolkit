@@ -31,25 +31,76 @@
 
 	function bindTabs( tabs, panels, panelsContainer ) {
 		var isAnimating = false;
+		var hasGsap = typeof window.gsap !== 'undefined';
+		var reducedMotion = window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+
+		// GSAP-powered transition definitions.
+		// Each returns a GSAP timeline that animates from oldPanel to newPanel.
+		// Panels overlap via position:absolute during the animation.
+		var gsapTransitions = {
+			fade: function ( oldPanel, newPanel ) {
+				return gsap.timeline()
+					.set( newPanel, { opacity: 0, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
+					.to( oldPanel, { opacity: 0, duration: 0.4, ease: 'power2.inOut' }, 0 )
+					.to( newPanel, { opacity: 1, duration: 0.4, ease: 'power2.inOut' }, 0 );
+			},
+			slide: function ( oldPanel, newPanel ) {
+				return gsap.timeline()
+					.set( newPanel, { opacity: 1, xPercent: 100, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
+					.to( oldPanel, { opacity: 0, xPercent: -100, duration: 0.45, ease: 'power3.inOut' }, 0 )
+					.to( newPanel, { xPercent: 0, duration: 0.45, ease: 'power3.inOut' }, 0 );
+			},
+			curtain: function ( oldPanel, newPanel ) {
+				return gsap.timeline()
+					.set( newPanel, { opacity: 1, yPercent: 100, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
+					.to( oldPanel, { opacity: 0, yPercent: -100, duration: 0.45, ease: 'power3.inOut' }, 0 )
+					.to( newPanel, { yPercent: 0, duration: 0.45, ease: 'power3.inOut' }, 0 );
+			},
+			wipe: function ( oldPanel, newPanel ) {
+				// Clip-path wipe: new panel reveals left-to-right over the old one.
+				return gsap.timeline()
+					.set( newPanel, { opacity: 1, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, clipPath: 'inset(0 100% 0 0)' } )
+					.to( newPanel, { clipPath: 'inset(0 0% 0 0)', duration: 0.5, ease: 'power2.inOut' }, 0 )
+					.to( oldPanel, { opacity: 0.3, duration: 0.5, ease: 'power2.inOut' }, 0 );
+			},
+			reveal: function ( oldPanel, newPanel ) {
+				// Zoom-pan reveal: new panel scales up from 1.08 → 1 while fading in.
+				return gsap.timeline()
+					.set( newPanel, { opacity: 0, scale: 1.08, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, transformOrigin: 'center center' } )
+					.to( oldPanel, { opacity: 0, scale: 0.96, duration: 0.5, ease: 'power2.inOut', transformOrigin: 'center center' }, 0 )
+					.to( newPanel, { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' }, 0 );
+			}
+		};
+
+		function cleanup( oldPanel, newPanel ) {
+			if ( oldPanel ) {
+				gsap.set( oldPanel, { clearProps: 'all' } );
+				oldPanel.classList.remove( 'is-active' );
+			}
+			gsap.set( newPanel, { clearProps: 'all' } );
+			newPanel.classList.add( 'is-active' );
+			if ( panelsContainer ) {
+				panelsContainer.classList.remove( 'is-animating' );
+			}
+			isAnimating = false;
+		}
+
 		tabs.forEach( function ( tab ) {
 			tab.addEventListener( 'click', function () {
 				if ( isAnimating ) return;
 				var tabId = tab.getAttribute( 'data-tab' );
 
-				// Find the currently active panel.
 				var currentPanel = null;
 				panels.forEach( function ( p ) {
 					if ( p.classList.contains( 'is-active' ) ) { currentPanel = p; }
 				} );
 
-				// Find the target panel.
 				var targetPanel = null;
 				panels.forEach( function ( p ) {
 					if ( p.id === tabId ) { targetPanel = p; }
 				} );
 
 				if ( ! targetPanel || targetPanel === currentPanel ) {
-					// Just update tab states if no transition needed.
 					tabs.forEach( function ( t ) {
 						var isActive = t.getAttribute( 'data-tab' ) === tabId;
 						t.classList.toggle( 'is-active', isActive );
@@ -58,15 +109,16 @@
 					return;
 				}
 
-				// Read transition type from the panels container.
+				// Update tab button states immediately.
+				tabs.forEach( function ( t ) {
+					var isActive = t.getAttribute( 'data-tab' ) === tabId;
+					t.classList.toggle( 'is-active', isActive );
+					t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
+				} );
+
 				var transition = panelsContainer ? panelsContainer.getAttribute( 'data-transition' ) : 'none';
-				if ( ! transition || transition === 'none' ) {
+				if ( ! transition || transition === 'none' || reducedMotion ) {
 					// Instant switch.
-					tabs.forEach( function ( t ) {
-						var isActive = t.getAttribute( 'data-tab' ) === tabId;
-						t.classList.toggle( 'is-active', isActive );
-						t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
-					} );
 					panels.forEach( function ( p ) {
 						p.classList.toggle( 'is-active', p.id === tabId );
 					} );
@@ -75,44 +127,37 @@
 
 				// Animated transition.
 				isAnimating = true;
-				tabs.forEach( function ( t ) {
-					var isActive = t.getAttribute( 'data-tab' ) === tabId;
-					t.classList.toggle( 'is-active', isActive );
-					t.setAttribute( 'aria-selected', isActive ? 'true' : 'false' );
-				} );
-
-				// Set up the transition: old panel leaves, new panel enters.
 				if ( panelsContainer ) {
 					panelsContainer.classList.add( 'is-animating' );
 				}
 
-				// Make the target panel visible (display:block) but at opacity 0.
-				targetPanel.classList.add( 'tab-entering', 'is-active' );
-
-				// Force a reflow so the initial state is applied before the transition.
-				void targetPanel.offsetHeight;
-
-				// Trigger the enter animation on the next frame.
-				requestAnimationFrame( function () {
-					targetPanel.classList.add( 'tab-entered' );
-				} );
-
-				// Start the leave animation on the current panel.
-				if ( currentPanel ) {
-					currentPanel.classList.add( 'tab-leaving' );
-				}
-
-				// Clean up after the transition completes (0.4s = 400ms).
-				setTimeout( function () {
+				if ( hasGsap && gsapTransitions[ transition ] ) {
+					// GSAP path: build a timeline, clean up on complete.
+					var tl = gsapTransitions[ transition ]( currentPanel, targetPanel );
+					tl.eventCallback( 'onComplete', function () {
+						cleanup( currentPanel, targetPanel );
+					} );
+				} else {
+					// CSS fallback (kept for resilience if GSAP fails to load).
+					targetPanel.classList.add( 'tab-entering', 'is-active' );
+					void targetPanel.offsetHeight;
+					requestAnimationFrame( function () {
+						targetPanel.classList.add( 'tab-entered' );
+					} );
 					if ( currentPanel ) {
-						currentPanel.classList.remove( 'is-active', 'tab-leaving' );
+						currentPanel.classList.add( 'tab-leaving' );
 					}
-					targetPanel.classList.remove( 'tab-entering', 'tab-entered' );
-					if ( panelsContainer ) {
-						panelsContainer.classList.remove( 'is-animating' );
-					}
-					isAnimating = false;
-				}, 420 );
+					setTimeout( function () {
+						if ( currentPanel ) {
+							currentPanel.classList.remove( 'is-active', 'tab-leaving' );
+						}
+						targetPanel.classList.remove( 'tab-entering', 'tab-entered' );
+						if ( panelsContainer ) {
+							panelsContainer.classList.remove( 'is-animating' );
+						}
+						isAnimating = false;
+					}, 420 );
+				}
 			} );
 		} );
 	}
