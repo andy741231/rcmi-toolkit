@@ -205,16 +205,51 @@ add_filter( 'upgrader_post_install', 'rcmi_toolkit_post_install_rename', 10, 3 )
 
 /**
  * Force a re-check of updates (clears the transient cache).
- * Hooked to admin_init so visiting the Plugins page triggers a fresh
- * GitHub API call if the cache has expired.
+ * Hooked to admin_init so the ?rcmi_toolkit_check_updates=1 link
+ * triggers an immediate GitHub API call — no 6-hour wait.
  */
 function rcmi_toolkit_maybe_refresh_release_cache() {
 	if ( isset( $_GET['rcmi_toolkit_check_updates'] ) ) {
+		// Clear the cached release data so the next call hits GitHub.
 		delete_transient( 'rcmi_toolkit_github_release' );
+
+		// Clear WordPress's own update transient so our filter runs again.
+		delete_site_transient( 'update_plugins' );
+
+		// Re-fetch the release and re-populate the update transient.
 		rcmi_toolkit_get_github_release();
+
+		// Redirect back to the plugins page without the query arg,
+		// so a refresh doesn't re-trigger the check.
+		$redirect = remove_query_arg( 'rcmi_toolkit_check_updates' );
+		wp_safe_redirect( $redirect );
+		exit;
 	}
 }
 add_action( 'admin_init', 'rcmi_toolkit_maybe_refresh_release_cache' );
+
+/**
+ * Add a "Check for updates" link to the plugin's action row on the
+ * Plugins page. Clicking it forces an immediate GitHub API check
+ * instead of waiting for the 6-hour transient cache to expire.
+ *
+ * @param array  $links  Existing action links.
+ * @param string $file   Plugin basename.
+ * @return array
+ */
+function rcmi_toolkit_add_check_updates_link( $links, $file ) {
+	if ( plugin_basename( __FILE__ ) !== $file ) {
+		return $links;
+	}
+
+	$url = add_query_arg( 'rcmi_toolkit_check_updates', '1', admin_url( 'plugins.php' ) );
+	$check_link = '<a href="' . esc_url( $url ) . '">Check for updates</a>';
+
+	// Prepend so it appears first (before Activate/Deactivate).
+	array_unshift( $links, $check_link );
+	return $links;
+}
+add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'rcmi_toolkit_add_check_updates_link', 10, 2 );
 
 /**
  * Register the custom block category.
