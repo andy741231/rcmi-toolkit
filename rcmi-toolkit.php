@@ -283,12 +283,45 @@ function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
 	$actual   = basename( $result['destination'] );
 
 	if ( $expected !== $actual ) {
+		global $wp_filesystem;
+		if ( ! $wp_filesystem ) {
+			WP_Filesystem();
+		}
+
 		$new_destination = dirname( $result['destination'] ) . '/' . $expected;
-		if ( rename( $result['destination'], $new_destination ) ) {
+
+		// If the old plugin directory still exists (common on Windows where
+		// locked files prevent deletion), remove it before renaming.
+		if ( $wp_filesystem && $wp_filesystem->exists( $new_destination ) ) {
+			$wp_filesystem->delete( $new_destination, true, 'd' );
+		}
+
+		// Try rename via WP_Filesystem (handles FTP/SSH methods too).
+		$renamed = false;
+		if ( $wp_filesystem && $wp_filesystem->move( $result['destination'], $new_destination ) ) {
+			$renamed = true;
+		} elseif ( @rename( $result['destination'], $new_destination ) ) {
+			// Fallback to PHP's rename().
+			$renamed = true;
+		}
+
+		if ( $renamed ) {
 			$result['destination'] = $new_destination;
 			$result['destination_name'] = $expected;
+		} else {
+			// Last resort: recursive copy + delete.
+			if ( $wp_filesystem ) {
+				$wp_filesystem->delete( $new_destination, true, 'd' );
+				copy_dir( $result['destination'], $new_destination );
+				$wp_filesystem->delete( $result['destination'], true, 'd' );
+				$result['destination'] = $new_destination;
+				$result['destination_name'] = $expected;
+			}
 		}
 	}
+
+	// Clear the plugin cache so get_plugins() sees the new files.
+	wp_clean_plugins_cache();
 
 	// Record the commit SHA we just installed so we don't re-offer the
 	// same update. The SHA is fetched from GitHub (cached transient).
