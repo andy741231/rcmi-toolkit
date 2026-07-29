@@ -718,6 +718,7 @@ function rcmi_register_server_side_blocks() {
 			'scrimType'   => array( 'type' => 'string', 'default' => 'linear' ),
 			'scrimAngle'  => array( 'type' => 'number', 'default' => 90 ),
 			'contentAlign' => array( 'type' => 'string', 'default' => 'left' ),
+			'textColor'   => array( 'type' => 'string', 'default' => '' ),
 			'eyebrow'     => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
 			'headline'    => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
 			'lede'        => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
@@ -743,6 +744,9 @@ function rcmi_register_server_side_blocks() {
 
 			// Alignment is handled by the rcmi-align-* CSS classes on the section.
 			$copy_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$copy_style .= 'color: ' . sanitize_hex_color( $attrs['textColor'] ) . ';';
+			}
 
 			ob_start();
 

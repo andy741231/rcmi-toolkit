@@ -910,6 +910,8 @@
 			scrimAngle:  { type: 'number', default: 90 },
 			// Content alignment
 			contentAlign: { type: 'string', default: 'left' }, // 'left', 'center', 'right'
+			// Text color (hex or CSS color)
+			textColor:   { type: 'string', default: '' },
 			// Content fields
 			eyebrow:     { type: 'string', default: 'Accelerating Real‑World Impact.' },
 			headline:    { type: 'string', default: 'Advancing Chronic<br> Disease Research.' },
@@ -1091,7 +1093,47 @@
 						} )
 					) : null,
 					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
-					alignButtons
+					alignButtons,
+					// Text color picker with UH brand color presets.
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '16px' } }, __( 'Text color', 'rcmi-toolkit' ) ),
+					el( 'input', {
+						type: 'color',
+						value: attrs.textColor || '#334155',
+						onChange: function ( e ) { setAttributes( { textColor: e.target.value } ); },
+						style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }
+					} ),
+					el( 'div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' } },
+						[
+							{ color: '#C8102E', name: 'UH Red' },
+							{ color: '#FFFFFF', name: 'White' },
+							{ color: '#000000', name: 'Black' },
+							{ color: '#54585A', name: 'Slate' },
+							{ color: '#00B388', name: 'Teal' },
+							{ color: '#F6BE00', name: 'Gold' },
+							{ color: '#960C22', name: 'Brick' },
+							{ color: '#005950', name: 'Forest' }
+						].map( function ( c ) {
+							return el( 'button', {
+								key: 'text-color-' + c.color,
+								onClick: function () { setAttributes( { textColor: c.color } ); },
+								title: c.name,
+								style: {
+									width: '28px',
+									height: '28px',
+									border: attrs.textColor === c.color ? '2px solid #007cba' : '1px solid #ccc',
+									borderRadius: '4px',
+									background: c.color,
+									cursor: 'pointer',
+									padding: 0
+								}
+							} );
+						} )
+					),
+					el( wp.components.Button, {
+						onClick: function () { setAttributes( { textColor: '' } ); },
+						variant: 'tertiary',
+						isSmall: true
+					}, __( 'Reset to default', 'rcmi-toolkit' ) )
 				),
 				el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
 					el( TextControl, { label: __( 'Eyebrow', 'rcmi-toolkit' ), value: attrs.eyebrow, onChange: function ( v ) { setAttributes( { eyebrow: v } ); } } ),
@@ -1133,6 +1175,9 @@
 
 			// Content preview.
 			var copyStyle = {};
+			if ( attrs.textColor ) {
+				copyStyle.color = attrs.textColor;
+			}
 			if ( attrs.contentAlign === 'center' ) {
 				copyStyle.textAlign = 'center';
 				copyStyle.margin = '0 auto';
