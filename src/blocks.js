@@ -1452,6 +1452,13 @@
 						min: 0, max: 10, step: 1
 					} ),
 					el( RangeControl, {
+						label: __( 'Gradient scrim z-index', 'rcmi-toolkit' ),
+						value: attrs.scrimZIndex,
+						onChange: function ( v ) { setAttributes( { scrimZIndex: v } ); },
+						min: 0, max: 10, step: 1,
+						help: __( 'The gradient overlay. Set between image layers and text for readability, or above text to dim it.', 'rcmi-toolkit' )
+					} ),
+					el( RangeControl, {
 						label: __( 'Text content z-index', 'rcmi-toolkit' ),
 						value: attrs.contentZIndex,
 						onChange: function ( v ) { setAttributes( { contentZIndex: v } ); },
@@ -1460,7 +1467,7 @@
 					} ),
 					el( 'div', { style: { marginTop: '12px', display: 'flex', gap: '8px' } },
 						el( wp.components.Button, {
-							onClick: function () { setAttributes( { bgZIndex: 0, midZIndex: 1, fgZIndex: 2, contentZIndex: 4 } ); },
+							onClick: function () { setAttributes( { bgZIndex: 0, midZIndex: 1, fgZIndex: 2, scrimZIndex: 3, contentZIndex: 4 } ); },
 							variant: 'secondary',
 							isSmall: true
 						}, __( 'Reset to defaults', 'rcmi-toolkit' ) )

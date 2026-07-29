@@ -854,6 +854,7 @@ function rcmi_register_server_side_blocks() {
 			'bgZIndex'      => array( 'type' => 'number', 'default' => 0 ),
 			'midZIndex'     => array( 'type' => 'number', 'default' => 1 ),
 			'fgZIndex'      => array( 'type' => 'number', 'default' => 2 ),
+			'scrimZIndex'   => array( 'type' => 'number', 'default' => 3 ),
 			'contentZIndex' => array( 'type' => 'number', 'default' => 4 ),
 			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
@@ -917,10 +918,9 @@ function rcmi_register_server_side_blocks() {
 				if ( ! in_array( $parallax_dir, array( 'down', 'up', 'left', 'right' ), true ) ) {
 					$parallax_dir = 'down';
 				}
-				// Scrim z-index: midpoint between top image layer and content.
+				// Scrim z-index from attribute (no longer auto-calculated).
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
-				$top_image_z = max( $layers[0]['z'], $layers[1]['z'], $layers[2]['z'] );
-				$scrim_z = (int) floor( ( $top_image_z + $content_z ) / 2 );
+				$scrim_z = intval( $attrs['scrimZIndex'] ?? 3 );
 				?>
 				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php foreach ( $layers as $layer ) : ?>
