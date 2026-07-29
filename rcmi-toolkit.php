@@ -461,16 +461,36 @@ function rcmi_register_server_side_blocks() {
 			'citeName' => array( 'type' => 'string', 'default' => '' ),
 			'citeRole' => array( 'type' => 'string', 'default' => '' ),
 		),
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+		),
 		'render_callback' => function ( $attrs ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/quote-block', $attrs );
+
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
 			ob_start();
 			?>
-			<section class="bg-alt">
+			<section class="bg-alt<?php echo esc_attr( $color_class ); ?>"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
 				<div class="wrap quote-block">
 					<div class="quote-mark">&ldquo;</div>
 					<div class="quote-body">
-						<p><?php echo esc_html( $attrs['quote'] ); ?></p>
-						<cite><?php echo esc_html( $attrs['citeName'] ); ?> <span><?php echo esc_html( $attrs['citeRole'] ); ?></span></cite>
+						<p><?php echo wp_kses_post( $attrs['quote'] ?? '' ); ?></p>
+						<cite><?php echo wp_kses_post( $attrs['citeName'] ?? '' ); ?> <span><?php echo wp_kses_post( $attrs['citeRole'] ?? '' ); ?></span></cite>
 					</div>
 					<div class="quote-mark quote-mark-close">&rdquo;</div>
 				</div>
@@ -492,16 +512,36 @@ function rcmi_register_server_side_blocks() {
 			'btn2Link'  => array( 'type' => 'string', 'default' => '' ),
 			'btn2Style' => array( 'type' => 'string', 'default' => 'btn-primary' ),
 		),
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+		),
 		'render_callback' => function ( $attrs ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/cta-band', $attrs );
+
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
 			ob_start();
 			?>
-			<section class="bg-primary">
+			<section class="bg-primary<?php echo esc_attr( $color_class ); ?>"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
 				<div class="wrap">
 					<div class="cta-band">
 						<div class="cta-copy">
-							<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
-							<p><?php echo esc_html( $attrs['text'] ); ?></p>
+							<h2><?php echo wp_kses_post( $attrs['heading'] ?? '' ); ?></h2>
+							<p><?php echo wp_kses_post( $attrs['text'] ?? '' ); ?></p>
 						</div>
 						<div class="cta-actions">
 							<a href="<?php echo esc_url( $attrs['btn1Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn1Style'] ); ?>"><?php echo esc_html( $attrs['btn1Text'] ); ?></a>
@@ -517,6 +557,16 @@ function rcmi_register_server_side_blocks() {
 
 	// rcmi/impact-stats-block — 4-stat grid + CTA.
 	register_block_type( 'rcmi/impact-stats-block', array(
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+		),
 		'attributes' => array(
 			'stat1Value' => array( 'type' => 'string', 'default' => '' ), 'stat1Label' => array( 'type' => 'string', 'default' => '' ), 'stat1Desc' => array( 'type' => 'string', 'default' => '' ),
 			'stat2Value' => array( 'type' => 'string', 'default' => '' ), 'stat2Label' => array( 'type' => 'string', 'default' => '' ), 'stat2Desc' => array( 'type' => 'string', 'default' => '' ),
@@ -527,18 +577,29 @@ function rcmi_register_server_side_blocks() {
 		),
 		'render_callback' => function ( $attrs ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/impact-stats-block', $attrs );
+
+			// Text color support (preset slug or custom hex).
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
 			$stats = '';
 			for ( $i = 1; $i <= 4; $i++ ) {
 				$stats .= sprintf(
 					'<article class="impact-stat"><strong>%s</strong><span>%s</span><p>%s</p></article>',
 					esc_html( $attrs[ "stat{$i}Value" ] ),
-					esc_html( $attrs[ "stat{$i}Label" ] ),
-					esc_html( $attrs[ "stat{$i}Desc" ] )
+					wp_kses_post( $attrs[ "stat{$i}Label" ] ?? '' ),
+					wp_kses_post( $attrs[ "stat{$i}Desc" ] ?? '' )
 				);
 			}
 			ob_start();
 			?>
-			<div class="wrap impact-stats-wrap" aria-label="RCMI impact statistics">
+			<div class="wrap impact-stats-wrap<?php echo esc_attr( $color_class ); ?>" aria-label="RCMI impact statistics"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
 				<div class="impact-stats">
 					<?php echo $stats; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="impact-stats-cta">
@@ -553,6 +614,16 @@ function rcmi_register_server_side_blocks() {
 
 	// rcmi/role-selector-block — "I am..." section with 6 role cards.
 	register_block_type( 'rcmi/role-selector-block', array(
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+		),
 		'attributes' => array(
 			'eyebrow' => array( 'type' => 'string', 'default' => '' ),
 			'heading' => array( 'type' => 'string', 'default' => '' ),
@@ -580,8 +651,8 @@ function rcmi_register_server_side_blocks() {
 					$roles .= sprintf(
 						'<a href="%s" class="role-card"><h4>%s</h4><p>%s</p><span class="role-link">Start here <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"/></svg></span></a>',
 						esc_url( $attrs[ "role{$i}Link" ] ),
-						esc_html( $attrs[ "role{$i}Title" ] ),
-						esc_html( $attrs[ "role{$i}Desc" ] )
+						wp_kses_post( $attrs[ "role{$i}Title" ] ?? '' ),
+						wp_kses_post( $attrs[ "role{$i}Desc" ] ?? '' )
 					);
 				}
 
@@ -598,17 +669,27 @@ function rcmi_register_server_side_blocks() {
 					$section_style = 'background-image: url(' . esc_url( $attrs['bgImageUrl'] ) . '); background-size: cover; background-position: center;';
 				}
 
+				// Text color support (preset slug or custom hex).
+				$color_class = '';
+				$color_style = '';
+				if ( ! empty( $attrs['textColor'] ) ) {
+					$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+				} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+					$color_class = ' has-text-color';
+					$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+				}
+
 				ob_start();
 				?>
-				<section id="start" class="collaborating-section"<?php echo $section_style ? ' style="' . esc_attr( $section_style ) . '"' : ''; ?>>
+				<section id="start" class="collaborating-section<?php echo esc_attr( $color_class ); ?>"<?php echo ( $section_style || $color_style ) ? ' style="' . esc_attr( trim( $section_style . ' ' . $color_style ) ) . '"' : ''; ?>>
 					<div class="rcmi-section-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
 					<div class="wrap">
 						<div class="section-head">
 							<div>
-								<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
-								<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
+								<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
+								<h2><?php echo wp_kses_post( $attrs['heading'] ?? '' ); ?></h2>
 							</div>
-							<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
+							<p class="section-note"><?php echo wp_kses_post( $attrs['note'] ?? '' ); ?></p>
 						</div>
 						<div class="role-grid"><?php echo $roles; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 					</div>

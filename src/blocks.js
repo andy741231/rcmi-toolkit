@@ -3,6 +3,7 @@
 
 	var el = wp.element.createElement;
 	var Fragment = wp.element.Fragment;
+	var useState = wp.element.useState;
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
 	var SelectControl = wp.components.SelectControl;
@@ -175,7 +176,16 @@
 		description: __( 'Large pull quote with quotation marks and citation.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'format-quote',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+		},
 		attributes: {
 			quote:    { type: 'string', default: "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved." },
 			citeName: { type: 'string', default: 'RCMI Coordinating Center' },
@@ -184,23 +194,35 @@
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var blockProps = useBlockProps( { className: 'rcmi-quote-editor' } );
-			return el( Fragment, null,
-				el( InspectorControls, null,
-					el( PanelBody, { title: __( 'Quote Content', 'rcmi-toolkit' ), initialOpen: true },
-						el( TextareaControl, { label: __( 'Quote Text', 'rcmi-toolkit' ), value: attrs.quote, onChange: function ( v ) { setAttributes( { quote: v } ); } } ),
-						el( TextControl, { label: __( 'Citation Name', 'rcmi-toolkit' ), value: attrs.citeName, onChange: function ( v ) { setAttributes( { citeName: v } ); } } ),
-						el( TextControl, { label: __( 'Citation Role / Subtitle', 'rcmi-toolkit' ), value: attrs.citeRole, onChange: function ( v ) { setAttributes( { citeRole: v } ); } } )
-					)
-				),
-				el( 'section', blockProps,
-					el( 'div', { className: 'wrap quote-block' },
-						el( 'div', { className: 'quote-mark' }, '\u201C' ),
-						el( 'div', { className: 'quote-body' },
-							el( 'p', null, attrs.quote ),
-							el( 'cite', null, attrs.citeName, el( 'span', null, attrs.citeRole ) )
-						),
-						el( 'div', { className: 'quote-mark quote-mark-close' }, '\u201D' )
-					)
+			return el( 'section', blockProps,
+				el( 'div', { className: 'wrap quote-block' },
+					el( 'div', { className: 'quote-mark' }, '\u201C' ),
+					el( 'div', { className: 'quote-body' },
+						el( RichText, {
+							tagName: 'p',
+							value: attrs.quote,
+							onChange: function ( v ) { setAttributes( { quote: v } ); },
+							placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+						} ),
+						el( 'cite', null,
+							el( RichText, {
+								tagName: 'span',
+								value: attrs.citeName,
+								onChange: function ( v ) { setAttributes( { citeName: v } ); },
+								placeholder: __( 'Citation name…', 'rcmi-toolkit' ),
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+							} ),
+							el( RichText, {
+								tagName: 'span',
+								value: attrs.citeRole,
+								onChange: function ( v ) { setAttributes( { citeRole: v } ); },
+								placeholder: __( 'Citation role…', 'rcmi-toolkit' ),
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+							} )
+						)
+					),
+					el( 'div', { className: 'quote-mark quote-mark-close' }, '\u201D' )
 				)
 			);
 		},
@@ -230,7 +252,16 @@
 		description: __( 'A call-to-action band with heading on the left and buttons on the right.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'megaphone',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+		},
 		attributes: {
 			heading:     { type: 'string', default: 'Ready to start?' },
 			text:        { type: 'string', default: 'Find the support you need to move your research forward.' },
@@ -246,10 +277,6 @@
 			var blockProps = useBlockProps( { className: 'rcmi-cta-editor' } );
 			return el( Fragment, null,
 				el( InspectorControls, null,
-					el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
-						el( TextControl, { label: __( 'Heading', 'rcmi-toolkit' ), value: attrs.heading, onChange: function ( v ) { setAttributes( { heading: v } ); } } ),
-						el( TextareaControl, { label: __( 'Text', 'rcmi-toolkit' ), value: attrs.text, onChange: function ( v ) { setAttributes( { text: v } ); } } )
-					),
 					el( PanelBody, { title: __( 'Button 1', 'rcmi-toolkit' ), initialOpen: false },
 						el( TextControl, { label: __( 'Button 1 Text', 'rcmi-toolkit' ), value: attrs.btn1Text, onChange: function ( v ) { setAttributes( { btn1Text: v } ); } } ),
 						el( TextControl, { label: __( 'Button 1 Link', 'rcmi-toolkit' ), value: attrs.btn1Link, onChange: function ( v ) { setAttributes( { btn1Link: v } ); } } )
@@ -263,8 +290,20 @@
 					el( 'div', { className: 'wrap' },
 						el( 'div', { className: 'cta-band' },
 							el( 'div', { className: 'cta-copy' },
-								el( 'h2', null, attrs.heading ),
-								el( 'p', null, attrs.text )
+								el( RichText, {
+									tagName: 'h2',
+									value: attrs.heading,
+									onChange: function ( v ) { setAttributes( { heading: v } ); },
+									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+								} ),
+								el( RichText, {
+									tagName: 'p',
+									value: attrs.text,
+									onChange: function ( v ) { setAttributes( { text: v } ); },
+									placeholder: __( 'Text…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+								} )
 							),
 							el( 'div', { className: 'cta-actions' },
 								el( 'a', { href: attrs.btn1Link, className: 'btn ' + attrs.btn1Style, onClick: function ( e ) { e.preventDefault(); } }, attrs.btn1Text ),
@@ -305,7 +344,16 @@
 		description: __( 'Four-stat grid with large numbers, labels, descriptions, and a CTA button.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'chart-bar',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+		},
 		attributes: {
 			stat1Value: { type: 'string', default: '62' },
 			stat1Label: { type: 'string', default: 'Active Investigators' },
@@ -325,25 +373,28 @@
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var blockProps = useBlockProps( { className: 'rcmi-impact-stats-editor' } );
-			var statFields = function ( n ) {
-				var prefix = 'stat' + n;
-				return el( PanelBody, { title: __( 'Stat ' + n, 'rcmi-toolkit' ), initialOpen: n === 1 },
-					el( TextControl, { label: __( 'Value (number)', 'rcmi-toolkit' ), value: attrs[prefix + 'Value'], onChange: function ( v ) { var u = {}; u[prefix + 'Value'] = v; setAttributes( u ); } } ),
-					el( TextControl, { label: __( 'Label', 'rcmi-toolkit' ), value: attrs[prefix + 'Label'], onChange: function ( v ) { var u = {}; u[prefix + 'Label'] = v; setAttributes( u ); } } ),
-					el( TextareaControl, { label: __( 'Description', 'rcmi-toolkit' ), value: attrs[prefix + 'Desc'], onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); } } )
-				);
-			};
 			var statEl = function ( n ) {
 				var prefix = 'stat' + n;
 				return el( 'article', { className: 'impact-stat' },
 					el( 'strong', null, attrs[prefix + 'Value'] ),
-					el( 'span', null, attrs[prefix + 'Label'] ),
-					el( 'p', null, attrs[prefix + 'Desc'] )
+					el( RichText, {
+						tagName: 'span',
+						value: attrs[prefix + 'Label'],
+						onChange: function ( v ) { var u = {}; u[prefix + 'Label'] = v; setAttributes( u ); },
+						placeholder: __( 'Label…', 'rcmi-toolkit' ),
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+					} ),
+					el( RichText, {
+						tagName: 'p',
+						value: attrs[prefix + 'Desc'],
+						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
+						placeholder: __( 'Description…', 'rcmi-toolkit' ),
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+					} )
 				);
 			};
 			return el( Fragment, null,
 				el( InspectorControls, null,
-					statFields( 1 ), statFields( 2 ), statFields( 3 ), statFields( 4 ),
 					el( PanelBody, { title: __( 'CTA Button', 'rcmi-toolkit' ), initialOpen: false },
 						el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.ctaText, onChange: function ( v ) { setAttributes( { ctaText: v } ); } } ),
 						el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.ctaLink, onChange: function ( v ) { setAttributes( { ctaLink: v } ); } } )
@@ -395,7 +446,16 @@
 		description: __( '"I am..." section with role cards for different audiences.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'groups',
-		supports: { html: false, align: [ 'full', 'wide' ] },
+		supports: {
+			html: false,
+			align: [ 'full', 'wide' ],
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+		},
 		attributes: {
 			eyebrow: { type: 'string', default: 'Start Collaborating' },
 			heading: { type: 'string', default: 'I am\u2026' },
@@ -434,26 +494,31 @@
 			var roleFields = function ( n ) {
 				var prefix = 'role' + n;
 				return el( PanelBody, { title: __( 'Role ' + n, 'rcmi-toolkit' ), initialOpen: false },
-					el( TextControl, { label: __( 'Title', 'rcmi-toolkit' ), value: attrs[prefix + 'Title'], onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); } } ),
-					el( TextareaControl, { label: __( 'Description', 'rcmi-toolkit' ), value: attrs[prefix + 'Desc'], onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); } } ),
 					el( TextControl, { label: __( 'Link URL', 'rcmi-toolkit' ), value: attrs[prefix + 'Link'], onChange: function ( v ) { var u = {}; u[prefix + 'Link'] = v; setAttributes( u ); } } )
 				);
 			};
 			var roleEl = function ( n ) {
 				var prefix = 'role' + n;
 				return el( 'a', { href: attrs[prefix + 'Link'], className: 'role-card', onClick: function ( e ) { e.preventDefault(); } },
-					el( 'h4', null, attrs[prefix + 'Title'] ),
-					el( 'p', null, attrs[prefix + 'Desc'] ),
+					el( RichText, {
+						tagName: 'h4',
+						value: attrs[prefix + 'Title'],
+						onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); },
+						placeholder: __( 'Role title…', 'rcmi-toolkit' ),
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+					} ),
+					el( RichText, {
+						tagName: 'p',
+						value: attrs[prefix + 'Desc'],
+						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
+						placeholder: __( 'Description…', 'rcmi-toolkit' ),
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+					} ),
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
 			};
 			return el( Fragment, null,
 				el( InspectorControls, null,
-					el( PanelBody, { title: __( 'Section Header', 'rcmi-toolkit' ), initialOpen: true },
-						el( TextControl, { label: __( 'Eyebrow', 'rcmi-toolkit' ), value: attrs.eyebrow, onChange: function ( v ) { setAttributes( { eyebrow: v } ); } } ),
-						el( TextControl, { label: __( 'Heading', 'rcmi-toolkit' ), value: attrs.heading, onChange: function ( v ) { setAttributes( { heading: v } ); } } ),
-						el( TextareaControl, { label: __( 'Note', 'rcmi-toolkit' ), value: attrs.note, onChange: function ( v ) { setAttributes( { note: v } ); } } )
-					),
 					el( PanelBody, { title: __( 'Background & Scrim', 'rcmi-toolkit' ), initialOpen: false },
 						el( 'p', null, __( 'Background Image', 'rcmi-toolkit' ) ),
 						el( MediaUpload, {
@@ -490,10 +555,30 @@
 					el( 'div', { className: 'wrap' },
 						el( 'div', { className: 'section-head' },
 							el( 'div', null,
-								el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-								el( 'h2', null, attrs.heading )
+								el( RichText, {
+									tagName: 'span',
+									className: 'eyebrow',
+									value: attrs.eyebrow,
+									onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
+									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color' ]
+								} ),
+								el( RichText, {
+									tagName: 'h2',
+									value: attrs.heading,
+									onChange: function ( v ) { setAttributes( { heading: v } ); },
+									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+								} )
 							),
-							el( 'p', { className: 'section-note' }, attrs.note )
+							el( RichText, {
+								tagName: 'p',
+								className: 'section-note',
+								value: attrs.note,
+								onChange: function ( v ) { setAttributes( { note: v } ); },
+								placeholder: __( 'Note…', 'rcmi-toolkit' ),
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color' ]
+							} )
 						),
 						el( 'div', { className: 'role-grid' },
 							roleEl( 1 ), roleEl( 2 ), roleEl( 3 ), roleEl( 4 ), roleEl( 5 ), roleEl( 6 )
@@ -589,6 +674,9 @@
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
+			var activeTab = useState( 0 );
+			var activeTabIndex = activeTab[0];
+			var setActiveTabIndex = activeTab[1];
 			var blockProps = useBlockProps( { className: 'rcmi-impact-strip-block-editor' } );
 			var tabs = attrs.tabs || [];
 
@@ -683,21 +771,17 @@
 				);
 			} );
 
-			// Build editor preview — show tab buttons + first tab content.
-			var firstTab = tabs[ 0 ] || {};
+			// Build editor preview — show tab buttons + active tab content.
+			var activeTabData = tabs[ activeTabIndex ] || tabs[ 0 ] || {};
 			return el( Fragment, null,
 				el( InspectorControls, null, tabPanels ),
 				el( 'div', blockProps,
-					el( 'div', { className: 'rcmi-block-notice' },
-						el( 'strong', null, __( 'Impact Strip (Tabbed Section)', 'rcmi-toolkit' ) ),
-						el( 'p', null, __( 'Edit each tab\u2019s content in the sidebar. The first tab is shown as a preview here; all 5 tabs render on the frontend.', 'rcmi-toolkit' ) )
-					),
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'impact-strip' },
 								el( 'div', { className: 'impact-steps', role: 'tablist' },
 									tabs.map( function ( tab, idx ) {
-										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( idx === 0 ? ' is-active' : '' ), role: 'tab', type: 'button' },
+										return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( idx === activeTabIndex ? ' is-active' : '' ), role: 'tab', type: 'button', onClick: function () { setActiveTabIndex( idx ); } },
 											el( 'span', { className: 'impact-step-copy' }, el( 'strong', null, tab.label ) )
 										);
 									} )
@@ -705,15 +789,15 @@
 							)
 						)
 					),
-					el( 'section', { className: 'tab-panel is-active', style: firstTab.bgImageUrl ? { backgroundImage: 'url(' + firstTab.bgImageUrl + ')' } : undefined },
-						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( firstTab.scrimStops, firstTab.scrimType, firstTab.scrimAngle ) } } ),
+					el( 'section', { className: 'tab-panel is-active', style: activeTabData.bgImageUrl ? { backgroundImage: 'url(' + activeTabData.bgImageUrl + ')' } : undefined },
+						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( activeTabData.scrimStops, activeTabData.scrimType, activeTabData.scrimAngle ) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },
-								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: firstTab.heading } } ) ),
-								el( 'p', { className: 'section-note' }, firstTab.note )
+								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: activeTabData.heading } } ) ),
+								el( 'p', { className: 'section-note' }, activeTabData.note )
 							),
 							el( 'div', { className: 'card-grid' },
-								( firstTab.cards || [] ).map( function ( card, ci ) {
+								( activeTabData.cards || [] ).map( function ( card, ci ) {
 									return el( 'div', { className: 'card', key: 'pc-' + ci },
 										el( 'span', { className: 'tag' }, card.tag ),
 										el( 'h4', null, card.title ),
