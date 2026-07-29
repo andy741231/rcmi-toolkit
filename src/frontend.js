@@ -137,6 +137,12 @@
 					}
 				}
 
+				// Add is-active to the new panel BEFORE the animation starts so
+				// CSS-based background images (#id.is-active) are present throughout
+				// the transition. Without this, the background image pops in abruptly
+				// at cleanup when is-active is finally added.
+				targetPanel.classList.add( 'is-active' );
+
 				if ( hasGsap && gsapTransitions[ transition ] ) {
 					// GSAP path: build a timeline, clean up on complete.
 					var tl = gsapTransitions[ transition ]( currentPanel, targetPanel );
@@ -145,7 +151,7 @@
 					} );
 				} else {
 					// CSS fallback (kept for resilience if GSAP fails to load).
-					targetPanel.classList.add( 'tab-entering', 'is-active' );
+					targetPanel.classList.add( 'tab-entering' );
 					void targetPanel.offsetHeight;
 					requestAnimationFrame( function () {
 						targetPanel.classList.add( 'tab-entered' );
