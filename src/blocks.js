@@ -14,6 +14,157 @@
 	var MediaUpload = wp.blockEditor.MediaUpload;
 	var __ = wp.i18n.__;
 
+	// ============================================================
+	// Reusable multi-stop gradient picker.
+	// Builds inspector controls for up to 6 color stops with
+	// color, opacity, and position, plus type (linear/radial)
+	// and angle (for linear). Returns an array of elements.
+	// ============================================================
+
+	function hexToRgba( hex, alpha ) {
+		var h = ( hex || '#ffffff' ).replace( '#', '' );
+		if ( h.length === 3 ) { h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; }
+		var r = parseInt( h.substr( 0, 2 ), 16 ) || 255;
+		var g = parseInt( h.substr( 2, 2 ), 16 ) || 255;
+		var b = parseInt( h.substr( 4, 2 ), 16 ) || 255;
+		return 'rgba(' + r + ',' + g + ',' + b + ',' + ( alpha != null ? alpha : 1 ) + ')';
+	}
+
+	function buildGradientCSS( stops, type, angle ) {
+		if ( ! stops || ! stops.length ) { return 'transparent'; }
+		var parts = stops.map( function ( s ) {
+			return hexToRgba( s.color, s.opacity ) + ' ' + ( s.position || 0 ) + '%';
+		} );
+		if ( type === 'radial' ) {
+			return 'radial-gradient(circle at center, ' + parts.join( ', ' ) + ')';
+		}
+		return 'linear-gradient(' + ( angle || 90 ) + 'deg, ' + parts.join( ', ' ) + ')';
+	}
+
+	// Default 3-stop gradient (matches the old hardcoded scrim).
+	function defaultScrimStops( baseColor, baseOpacity ) {
+		return [
+			{ color: baseColor || '#f8f5ee', opacity: baseOpacity != null ? baseOpacity : 0.85, position: 0 },
+			{ color: baseColor || '#f8f5ee', opacity: ( baseOpacity != null ? baseOpacity : 0.85 ) * 0.4, position: 40 },
+			{ color: baseColor || '#f8f5ee', opacity: 0, position: 65 }
+		];
+	}
+
+	// Render the gradient picker controls.
+	// onChange( newStops, newType, newAngle ) is called with updated values.
+	function renderGradientPicker( stops, type, angle, onChange ) {
+		var maxStops = 6;
+		stops = stops && stops.length ? stops : defaultScrimStops( '#ffffff', 0.9 );
+		type = type || 'linear';
+		angle = angle != null ? angle : 90;
+
+		function updateStop( idx, key, val ) {
+			var newStops = stops.map( function ( s, i ) {
+				var ns = Object.assign( {}, s );
+				if ( i === idx ) { ns[ key ] = val; }
+				return ns;
+			} );
+			onChange( newStops, type, angle );
+		}
+
+		function addStop() {
+			if ( stops.length >= maxStops ) { return; }
+			var lastPos = stops.length ? stops[ stops.length - 1 ].position : 50;
+			var newStop = { color: '#ffffff', opacity: 0.5, position: Math.min( 100, lastPos + 20 ) };
+			onChange( stops.concat( [ newStop ] ), type, angle );
+		}
+
+		function removeStop( idx ) {
+			if ( stops.length <= 1 ) { return; }
+			onChange( stops.filter( function ( _, i ) { return i !== idx; } ), type, angle );
+		}
+
+		var stopControls = stops.map( function ( stop, idx ) {
+			return el( 'div', {
+				key: 'grad-stop-' + idx,
+				style: { borderBottom: '1px solid #e0e0e0', paddingBottom: '12px', marginBottom: '12px' }
+			},
+				el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' } },
+					el( 'strong', null, __( 'Stop ' + ( idx + 1 ), 'rcmi-toolkit' ) ),
+					stops.length > 1 ? el( wp.components.Button, {
+						onClick: function () { removeStop( idx ); },
+						variant: 'tertiary',
+						isDestructive: true,
+						isSmall: true
+					}, __( 'Remove', 'rcmi-toolkit' ) ) : null
+				),
+				el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Color', 'rcmi-toolkit' ) ),
+				el( 'input', {
+					type: 'color',
+					value: stop.color || '#ffffff',
+					onChange: function ( e ) { updateStop( idx, 'color', e.target.value ); },
+					style: { width: '100%', height: '36px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }
+				} ),
+				el( RangeControl, {
+					label: __( 'Opacity', 'rcmi-toolkit' ),
+					value: stop.opacity != null ? stop.opacity : 1,
+					onChange: function ( v ) { updateStop( idx, 'opacity', v ); },
+					min: 0,
+					max: 1,
+					step: 0.05
+				} ),
+				el( RangeControl, {
+					label: __( 'Position (%)', 'rcmi-toolkit' ),
+					value: stop.position || 0,
+					onChange: function ( v ) { updateStop( idx, 'position', v ); },
+					min: 0,
+					max: 100,
+					step: 1
+				} )
+			);
+		} );
+
+		return [
+			// Gradient type toggle.
+			el( SelectControl, {
+				key: 'grad-type',
+				label: __( 'Gradient type', 'rcmi-toolkit' ),
+				value: type,
+				options: [
+					{ label: 'Linear', value: 'linear' },
+					{ label: 'Radial', value: 'radial' }
+				],
+				onChange: function ( v ) { onChange( stops, v, angle ); }
+			} ),
+			// Angle control (linear only).
+			type === 'linear' ? el( RangeControl, {
+				key: 'grad-angle',
+				label: __( 'Angle (degrees)', 'rcmi-toolkit' ),
+				value: angle,
+				onChange: function ( v ) { onChange( stops, type, v ); },
+				min: 0,
+				max: 360,
+				step: 15
+			} ) : null,
+			// Live preview bar.
+			el( 'div', {
+				key: 'grad-preview',
+				style: {
+					height: '40px',
+					borderRadius: '4px',
+					border: '1px solid #ddd',
+					background: buildGradientCSS( stops, type, angle ),
+					marginBottom: '16px'
+				}
+			} ),
+			// Stop controls.
+			stopControls,
+			// Add stop button.
+			stops.length < maxStops ? el( wp.components.Button, {
+				key: 'grad-add',
+				onClick: addStop,
+				variant: 'secondary',
+				isSmall: true,
+				style: { width: '100%', justifyContent: 'center' }
+			}, __( '+ Add color stop', 'rcmi-toolkit' ) ) : null
+		];
+	}
+
 	// Block: rcmi/quote-block
 	// Large pull quote with quotation marks and citation.
 	// ============================================================
@@ -358,8 +509,12 @@
 			role6Title: { type: 'string', default: 'A funder' },
 			role6Desc:  { type: 'string', default: 'Review outcomes, publications, and funding leveraged to date.' },
 			role6Link:  { type: 'string', default: '/publications/' },
-			scrimColor: { type: 'string', default: '#ffffff' },
-			scrimOpacity: { type: 'number', default: 0.9 },
+			scrimStops: { type: 'array', default: [
+				{ color: '#ffffff', opacity: 0.9, position: 0 },
+				{ color: '#ffffff', opacity: 0.54, position: 50 },
+				{ color: '#ffffff', opacity: 0, position: 100 }
+			] },
+			scrimType: { type: 'string', default: 'linear' },
 			scrimAngle: { type: 'number', default: 125 },
 			bgImageId: { type: 'number', default: 0 },
 			bgImageUrl: { type: 'string', default: '' }
@@ -416,28 +571,8 @@
 								isDestructive: true
 							}, __( 'Remove image', 'rcmi-toolkit' ) )
 						) : null,
-						el( 'p', { style: { marginTop: '16px' } }, __( 'Scrim Color', 'rcmi-toolkit' ) ),
-						el( 'input', {
-							type: 'color',
-							value: attrs.scrimColor,
-							onChange: function ( e ) { setAttributes( { scrimColor: e.target.value } ); },
-							style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }
-						} ),
-						el( RangeControl, {
-							label: __( 'Scrim Opacity', 'rcmi-toolkit' ),
-							value: attrs.scrimOpacity,
-							min: 0,
-							max: 1,
-							step: 0.05,
-							onChange: function ( v ) { setAttributes( { scrimOpacity: v } ); }
-						} ),
-						el( RangeControl, {
-							label: __( 'Scrim Angle (degrees)', 'rcmi-toolkit' ),
-							value: attrs.scrimAngle,
-							min: 0,
-							max: 360,
-							step: 15,
-							onChange: function ( v ) { setAttributes( { scrimAngle: v } ); }
+						renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
+							setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
 						} )
 					),
 					roleFields( 1 ), roleFields( 2 ), roleFields( 3 ), roleFields( 4 ), roleFields( 5 ), roleFields( 6 )
@@ -475,20 +610,7 @@
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
 			};
-			var scrimColor = attrs.scrimColor || '#ffffff';
-			var scrimOpacity = attrs.scrimOpacity != null ? attrs.scrimOpacity : 0.9;
-			var scrimAngle = attrs.scrimAngle != null ? attrs.scrimAngle : 125;
-			function hexToRgba( hex, alpha ) {
-				var h = hex.replace( '#', '' );
-				if ( h.length === 3 ) { h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; }
-				var r = parseInt( h.substring( 0, 2 ), 16 );
-				var g = parseInt( h.substring( 2, 4 ), 16 );
-				var b = parseInt( h.substring( 4, 6 ), 16 );
-				return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed( 2 ) + ')';
-			}
-			var scrimStyle = {
-				background: 'linear-gradient(' + scrimAngle + 'deg, ' + hexToRgba( scrimColor, scrimOpacity ) + ' 0%, ' + hexToRgba( scrimColor, scrimOpacity * 0.85 ) + ' 40%, transparent 100%)'
-			};
+			var scrimStyle = { background: buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle ) };
 			return el( 'section', blockProps,
 				el( 'div', { className: 'rcmi-section-scrim', 'aria-hidden': 'true', style: scrimStyle } ),
 				el( 'div', { className: 'wrap' },
@@ -523,31 +645,31 @@
 			tabs: {
 				type: 'array',
 				default: [
-					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
+					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'People', title: 'Investigator Development', desc: 'Individualized pathways that move early-stage researchers from idea to independent funding.' },
 						{ tag: 'Funding', title: 'Pilot Awards', desc: 'Seed funding for promising, high-risk / high-reward chronic disease research.' },
 						{ tag: 'Guidance', title: 'Mentoring', desc: 'Paired mentorship with senior faculty across biostatistics, design, and dissemination.' },
 						{ tag: 'Skills', title: 'Training', desc: 'Workshops and cohort programs covering methods, grant writing, and community-engaged research.' }
 					] },
-					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
+					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Capacity', title: 'Research Capacity', desc: 'Institutional infrastructure that supports rigorous, reproducible science at every stage.' },
 						{ tag: 'Methods', title: 'Biostatistics', desc: 'Consultation on study design, analysis plans, and power calculations.' },
 						{ tag: 'Data', title: 'Data Science', desc: 'Support for data management, integration, and advanced analytics.' },
 						{ tag: 'Access', title: 'Research Resources', desc: 'Shared tools, templates, and navigation support across the research lifecycle.' }
 					] },
-					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
+					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Engagement', title: 'Community Engagement', desc: 'Ongoing, two-way relationships between researchers and community organizations.' },
 						{ tag: 'Governance', title: 'Community Advisory Board', desc: 'Community leaders shape priorities, review protocols, and guide dissemination.' },
 						{ tag: 'Model', title: 'Value-Based Community Engagement', desc: 'A framework that measures and reinforces mutual value across every partnership.' },
 						{ tag: 'Network', title: 'Community Partnerships', desc: 'A growing network of trusted organizations across Houston\u2019s diverse communities.' }
 					] },
-					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
+					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Portfolio', title: 'Research Projects', desc: 'An active portfolio spanning prevention, treatment, and implementation science.' },
 						{ tag: 'Infrastructure', title: 'Core Services', desc: 'Shared cores in biostatistics, community engagement, and administration.' },
 						{ tag: 'Growth', title: 'Innovation', desc: 'New methods and technologies piloted to strengthen chronic disease research.' },
 						{ tag: 'Bridge', title: 'Translational Science', desc: 'Moving discoveries from bench and community into practice and policy.' }
 					] },
-					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
+					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimStops: [ { color: '#ffffff', opacity: 0.9, position: 0 }, { color: '#ffffff', opacity: 0.54, position: 50 }, { color: '#ffffff', opacity: 0, position: 100 } ], scrimType: 'linear', scrimAngle: 90, cards: [
 						{ tag: 'Voices', title: 'Impact Stories', desc: 'Real accounts of problems studied, lessons learned, and what\u2019s next.' },
 						{ tag: 'Evidence', title: 'Publications', desc: 'Findings organized by theme, not by committee.' },
 						{ tag: 'Live', title: 'Outcomes Dashboard', desc: 'Monthly-updated metrics on investigators, funding, and communities served.' },
@@ -626,29 +748,17 @@
 						}, __( 'Remove image', 'rcmi-toolkit' ) )
 					) : null,
 					// Per-tab gradient scrim controls.
-					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Scrim color', 'rcmi-toolkit' ) ),
-					el( 'input', {
-						type: 'color',
-						value: tab.scrimColor || '#ffffff',
-						onChange: function ( e ) { updateTab( idx, 'scrimColor', e.target.value ); },
-						style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '12px' }
-					} ),
-					el( RangeControl, {
-						label: __( 'Scrim opacity', 'rcmi-toolkit' ),
-						value: tab.scrimOpacity != null ? tab.scrimOpacity : 0.9,
-						onChange: function ( v ) { updateTab( idx, 'scrimOpacity', v ); },
-						min: 0,
-						max: 1,
-						step: 0.05
-					} ),
-					el( RangeControl, {
-						label: __( 'Scrim angle (degrees)', 'rcmi-toolkit' ),
-						value: tab.scrimAngle != null ? tab.scrimAngle : 90,
-						onChange: function ( v ) { updateTab( idx, 'scrimAngle', v ); },
-						min: 0,
-						max: 360,
-						step: 15
-					} ),
+					el( 'div', { key: 'tab-grad-' + idx }, renderGradientPicker( tab.scrimStops, tab.scrimType, tab.scrimAngle, function ( stops, type, angle ) {
+						var u = {}; u.tabs = tabs.map( function ( t, i ) {
+							if ( i !== idx ) return t;
+							var nt = Object.assign( {}, t );
+							nt.scrimStops = stops;
+							nt.scrimType = type;
+							nt.scrimAngle = angle;
+							return nt;
+						} );
+						setAttributes( u );
+					} ) ),
 					el( TextareaControl, { label: __( 'Heading (HTML allowed)', 'rcmi-toolkit' ), value: tab.heading, onChange: function ( v ) { updateTab( idx, 'heading', v ); } } ),
 					el( TextareaControl, { label: __( 'Note', 'rcmi-toolkit' ), value: tab.note, onChange: function ( v ) { updateTab( idx, 'note', v ); } } ),
 					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: tab.btnText, onChange: function ( v ) { updateTab( idx, 'btnText', v ); } } ),
@@ -687,6 +797,7 @@
 						)
 					),
 					el( 'section', { className: 'tab-panel is-active', style: firstTab.bgImageUrl ? { backgroundImage: 'url(' + firstTab.bgImageUrl + ')' } : undefined },
+						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( firstTab.scrimStops, firstTab.scrimType, firstTab.scrimAngle ) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },
 								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: firstTab.heading } } ) ),
@@ -730,6 +841,7 @@
 			var panels = el( 'div', { className: 'tab-panels' },
 				tabs.map( function ( tab, idx ) {
 					return el( 'section', { key: 'panel-' + idx, id: tab.id, className: 'tab-panel' + ( idx === 0 ? ' is-active' : '' ) + ( idx % 2 === 1 ? ' bg-alt' : '' ), role: 'tabpanel', style: tab.bgImageUrl ? { backgroundImage: 'url(' + tab.bgImageUrl + ')' } : undefined },
+						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( tab.scrimStops, tab.scrimType, tab.scrimAngle ) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },
 								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: tab.heading } } ) ),
@@ -788,9 +900,13 @@
 			parallaxDirection: { type: 'string', default: 'down' },
 			// Layout
 			height:      { type: 'number', default: 80 },
-			// Gradient scrim (editable overlay for text readability)
-			scrimColor:  { type: 'string', default: '#f8f5ee' },
-			scrimOpacity: { type: 'number', default: 0.85 },
+			// Gradient scrim (editable multi-stop overlay for text readability)
+			scrimStops:  { type: 'array', default: [
+				{ color: '#f8f5ee', opacity: 0.85, position: 0 },
+				{ color: '#f8f5ee', opacity: 0.34, position: 40 },
+				{ color: '#f8f5ee', opacity: 0, position: 65 }
+			] },
+			scrimType:   { type: 'string', default: 'linear' },
 			scrimAngle:  { type: 'number', default: 90 },
 			// Content alignment
 			contentAlign: { type: 'string', default: 'left' }, // 'left', 'center', 'right'
@@ -816,11 +932,8 @@
 				return 'rgba(' + r + ',' + g + ',' + b + ',' + ( Math.round( alpha * 100 ) / 100 ) + ')';
 			};
 
-			// Build the scrim gradient style.
-			var scrimGradient = 'linear-gradient(' + ( attrs.scrimAngle || 90 ) + 'deg, ' +
-				hexToRgba( attrs.scrimColor, attrs.scrimOpacity ) + ' 0%, ' +
-				hexToRgba( attrs.scrimColor, attrs.scrimOpacity * 0.4 ) + ' 40%, ' +
-				hexToRgba( attrs.scrimColor, 0 ) + ' 65%)';
+			// Build the scrim gradient style from multi-stop picker.
+			var scrimGradient = buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle );
 
 			// Layer picker for parallax mode.
 			var layerPicker = function ( label, urlKey, idKey, speedKey ) {
@@ -941,27 +1054,8 @@
 			inspectorChildren.push(
 				el( PanelBody, { title: __( 'Gradient Scrim', 'rcmi-toolkit' ), initialOpen: false },
 					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Overlay that darkens/tints the background for text readability.', 'rcmi-toolkit' ) ),
-					el( TextControl, {
-						label: __( 'Scrim color (hex)', 'rcmi-toolkit' ),
-						value: attrs.scrimColor,
-						onChange: function ( v ) { setAttributes( { scrimColor: v } ); },
-						type: 'color'
-					} ),
-					el( RangeControl, {
-						label: __( 'Scrim opacity', 'rcmi-toolkit' ),
-						value: attrs.scrimOpacity,
-						onChange: function ( v ) { setAttributes( { scrimOpacity: v } ); },
-						min: 0,
-						max: 1,
-						step: 0.05
-					} ),
-					el( RangeControl, {
-						label: __( 'Scrim angle (degrees)', 'rcmi-toolkit' ),
-						value: attrs.scrimAngle,
-						onChange: function ( v ) { setAttributes( { scrimAngle: v } ); },
-						min: 0,
-						max: 360,
-						step: 15
+					renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
+						setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
 					} )
 				),
 				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: false },

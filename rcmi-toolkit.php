@@ -38,6 +38,53 @@ function rcmi_toolkit_hex_to_rgba( $hex, $alpha = 1 ) {
 	return sprintf( 'rgba(%d,%d,%d,%s)', $r, $g, $b, number_format( $alpha, 2 ) );
 }
 
+/**
+ * Migrate old simple scrim attributes (scrimColor/scrimOpacity) to
+ * the new multi-stop format. Returns a 3-stop gradient array.
+ */
+function rcmi_toolkit_migrate_scrim_stops( $attrs ) {
+	if ( ! empty( $attrs['scrimStops'] ) ) {
+		return $attrs['scrimStops'];
+	}
+	$color   = $attrs['scrimColor'] ?? '#ffffff';
+	$opacity = $attrs['scrimOpacity'] ?? 0.9;
+	return array(
+		array( 'color' => $color, 'opacity' => $opacity, 'position' => 0 ),
+		array( 'color' => $color, 'opacity' => $opacity * 0.6, 'position' => 50 ),
+		array( 'color' => $color, 'opacity' => 0, 'position' => 100 ),
+	);
+}
+
+/**
+ * Build a CSS gradient string from an array of color stops.
+ *
+ * @param array  $stops  Array of [ 'color' => hex, 'opacity' => 0-1, 'position' => 0-100 ].
+ * @param string $type   'linear' or 'radial'.
+ * @param int    $angle  Angle in degrees (for linear only).
+ * @return string CSS gradient value (without the `background:` wrapper).
+ */
+function rcmi_toolkit_build_gradient( $stops, $type = 'linear', $angle = 90 ) {
+	if ( empty( $stops ) || ! is_array( $stops ) ) {
+		return 'linear-gradient(0deg, transparent, transparent)';
+	}
+
+	$parts = array();
+	foreach ( $stops as $stop ) {
+		$color    = $stop['color'] ?? '#ffffff';
+		$opacity  = isset( $stop['opacity'] ) ? floatval( $stop['opacity'] ) : 1;
+		$position = intval( $stop['position'] ?? 0 );
+		$parts[]  = rcmi_toolkit_hex_to_rgba( $color, $opacity ) . ' ' . $position . '%';
+	}
+
+	$stops_str = implode( ', ', $parts );
+
+	if ( $type === 'radial' ) {
+		return 'radial-gradient(circle at center, ' . $stops_str . ')';
+	}
+
+	return 'linear-gradient(' . intval( $angle ) . 'deg, ' . $stops_str . ')';
+}
+
 // ============================================================================
 // GitHub-based auto-update system
 // Checks for new GitHub releases and surfaces them in WP Admin → Plugins
@@ -343,7 +390,12 @@ function rcmi_block_defaults( $block_name ) {
 			'role4Title' => 'A faculty member', 'role4Desc' => 'Request biostatistics, data science, or research navigation support.', 'role4Link' => '/cores/#research',
 			'role5Title' => 'A healthcare organization', 'role5Desc' => 'Explore implementation support and shared chronic-disease priorities.', 'role5Link' => '/partners/',
 			'role6Title' => 'A funder', 'role6Desc' => 'Review outcomes, publications, and funding leveraged to date.', 'role6Link' => '/publications/',
-				'scrimColor' => '#ffffff', 'scrimOpacity' => 0.9, 'scrimAngle' => 125,
+				'scrimStops' => array(
+					array( 'color' => '#ffffff', 'opacity' => 0.9, 'position' => 0 ),
+					array( 'color' => '#ffffff', 'opacity' => 0.54, 'position' => 50 ),
+					array( 'color' => '#ffffff', 'opacity' => 0, 'position' => 100 ),
+				),
+				'scrimType' => 'linear', 'scrimAngle' => 125,
 				'bgImageId' => 0, 'bgImageUrl' => '',
 		),
 		'rcmi/impact-strip-block' => array(
@@ -519,8 +571,12 @@ function rcmi_register_server_side_blocks() {
 			'role4Title' => array( 'type' => 'string', 'default' => '' ), 'role4Desc' => array( 'type' => 'string', 'default' => '' ), 'role4Link' => array( 'type' => 'string', 'default' => '' ),
 			'role5Title' => array( 'type' => 'string', 'default' => '' ), 'role5Desc' => array( 'type' => 'string', 'default' => '' ), 'role5Link' => array( 'type' => 'string', 'default' => '' ),
 			'role6Title' => array( 'type' => 'string', 'default' => '' ), 'role6Desc' => array( 'type' => 'string', 'default' => '' ), 'role6Link' => array( 'type' => 'string', 'default' => '' ),
-				'scrimColor' => array( 'type' => 'string', 'default' => '#ffffff' ),
-				'scrimOpacity' => array( 'type' => 'number', 'default' => 0.9 ),
+				'scrimStops' => array( 'type' => 'array', 'default' => array(
+					array( 'color' => '#ffffff', 'opacity' => 0.9, 'position' => 0 ),
+					array( 'color' => '#ffffff', 'opacity' => 0.54, 'position' => 50 ),
+					array( 'color' => '#ffffff', 'opacity' => 0, 'position' => 100 ),
+				) ),
+				'scrimType' => array( 'type' => 'string', 'default' => 'linear' ),
 				'scrimAngle' => array( 'type' => 'number', 'default' => 125 ),
 				'bgImageId' => array( 'type' => 'number', 'default' => 0 ),
 				'bgImageUrl' => array( 'type' => 'string', 'default' => '' ),
@@ -538,15 +594,11 @@ function rcmi_register_server_side_blocks() {
 				}
 
 				// Build the scrim overlay style from block attributes.
-				$scrim_color   = $attrs['scrimColor'] ?? '#ffffff';
-				$scrim_opacity = $attrs['scrimOpacity'] ?? 0.9;
-				$scrim_angle   = $attrs['scrimAngle'] ?? 125;
-				$scrim_style   = sprintf(
-					'background: linear-gradient(%ddeg, %s 0%%, %s 40%%, transparent 100%%);',
-					intval( $scrim_angle ),
-					rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity ),
-					rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity * 0.85 )
-				);
+				$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+					rcmi_toolkit_migrate_scrim_stops( $attrs ),
+					$attrs['scrimType'] ?? 'linear',
+					intval( $attrs['scrimAngle'] ?? 125 )
+				) . ';';
 
 				// Optional inline background image on the section.
 				$section_style = '';
@@ -612,16 +664,13 @@ function rcmi_register_server_side_blocks() {
 						esc_html( $card['desc'] )
 					);
 				}
-				// Build per-tab scrim style from editable attributes.
-				$tab_scrim_color   = $tab['scrimColor'] ?? '#ffffff';
-				$tab_scrim_opacity = $tab['scrimOpacity'] ?? 0.9;
-				$tab_scrim_angle   = intval( $tab['scrimAngle'] ?? 90 );
-				$tab_scrim_style   = sprintf(
-					'background: linear-gradient(%ddeg, %s 0%%, %s 50%%, transparent 100%%);',
-					$tab_scrim_angle,
-					rcmi_toolkit_hex_to_rgba( $tab_scrim_color, $tab_scrim_opacity ),
-					rcmi_toolkit_hex_to_rgba( $tab_scrim_color, $tab_scrim_opacity * 0.6 )
-				);
+				// Build per-tab scrim style from multi-stop gradient.
+				$tab_stops = rcmi_toolkit_migrate_scrim_stops( $tab );
+				$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+					$tab_stops,
+					$tab['scrimType'] ?? 'linear',
+					intval( $tab['scrimAngle'] ?? 90 )
+				) . ';';
 
 				$panels .= sprintf(
 					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="rcmi-tab-scrim" aria-hidden="true" style="%s"></div><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div><div style="margin-top:var(--space-5);display:flex;gap:var(--space-2);flex-wrap:wrap;"><a href="%s" class="btn btn-primary">%s</a></div></div></section>',
@@ -661,8 +710,12 @@ function rcmi_register_server_side_blocks() {
 			'contentSpeed' => array( 'type' => 'number', 'default' => 0.1 ),
 			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
-			'scrimColor'  => array( 'type' => 'string', 'default' => '#f8f5ee' ),
-			'scrimOpacity' => array( 'type' => 'number', 'default' => 0.85 ),
+			'scrimStops'  => array( 'type' => 'array', 'default' => array(
+				array( 'color' => '#f8f5ee', 'opacity' => 0.85, 'position' => 0 ),
+				array( 'color' => '#f8f5ee', 'opacity' => 0.34, 'position' => 40 ),
+				array( 'color' => '#f8f5ee', 'opacity' => 0, 'position' => 65 ),
+			) ),
+			'scrimType'   => array( 'type' => 'string', 'default' => 'linear' ),
 			'scrimAngle'  => array( 'type' => 'number', 'default' => 90 ),
 			'contentAlign' => array( 'type' => 'string', 'default' => 'left' ),
 			'eyebrow'     => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
@@ -677,16 +730,12 @@ function rcmi_register_server_side_blocks() {
 			if ( $height < 40 ) { $height = 40; }
 			if ( $height > 100 ) { $height = 100; }
 
-			// Build the scrim gradient from editable attributes.
-			$scrim_color   = $attrs['scrimColor'] ?? '#f8f5ee';
-			$scrim_opacity = $attrs['scrimOpacity'] ?? 0.85;
-			$scrim_angle   = intval( $attrs['scrimAngle'] ?? 90 );
-			$scrim_style   = sprintf(
-				'background: linear-gradient(%ddeg, %s 0%%, %s 40%%, transparent 65%%);',
-				$scrim_angle,
-				rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity ),
-				rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity * 0.4 )
-			);
+			// Build the scrim gradient from multi-stop picker attributes.
+			$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+				rcmi_toolkit_migrate_scrim_stops( $attrs ),
+				$attrs['scrimType'] ?? 'linear',
+				intval( $attrs['scrimAngle'] ?? 90 )
+			) . ';';
 
 			// Content alignment class.
 			$align = $attrs['contentAlign'] ?? 'left';
