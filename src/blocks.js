@@ -1265,54 +1265,10 @@
 				)
 			);
 		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var blockProps = useBlockProps.save();
-			var tabs = attrs.tabs || [];
-
-			// Tab strip.
-			var tabStrip = el( 'section', { className: 'impact-overview', id: 'impact-strip' },
-				el( 'div', { className: 'wrap' },
-					el( 'div', { className: 'impact-strip' },
-						el( 'div', { className: 'impact-steps', role: 'tablist' },
-							tabs.map( function ( tab, idx ) {
-								return el( 'button', { key: 'btn-' + idx, className: 'impact-step' + ( idx === 0 ? ' is-active' : '' ), role: 'tab', 'aria-selected': idx === 0 ? 'true' : 'false', 'data-tab': tab.id, type: 'button' },
-									el( 'span', { className: 'impact-step-copy' }, el( 'strong', null, tab.label ) )
-								);
-							} )
-						)
-					)
-				)
-			);
-
-			// Tab panels.
-			var panels = el( 'div', { className: 'tab-panels' },
-				tabs.map( function ( tab, idx ) {
-					return el( 'section', { key: 'panel-' + idx, id: tab.id, className: 'tab-panel' + ( idx === 0 ? ' is-active' : '' ) + ( idx % 2 === 1 ? ' bg-alt' : '' ), role: 'tabpanel', style: tab.bgImageUrl ? { backgroundImage: 'url(' + tab.bgImageUrl + ')' } : undefined },
-						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( tab.scrimStops, tab.scrimType, tab.scrimAngle ) } } ),
-						el( 'div', { className: 'wrap' },
-							el( 'div', { className: 'section-head' },
-								el( 'div', null, el( 'h2', { dangerouslySetInnerHTML: { __html: tab.heading } } ) ),
-								el( 'p', { className: 'section-note' }, tab.note )
-							),
-							el( 'div', { className: 'card-grid' },
-								( tab.cards || [] ).map( function ( card, ci ) {
-									return el( 'div', { className: 'card', key: 'c-' + ci },
-										el( 'span', { className: 'tag' }, card.tag ),
-										el( 'h4', null, card.title ),
-										el( 'p', null, card.desc )
-									);
-								} )
-							),
-							el( 'div', { style: { marginTop: 'var(--space-5)', display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' } },
-								el( 'a', { href: tab.btnLink, className: 'btn btn-primary' }, tab.btnText )
-							)
-						)
-					);
-				} )
-			);
-
-			return el( 'div', blockProps, tabStrip, panels );
+		save: function () {
+			// Server-side rendered (dynamic block) so height, colors,
+			// transitions, and tab data always reflect the latest attributes.
+			return null;
 		}
 	} );
 
