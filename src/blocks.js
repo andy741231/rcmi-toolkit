@@ -165,12 +165,7 @@
 					}, __( 'Remove', 'rcmi-toolkit' ) ) : null
 				),
 				el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Color', 'rcmi-toolkit' ) ),
-				el( 'input', {
-					type: 'color',
-					value: stop.color || '#ffffff',
-					onChange: function ( e ) { updateStop( idx, 'color', e.target.value ); },
-					style: { width: '100%', height: '36px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }
-				} ),
+				renderColorSelector( __( 'Color', 'rcmi-toolkit' ), stop.color || '#ffffff', function ( v ) { updateStop( idx, 'color', v ); } ),
 				el( RangeControl, {
 					label: __( 'Opacity', 'rcmi-toolkit' ),
 					value: stop.opacity != null ? stop.opacity : 1,
@@ -426,12 +421,12 @@
 						return el( 'div', { style: { padding: '8px' } },
 							el( ColorPalette, {
 								value: activeColor,
-								colors: getColors(),
+								colors: UH_COLORS,
 								onChange: function ( color ) {
 									if ( ! color ) {
 										props.onChange( removeFormat( props.value, { type: 'rcmi/text-color' } ) );
 									} else {
-										var colors = getColors();
+										var colors = UH_COLORS;
 										var preset = null;
 										for ( var i = 0; i < colors.length; i++ ) {
 											if ( colors[ i ].color === color ) { preset = colors[ i ]; break; }
@@ -491,7 +486,7 @@
 						return el( 'div', { style: { padding: '8px' } },
 							el( ColorPalette, {
 								value: activeColor,
-								colors: getColors(),
+								colors: UH_COLORS,
 								onChange: function ( color ) {
 									if ( ! color ) {
 										props.onChange( removeFormat( props.value, { type: 'rcmi/highlight' } ) );
