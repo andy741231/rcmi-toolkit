@@ -5,6 +5,7 @@
 	var Fragment = wp.element.Fragment;
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
+	var SelectControl = wp.components.SelectControl;
 	var useBlockProps = wp.blockEditor.useBlockProps;
 	var InspectorControls = wp.blockEditor.InspectorControls;
 	var PanelBody = wp.components.PanelBody;
@@ -13,156 +14,6 @@
 	var MediaUpload = wp.blockEditor.MediaUpload;
 	var __ = wp.i18n.__;
 
-	// ============================================================
-	// Block: rcmi/hero
-	// Hero section with background image picker, headline, eyebrow,
-	// lede, and CTA button. All fields are editable in the sidebar.
-	// ============================================================
-	registerBlockType( 'rcmi/hero', {
-		apiVersion: 3,
-		title: __( 'RCMI Hero', 'rcmi-toolkit' ),
-		description: __( 'Hero section with background image, headline, eyebrow, lede, and CTA button.', 'rcmi-toolkit' ),
-		category: 'rcmi-sections',
-		icon: 'format-image',
-		supports: {
-			html: false,
-			align: [ 'full', 'wide' ]
-		},
-		attributes: {
-			bgImageId:  { type: 'number',  default: 0 },
-			bgImageUrl: { type: 'string',  default: '' },
-			headline:   { type: 'string',  default: 'Advancing Chronic<br> Disease Research.' },
-			eyebrow:    { type: 'string',  default: 'Accelerating Real\u2011World Impact.' },
-			lede:       { type: 'string',  default: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' },
-			buttonText: { type: 'string',  default: 'Request Support' },
-			buttonLink: { type: 'string',  default: '#start' }
-		},
-		edit: function ( props ) {
-			var attrs = props.attributes;
-			var setAttributes = props.setAttributes;
-			var blockProps = useBlockProps( { className: 'rcmi-hero-editor alignfull' } );
-
-			// Build the background style for the preview.
-			var bgStyle = { background: '#f8f5ee' };
-			if ( attrs.bgImageUrl ) {
-				bgStyle = {
-					background: 'linear-gradient(180deg, rgba(248,245,238,0.85) 0%, rgba(248,245,238,0.3) 40%, rgba(248,245,238,0) 65%), linear-gradient(90deg, rgba(248,245,238,0.85) 0%, rgba(248,245,238,0.3) 30%, rgba(248,245,238,0) 50%), url(' + attrs.bgImageUrl + ') center/cover no-repeat'
-				};
-			}
-
-			return el( Fragment, null,
-				// Sidebar controls.
-				el( InspectorControls, null,
-					el( PanelBody, { title: __( 'Background Image', 'rcmi-toolkit' ), initialOpen: true },
-						el( MediaUpload, {
-							onSelect: function ( media ) {
-								setAttributes( {
-									bgImageId: media.id,
-									bgImageUrl: media.url
-								} );
-							},
-							allowedTypes: 'image',
-							value: attrs.bgImageId,
-							render: function ( obj ) {
-								return el( wp.components.Button, {
-									onClick: obj.open,
-									className: 'rcmi-image-picker-btn',
-									variant: 'secondary'
-								},
-									attrs.bgImageUrl ? __( 'Replace Background Image', 'rcmi-toolkit' ) : __( 'Choose Background Image', 'rcmi-toolkit' )
-								);
-							}
-						} ),
-						attrs.bgImageUrl ? el( 'div', { className: 'rcmi-image-preview' },
-							el( 'img', { src: attrs.bgImageUrl, alt: __( 'Background preview', 'rcmi-toolkit' ) } ),
-							el( wp.components.Button, {
-								onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); },
-								variant: 'tertiary',
-								isDestructive: true
-							}, __( 'Remove image', 'rcmi-toolkit' ) )
-						) : null
-					),
-					el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
-						el( TextControl, {
-							label: __( 'Eyebrow (small label above headline)', 'rcmi-toolkit' ),
-							value: attrs.eyebrow,
-							onChange: function ( v ) { setAttributes( { eyebrow: v } ); }
-						} ),
-						el( TextareaControl, {
-							label: __( 'Headline (HTML allowed, e.g. <br>)', 'rcmi-toolkit' ),
-							value: attrs.headline,
-							onChange: function ( v ) { setAttributes( { headline: v } ); }
-						} ),
-						el( TextareaControl, {
-							label: __( 'Lede (subheading paragraph)', 'rcmi-toolkit' ),
-							value: attrs.lede,
-							onChange: function ( v ) { setAttributes( { lede: v } ); }
-						} )
-					),
-					el( PanelBody, { title: __( 'Button', 'rcmi-toolkit' ), initialOpen: false },
-						el( TextControl, {
-							label: __( 'Button Text', 'rcmi-toolkit' ),
-							value: attrs.buttonText,
-							onChange: function ( v ) { setAttributes( { buttonText: v } ); }
-						} ),
-						el( TextControl, {
-							label: __( 'Button Link URL', 'rcmi-toolkit' ),
-							value: attrs.buttonLink,
-							onChange: function ( v ) { setAttributes( { buttonLink: v } ); }
-						} )
-					)
-				),
-				// Editor preview — mirrors the frontend .hero markup.
-				el( 'section', blockProps,
-					el( 'div', { className: 'hero-media', style: bgStyle, 'aria-hidden': 'true' } ),
-					el( 'div', { className: 'wrap hero-inner' },
-						el( 'div', { className: 'hero-grid' },
-							el( 'div', { className: 'hero-copy' },
-								el( 'h1', { dangerouslySetInnerHTML: { __html: attrs.headline } } ),
-								el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-								el( 'p', { className: 'lede' }, attrs.lede ),
-								el( 'div', { className: 'hero-actions' },
-									el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
-								)
-							)
-						)
-					)
-				)
-			);
-		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var blockProps = useBlockProps.save( { className: 'hero -tight' } );
-
-			// Build inline style for the background image.
-			// We use an inline style so the image is stored in the block attributes
-			// and can be changed without editing CSS.
-			var mediaStyle = '';
-			if ( attrs.bgImageUrl ) {
-				mediaStyle = 'background: linear-gradient(180deg, #f8f5ee 0%, rgba(248,245,238,0.4) 40%, rgba(248,245,238,0) 65%), linear-gradient(90deg, rgba(248,245,238,0.85) 0%, rgba(248,245,238,0.3) 30%, rgba(248,245,238,0) 50%), url(' + attrs.bgImageUrl + ') center/cover no-repeat;';
-			} else {
-				mediaStyle = 'background: #f8f5ee;';
-			}
-
-			return el( 'section', blockProps,
-				el( 'div', { className: 'hero-media', 'aria-hidden': 'true', style: mediaStyle } ),
-				el( 'div', { className: 'wrap hero-inner' },
-					el( 'div', { className: 'hero-grid' },
-						el( 'div', { className: 'hero-copy' },
-							el( 'h1', { dangerouslySetInnerHTML: { __html: attrs.headline } } ),
-							el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-							el( 'p', { className: 'lede' }, attrs.lede ),
-							el( 'div', { className: 'hero-actions' },
-								el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary' }, attrs.buttonText )
-							)
-						)
-					)
-				)
-			);
-		}
-	} );
-
-	// ============================================================
 	// Block: rcmi/quote-block
 	// Large pull quote with quotation marks and citation.
 	// ============================================================
@@ -506,7 +357,12 @@
 			role5Link:  { type: 'string', default: '/partners/' },
 			role6Title: { type: 'string', default: 'A funder' },
 			role6Desc:  { type: 'string', default: 'Review outcomes, publications, and funding leveraged to date.' },
-			role6Link:  { type: 'string', default: '/publications/' }
+			role6Link:  { type: 'string', default: '/publications/' },
+			scrimColor: { type: 'string', default: '#ffffff' },
+			scrimOpacity: { type: 'number', default: 0.9 },
+			scrimAngle: { type: 'number', default: 125 },
+			bgImageId: { type: 'number', default: 0 },
+			bgImageUrl: { type: 'string', default: '' }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -534,6 +390,56 @@
 						el( TextControl, { label: __( 'Heading', 'rcmi-toolkit' ), value: attrs.heading, onChange: function ( v ) { setAttributes( { heading: v } ); } } ),
 						el( TextareaControl, { label: __( 'Note', 'rcmi-toolkit' ), value: attrs.note, onChange: function ( v ) { setAttributes( { note: v } ); } } )
 					),
+					el( PanelBody, { title: __( 'Background & Scrim', 'rcmi-toolkit' ), initialOpen: false },
+						el( 'p', null, __( 'Background Image', 'rcmi-toolkit' ) ),
+						el( MediaUpload, {
+							onSelect: function ( media ) {
+								setAttributes( { bgImageId: media.id, bgImageUrl: media.url } );
+							},
+							allowedTypes: 'image',
+							value: attrs.bgImageId,
+							render: function ( obj ) {
+								return el( wp.components.Button, {
+									onClick: obj.open,
+									className: 'rcmi-image-picker-btn',
+									variant: 'secondary'
+								},
+									attrs.bgImageUrl ? __( 'Replace Background Image', 'rcmi-toolkit' ) : __( 'Choose Background Image', 'rcmi-toolkit' )
+								);
+							}
+						} ),
+						attrs.bgImageUrl ? el( 'div', { className: 'rcmi-image-preview' },
+							el( 'img', { src: attrs.bgImageUrl, alt: __( 'Background preview', 'rcmi-toolkit' ) } ),
+							el( wp.components.Button, {
+								onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); },
+								variant: 'tertiary',
+								isDestructive: true
+							}, __( 'Remove image', 'rcmi-toolkit' ) )
+						) : null,
+						el( 'p', { style: { marginTop: '16px' } }, __( 'Scrim Color', 'rcmi-toolkit' ) ),
+						el( 'input', {
+							type: 'color',
+							value: attrs.scrimColor,
+							onChange: function ( e ) { setAttributes( { scrimColor: e.target.value } ); },
+							style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }
+						} ),
+						el( RangeControl, {
+							label: __( 'Scrim Opacity', 'rcmi-toolkit' ),
+							value: attrs.scrimOpacity,
+							min: 0,
+							max: 1,
+							step: 0.05,
+							onChange: function ( v ) { setAttributes( { scrimOpacity: v } ); }
+						} ),
+						el( RangeControl, {
+							label: __( 'Scrim Angle (degrees)', 'rcmi-toolkit' ),
+							value: attrs.scrimAngle,
+							min: 0,
+							max: 360,
+							step: 15,
+							onChange: function ( v ) { setAttributes( { scrimAngle: v } ); }
+						} )
+					),
 					roleFields( 1 ), roleFields( 2 ), roleFields( 3 ), roleFields( 4 ), roleFields( 5 ), roleFields( 6 )
 				),
 				el( 'section', blockProps,
@@ -554,7 +460,13 @@
 		},
 		save: function ( props ) {
 			var attrs = props.attributes;
-			var blockProps = useBlockProps.save( { className: 'collaborating-section', id: 'start' } );
+			var sectionStyle = {};
+			if ( attrs.bgImageUrl ) {
+				sectionStyle.backgroundImage = 'url(' + attrs.bgImageUrl + ')';
+				sectionStyle.backgroundSize = 'cover';
+				sectionStyle.backgroundPosition = 'center';
+			}
+			var blockProps = useBlockProps.save( { className: 'collaborating-section', id: 'start', style: sectionStyle } );
 			var roleEl = function ( n ) {
 				var prefix = 'role' + n;
 				return el( 'a', { href: attrs[prefix + 'Link'], className: 'role-card' },
@@ -563,7 +475,22 @@
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
 			};
+			var scrimColor = attrs.scrimColor || '#ffffff';
+			var scrimOpacity = attrs.scrimOpacity != null ? attrs.scrimOpacity : 0.9;
+			var scrimAngle = attrs.scrimAngle != null ? attrs.scrimAngle : 125;
+			function hexToRgba( hex, alpha ) {
+				var h = hex.replace( '#', '' );
+				if ( h.length === 3 ) { h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; }
+				var r = parseInt( h.substring( 0, 2 ), 16 );
+				var g = parseInt( h.substring( 2, 4 ), 16 );
+				var b = parseInt( h.substring( 4, 6 ), 16 );
+				return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha.toFixed( 2 ) + ')';
+			}
+			var scrimStyle = {
+				background: 'linear-gradient(' + scrimAngle + 'deg, ' + hexToRgba( scrimColor, scrimOpacity ) + ' 0%, ' + hexToRgba( scrimColor, scrimOpacity * 0.85 ) + ' 40%, transparent 100%)'
+			};
 			return el( 'section', blockProps,
+				el( 'div', { className: 'rcmi-section-scrim', 'aria-hidden': 'true', style: scrimStyle } ),
 				el( 'div', { className: 'wrap' },
 					el( 'div', { className: 'section-head' },
 						el( 'div', null,
@@ -596,31 +523,31 @@
 			tabs: {
 				type: 'array',
 				default: [
-					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', cards: [
+					{ id: 'develop', label: 'Develop', heading: 'Growing the next generation <strong>of research leaders</strong>', note: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
 						{ tag: 'People', title: 'Investigator Development', desc: 'Individualized pathways that move early-stage researchers from idea to independent funding.' },
 						{ tag: 'Funding', title: 'Pilot Awards', desc: 'Seed funding for promising, high-risk / high-reward chronic disease research.' },
 						{ tag: 'Guidance', title: 'Mentoring', desc: 'Paired mentorship with senior faculty across biostatistics, design, and dissemination.' },
 						{ tag: 'Skills', title: 'Training', desc: 'Workshops and cohort programs covering methods, grant writing, and community-engaged research.' }
 					] },
-					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', cards: [
+					{ id: 'build', label: 'Build', heading: 'Research capacity that scales with <strong>ambition</strong>', note: 'Shared infrastructure — statistical, technical, and navigational — so investigators spend less time re-building the basics and more time discovering.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
 						{ tag: 'Capacity', title: 'Research Capacity', desc: 'Institutional infrastructure that supports rigorous, reproducible science at every stage.' },
 						{ tag: 'Methods', title: 'Biostatistics', desc: 'Consultation on study design, analysis plans, and power calculations.' },
 						{ tag: 'Data', title: 'Data Science', desc: 'Support for data management, integration, and advanced analytics.' },
 						{ tag: 'Access', title: 'Research Resources', desc: 'Shared tools, templates, and navigation support across the research lifecycle.' }
 					] },
-					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', cards: [
+					{ id: 'partner', label: 'Partner', heading: 'Community at the center, <strong>not the edge</strong>', note: 'Research is designed with communities, not delivered to them. Our engagement model shares power over priorities and process.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
 						{ tag: 'Engagement', title: 'Community Engagement', desc: 'Ongoing, two-way relationships between researchers and community organizations.' },
 						{ tag: 'Governance', title: 'Community Advisory Board', desc: 'Community leaders shape priorities, review protocols, and guide dissemination.' },
 						{ tag: 'Model', title: 'Value-Based Community Engagement', desc: 'A framework that measures and reinforces mutual value across every partnership.' },
 						{ tag: 'Network', title: 'Community Partnerships', desc: 'A growing network of trusted organizations across Houston\u2019s diverse communities.' }
 					] },
-					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', cards: [
+					{ id: 'accelerate', label: 'Accelerate', heading: 'From question to real-world impact, <strong>faster</strong>', note: 'Core services and translational infrastructure exist to remove friction between a good idea and a funded, executed study.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
 						{ tag: 'Portfolio', title: 'Research Projects', desc: 'An active portfolio spanning prevention, treatment, and implementation science.' },
 						{ tag: 'Infrastructure', title: 'Core Services', desc: 'Shared cores in biostatistics, community engagement, and administration.' },
 						{ tag: 'Growth', title: 'Innovation', desc: 'New methods and technologies piloted to strengthen chronic disease research.' },
 						{ tag: 'Bridge', title: 'Translational Science', desc: 'Moving discoveries from bench and community into practice and policy.' }
 					] },
-					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', cards: [
+					{ id: 'improve', label: 'Improve', heading: 'We measure what matters, <strong>in public</strong>', note: 'Impact isn\u2019t a year-end summary — it\u2019s a living, monthly record of progress toward better chronic disease outcomes.', btnText: 'View More', btnLink: '#', bgImageId: 0, bgImageUrl: '', scrimColor: '#ffffff', scrimOpacity: 0.9, scrimAngle: 90, cards: [
 						{ tag: 'Voices', title: 'Impact Stories', desc: 'Real accounts of problems studied, lessons learned, and what\u2019s next.' },
 						{ tag: 'Evidence', title: 'Publications', desc: 'Findings organized by theme, not by committee.' },
 						{ tag: 'Live', title: 'Outcomes Dashboard', desc: 'Monthly-updated metrics on investigators, funding, and communities served.' },
@@ -698,6 +625,30 @@
 							isDestructive: true
 						}, __( 'Remove image', 'rcmi-toolkit' ) )
 					) : null,
+					// Per-tab gradient scrim controls.
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Scrim color', 'rcmi-toolkit' ) ),
+					el( 'input', {
+						type: 'color',
+						value: tab.scrimColor || '#ffffff',
+						onChange: function ( e ) { updateTab( idx, 'scrimColor', e.target.value ); },
+						style: { width: '100%', height: '40px', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '12px' }
+					} ),
+					el( RangeControl, {
+						label: __( 'Scrim opacity', 'rcmi-toolkit' ),
+						value: tab.scrimOpacity != null ? tab.scrimOpacity : 0.9,
+						onChange: function ( v ) { updateTab( idx, 'scrimOpacity', v ); },
+						min: 0,
+						max: 1,
+						step: 0.05
+					} ),
+					el( RangeControl, {
+						label: __( 'Scrim angle (degrees)', 'rcmi-toolkit' ),
+						value: tab.scrimAngle != null ? tab.scrimAngle : 90,
+						onChange: function ( v ) { updateTab( idx, 'scrimAngle', v ); },
+						min: 0,
+						max: 360,
+						step: 15
+					} ),
 					el( TextareaControl, { label: __( 'Heading (HTML allowed)', 'rcmi-toolkit' ), value: tab.heading, onChange: function ( v ) { updateTab( idx, 'heading', v ); } } ),
 					el( TextareaControl, { label: __( 'Note', 'rcmi-toolkit' ), value: tab.note, onChange: function ( v ) { updateTab( idx, 'note', v ); } } ),
 					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: tab.btnText, onChange: function ( v ) { updateTab( idx, 'btnText', v ); } } ),
@@ -806,20 +757,24 @@
 	} );
 
 	// ============================================================
-	// Block: rcmi/parallax
-	// Hero section with three parallax image layers (background,
-	// middle, foreground) that move at different speeds on scroll.
+	// Block: rcmi/parallax (also serves as the hero block)
+	// Two modes: "static" (single background image, like the old hero block)
+	// and "parallax" (three image layers that scroll at different speeds).
+	// Includes editable gradient scrim and content alignment controls.
 	// ============================================================
 	registerBlockType( 'rcmi/parallax', {
 		apiVersion: 3,
-		title: __( 'RCMI Parallax Hero', 'rcmi-toolkit' ),
-		description: __( 'Hero with three image layers (background, middle, foreground) that scroll at different speeds for a parallax depth effect.', 'rcmi-toolkit' ),
+		title: __( 'RCMI Hero', 'rcmi-toolkit' ),
+		description: __( 'Hero section with background image. Switch to Parallax mode for a 3-layer depth effect. Includes editable gradient scrim and content alignment.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'images-alt2',
 		supports: { html: false, align: [ 'full', 'wide' ] },
 		attributes: {
+			mode:        { type: 'string', default: 'static' }, // 'static' or 'parallax'
+			// Static mode: single background image
 			bgImageId:   { type: 'number', default: 0 },
 			bgImageUrl:  { type: 'string', default: '' },
+			// Parallax mode: three layers with speeds
 			bgSpeed:     { type: 'number', default: 0.2 },
 			midImageId:  { type: 'number', default: 0 },
 			midImageUrl: { type: 'string', default: '' },
@@ -827,7 +782,15 @@
 			fgImageId:   { type: 'number', default: 0 },
 			fgImageUrl:  { type: 'string', default: '' },
 			fgSpeed:     { type: 'number', default: 0.7 },
+			// Layout
 			height:      { type: 'number', default: 80 },
+			// Gradient scrim (editable overlay for text readability)
+			scrimColor:  { type: 'string', default: '#f8f5ee' },
+			scrimOpacity: { type: 'number', default: 0.85 },
+			scrimAngle:  { type: 'number', default: 90 },
+			// Content alignment
+			contentAlign: { type: 'string', default: 'left' }, // 'left', 'center', 'right'
+			// Content fields
 			eyebrow:     { type: 'string', default: 'Accelerating Real‑World Impact.' },
 			headline:    { type: 'string', default: 'Advancing Chronic<br> Disease Research.' },
 			lede:        { type: 'string', default: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' },
@@ -836,8 +799,26 @@
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
+			var isParallax = attrs.mode === 'parallax';
 			var blockProps = useBlockProps( { className: 'rcmi-parallax-editor', style: { minHeight: attrs.height + 'vh' } } );
 
+			// Helper: convert hex + alpha to rgba string.
+			var hexToRgba = function ( hex, alpha ) {
+				var h = ( hex || '#f8f5ee' ).replace( '#', '' );
+				if ( h.length === 3 ) { h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; }
+				var r = parseInt( h.substr( 0, 2 ), 16 );
+				var g = parseInt( h.substr( 2, 2 ), 16 );
+				var b = parseInt( h.substr( 4, 2 ), 16 );
+				return 'rgba(' + r + ',' + g + ',' + b + ',' + ( Math.round( alpha * 100 ) / 100 ) + ')';
+			};
+
+			// Build the scrim gradient style.
+			var scrimGradient = 'linear-gradient(' + ( attrs.scrimAngle || 90 ) + 'deg, ' +
+				hexToRgba( attrs.scrimColor, attrs.scrimOpacity ) + ' 0%, ' +
+				hexToRgba( attrs.scrimColor, attrs.scrimOpacity * 0.4 ) + ' 40%, ' +
+				hexToRgba( attrs.scrimColor, 0 ) + ' 65%)';
+
+			// Layer picker for parallax mode.
 			var layerPicker = function ( label, urlKey, idKey, speedKey ) {
 				return el( PanelBody, { title: label, initialOpen: urlKey === 'bgImageUrl' },
 					el( MediaUpload, {
@@ -876,6 +857,7 @@
 				);
 			};
 
+			// Layer preview div for the editor.
 			var layerPreview = function ( url, label, zIndex ) {
 				var style = { zIndex: zIndex };
 				if ( url ) {
@@ -886,51 +868,179 @@
 				);
 			};
 
-			return el( Fragment, null,
-				el( InspectorControls, null,
+			// Alignment buttons.
+			var alignButtons = el( 'div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
+				[ 'left', 'center', 'right' ].map( function ( a ) {
+					return el( wp.components.Button, {
+						key: 'align-' + a,
+						onClick: function () { setAttributes( { contentAlign: a } ); },
+						variant: attrs.contentAlign === a ? 'primary' : 'secondary',
+						isPressed: attrs.contentAlign === a
+					}, a.charAt( 0 ).toUpperCase() + a.slice( 1 ) );
+				} )
+			);
+
+			// Build inspector controls.
+			var inspectorChildren = [
+				// Mode toggle — always first.
+				el( PanelBody, { title: __( 'Hero Mode', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, {
+						label: __( 'Display mode', 'rcmi-toolkit' ),
+						value: attrs.mode,
+						options: [
+							{ value: 'static', label: __( 'Static (single background image)', 'rcmi-toolkit' ) },
+							{ value: 'parallax', label: __( 'Parallax (3-layer depth effect)', 'rcmi-toolkit' ) }
+						],
+						onChange: function ( v ) { setAttributes( { mode: v } ); }
+					} )
+				)
+			];
+
+			if ( isParallax ) {
+				// Parallax mode: show 3 layer pickers.
+				inspectorChildren.push(
 					layerPicker( __( 'Background Layer (slowest)', 'rcmi-toolkit' ), 'bgImageUrl', 'bgImageId', 'bgSpeed' ),
 					layerPicker( __( 'Middle Layer', 'rcmi-toolkit' ), 'midImageUrl', 'midImageId', 'midSpeed' ),
-					layerPicker( __( 'Foreground Layer (fastest)', 'rcmi-toolkit' ), 'fgImageUrl', 'fgImageId', 'fgSpeed' ),
-					el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: false },
-						el( RangeControl, {
-							label: __( 'Section height (viewport %)', 'rcmi-toolkit' ),
-							value: attrs.height,
-							onChange: function ( v ) { setAttributes( { height: v } ); },
-							min: 40,
-							max: 100,
-							step: 5
-						} )
-					),
-					el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: false },
-						el( TextControl, { label: __( 'Eyebrow', 'rcmi-toolkit' ), value: attrs.eyebrow, onChange: function ( v ) { setAttributes( { eyebrow: v } ); } } ),
-						el( TextareaControl, { label: __( 'Headline (HTML allowed)', 'rcmi-toolkit' ), value: attrs.headline, onChange: function ( v ) { setAttributes( { headline: v } ); } } ),
-						el( TextareaControl, { label: __( 'Lede', 'rcmi-toolkit' ), value: attrs.lede, onChange: function ( v ) { setAttributes( { lede: v } ); } } ),
-						el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.buttonText, onChange: function ( v ) { setAttributes( { buttonText: v } ); } } ),
-						el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.buttonLink, onChange: function ( v ) { setAttributes( { buttonLink: v } ); } } )
+					layerPicker( __( 'Foreground Layer (fastest)', 'rcmi-toolkit' ), 'fgImageUrl', 'fgImageId', 'fgSpeed' )
+				);
+			} else {
+				// Static mode: single background image picker.
+				inspectorChildren.push(
+					el( PanelBody, { title: __( 'Background Image', 'rcmi-toolkit' ), initialOpen: true },
+						el( MediaUpload, {
+							onSelect: function ( media ) {
+								setAttributes( { bgImageId: media.id, bgImageUrl: media.url } );
+							},
+							allowedTypes: 'image',
+							value: attrs.bgImageId,
+							render: function ( obj ) {
+								return el( wp.components.Button, {
+									onClick: obj.open,
+									variant: 'secondary',
+									className: 'rcmi-image-picker-btn'
+								}, attrs.bgImageUrl ? __( 'Replace Background Image', 'rcmi-toolkit' ) : __( 'Choose Background Image', 'rcmi-toolkit' ) );
+							}
+						} ),
+						attrs.bgImageUrl ? el( 'div', { className: 'rcmi-image-preview' },
+							el( 'img', { src: attrs.bgImageUrl, alt: __( 'Background preview', 'rcmi-toolkit' ) } ),
+							el( wp.components.Button, {
+								onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); },
+								variant: 'tertiary',
+								isDestructive: true
+							}, __( 'Remove image', 'rcmi-toolkit' ) )
+						) : null
 					)
+				);
+			}
+
+			// Gradient scrim controls — always available.
+			inspectorChildren.push(
+				el( PanelBody, { title: __( 'Gradient Scrim', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Overlay that darkens/tints the background for text readability.', 'rcmi-toolkit' ) ),
+					el( TextControl, {
+						label: __( 'Scrim color (hex)', 'rcmi-toolkit' ),
+						value: attrs.scrimColor,
+						onChange: function ( v ) { setAttributes( { scrimColor: v } ); },
+						type: 'color'
+					} ),
+					el( RangeControl, {
+						label: __( 'Scrim opacity', 'rcmi-toolkit' ),
+						value: attrs.scrimOpacity,
+						onChange: function ( v ) { setAttributes( { scrimOpacity: v } ); },
+						min: 0,
+						max: 1,
+						step: 0.05
+					} ),
+					el( RangeControl, {
+						label: __( 'Scrim angle (degrees)', 'rcmi-toolkit' ),
+						value: attrs.scrimAngle,
+						onChange: function ( v ) { setAttributes( { scrimAngle: v } ); },
+						min: 0,
+						max: 360,
+						step: 15
+					} )
 				),
-				el( 'section', blockProps,
+				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: false },
+					el( RangeControl, {
+						label: __( 'Section height (viewport %)', 'rcmi-toolkit' ),
+						value: attrs.height,
+						onChange: function ( v ) { setAttributes( { height: v } ); },
+						min: 40,
+						max: 100,
+						step: 5
+					} ),
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
+					alignButtons
+				),
+				el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
+					el( TextControl, { label: __( 'Eyebrow', 'rcmi-toolkit' ), value: attrs.eyebrow, onChange: function ( v ) { setAttributes( { eyebrow: v } ); } } ),
+					el( TextareaControl, { label: __( 'Headline (HTML allowed)', 'rcmi-toolkit' ), value: attrs.headline, onChange: function ( v ) { setAttributes( { headline: v } ); } } ),
+					el( TextareaControl, { label: __( 'Lede', 'rcmi-toolkit' ), value: attrs.lede, onChange: function ( v ) { setAttributes( { lede: v } ); } } ),
+					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.buttonText, onChange: function ( v ) { setAttributes( { buttonText: v } ); } } ),
+					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.buttonLink, onChange: function ( v ) { setAttributes( { buttonLink: v } ); } } )
+				)
+			);
+
+			// Build editor preview.
+			var previewChildren = [];
+
+			if ( isParallax ) {
+				previewChildren.push(
 					el( 'div', { className: 'rcmi-parallax-layers' },
 						layerPreview( attrs.bgImageUrl, __( 'Background', 'rcmi-toolkit' ), 1 ),
 						layerPreview( attrs.midImageUrl, __( 'Middle', 'rcmi-toolkit' ), 2 ),
 						layerPreview( attrs.fgImageUrl, __( 'Foreground', 'rcmi-toolkit' ), 3 )
-					),
-					el( 'div', { className: 'wrap rcmi-parallax-inner' },
-						el( 'div', { className: 'rcmi-parallax-copy' },
-							el( 'h1', { dangerouslySetInnerHTML: { __html: attrs.headline } } ),
-							el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
-							el( 'p', { className: 'lede' }, attrs.lede ),
-							el( 'div', { className: 'hero-actions' },
-								el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
-							)
+					)
+				);
+			} else {
+				// Static mode: single background image.
+				var bgStyle = { background: '#f8f5ee' };
+				if ( attrs.bgImageUrl ) {
+					bgStyle = { backgroundImage: 'url(' + attrs.bgImageUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' };
+				}
+				previewChildren.push(
+					el( 'div', { className: 'rcmi-parallax-layer-preview', style: Object.assign( { zIndex: 1 }, bgStyle ) },
+						! attrs.bgImageUrl ? el( 'span', { className: 'rcmi-layer-label' }, __( 'Background', 'rcmi-toolkit' ) ) : null
+					)
+				);
+			}
+
+			// Scrim overlay preview.
+			previewChildren.push(
+				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient } } )
+			);
+
+			// Content preview.
+			var copyStyle = {};
+			if ( attrs.contentAlign === 'center' ) {
+				copyStyle.textAlign = 'center';
+				copyStyle.margin = '0 auto';
+			} else if ( attrs.contentAlign === 'right' ) {
+				copyStyle.textAlign = 'right';
+				copyStyle.marginLeft = 'auto';
+			}
+
+			previewChildren.push(
+				el( 'div', { className: 'wrap rcmi-parallax-inner' },
+					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
+						el( 'h1', { dangerouslySetInnerHTML: { __html: attrs.headline } } ),
+						el( 'span', { className: 'eyebrow' }, attrs.eyebrow ),
+						el( 'p', { className: 'lede' }, attrs.lede ),
+						el( 'div', { className: 'hero-actions' },
+							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
 						)
 					)
 				)
 			);
+
+			return el( Fragment, null,
+				el( InspectorControls, null, inspectorChildren ),
+				el( 'section', blockProps, previewChildren )
+			);
 		},
 		save: function () {
 			// Server-side rendered (dynamic block) so parallax data attributes
-			// always reflect the latest attributes.
+			// and gradient styles always reflect the latest attributes.
 			return null;
 		}
 	} );

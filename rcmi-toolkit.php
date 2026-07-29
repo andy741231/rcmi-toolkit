@@ -20,6 +20,24 @@ define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
 define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
 
+/**
+ * Convert a hex color to an rgba() string with the given alpha.
+ *
+ * @param string $hex   Hex color (with or without leading #).
+ * @param float  $alpha Opacity 0–1.
+ * @return string rgba(r,g,b,a) value.
+ */
+function rcmi_toolkit_hex_to_rgba( $hex, $alpha = 1 ) {
+	$hex = ltrim( $hex, '#' );
+	if ( strlen( $hex ) === 3 ) {
+		$hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	}
+	$r = hexdec( substr( $hex, 0, 2 ) );
+	$g = hexdec( substr( $hex, 2, 2 ) );
+	$b = hexdec( substr( $hex, 4, 2 ) );
+	return sprintf( 'rgba(%d,%d,%d,%s)', $r, $g, $b, number_format( $alpha, 2 ) );
+}
+
 // ============================================================================
 // GitHub-based auto-update system
 // Checks for new GitHub releases and surfaces them in WP Admin → Plugins
@@ -325,6 +343,8 @@ function rcmi_block_defaults( $block_name ) {
 			'role4Title' => 'A faculty member', 'role4Desc' => 'Request biostatistics, data science, or research navigation support.', 'role4Link' => '/cores/#research',
 			'role5Title' => 'A healthcare organization', 'role5Desc' => 'Explore implementation support and shared chronic-disease priorities.', 'role5Link' => '/partners/',
 			'role6Title' => 'A funder', 'role6Desc' => 'Review outcomes, publications, and funding leveraged to date.', 'role6Link' => '/publications/',
+				'scrimColor' => '#ffffff', 'scrimOpacity' => 0.9, 'scrimAngle' => 125,
+				'bgImageId' => 0, 'bgImageUrl' => '',
 		),
 		'rcmi/impact-strip-block' => array(
 			'tabs' => array(
@@ -353,47 +373,6 @@ function rcmi_apply_block_defaults( $block_name, $attrs ) {
 }
 
 function rcmi_register_server_side_blocks() {
-	// rcmi/hero — renders the hero section with background image.
-	register_block_type( 'rcmi/hero', array(
-		'attributes' => array(
-			'bgImageId'  => array( 'type' => 'number', 'default' => 0 ),
-			'bgImageUrl' => array( 'type' => 'string', 'default' => '' ),
-			'headline'   => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
-			'eyebrow'    => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
-			'lede'       => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
-			'buttonText' => array( 'type' => 'string', 'default' => 'Request Support' ),
-			'buttonLink' => array( 'type' => 'string', 'default' => '#start' ),
-		),
-		'render_callback' => function ( $attrs ) {
-			$media_style = '';
-			if ( ! empty( $attrs['bgImageUrl'] ) ) {
-				$media_style = 'background: linear-gradient(180deg, #f8f5ee 0%, rgba(248,245,238,0.4) 40%, rgba(248,245,238,0) 65%), linear-gradient(90deg, rgba(248,245,238,0.85) 0%, rgba(248,245,238,0.3) 30%, rgba(248,245,238,0) 50%), url(' . esc_url( $attrs['bgImageUrl'] ) . ') center/cover no-repeat;';
-			} else {
-				$media_style = 'background: #f8f5ee;';
-			}
-
-			ob_start();
-			?>
-			<section class="hero -tight">
-				<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
-				<div class="wrap hero-inner">
-					<div class="hero-grid">
-						<div class="hero-copy">
-							<h1><?php echo wp_kses_post( $attrs['headline'] ); ?></h1>
-							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
-							<p class="lede"><?php echo esc_html( $attrs['lede'] ); ?></p>
-							<div class="hero-actions">
-								<a href="<?php echo esc_url( $attrs['buttonLink'] ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ); ?></a>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-			<?php
-			return ob_get_clean();
-		},
-	) );
-
 	// rcmi/quote-block — large pull quote with citation.
 	register_block_type( 'rcmi/quote-block', array(
 		'attributes' => array(
@@ -540,36 +519,60 @@ function rcmi_register_server_side_blocks() {
 			'role4Title' => array( 'type' => 'string', 'default' => '' ), 'role4Desc' => array( 'type' => 'string', 'default' => '' ), 'role4Link' => array( 'type' => 'string', 'default' => '' ),
 			'role5Title' => array( 'type' => 'string', 'default' => '' ), 'role5Desc' => array( 'type' => 'string', 'default' => '' ), 'role5Link' => array( 'type' => 'string', 'default' => '' ),
 			'role6Title' => array( 'type' => 'string', 'default' => '' ), 'role6Desc' => array( 'type' => 'string', 'default' => '' ), 'role6Link' => array( 'type' => 'string', 'default' => '' ),
-		),
-		'render_callback' => function ( $attrs ) {
-			$attrs = rcmi_apply_block_defaults( 'rcmi/role-selector-block', $attrs );
-			$roles = '';
-			for ( $i = 1; $i <= 6; $i++ ) {
-				$roles .= sprintf(
-					'<a href="%s" class="role-card"><h4>%s</h4><p>%s</p><span class="role-link">Start here <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"/></svg></span></a>',
-					esc_url( $attrs[ "role{$i}Link" ] ),
-					esc_html( $attrs[ "role{$i}Title" ] ),
-					esc_html( $attrs[ "role{$i}Desc" ] )
+				'scrimColor' => array( 'type' => 'string', 'default' => '#ffffff' ),
+				'scrimOpacity' => array( 'type' => 'number', 'default' => 0.9 ),
+				'scrimAngle' => array( 'type' => 'number', 'default' => 125 ),
+				'bgImageId' => array( 'type' => 'number', 'default' => 0 ),
+				'bgImageUrl' => array( 'type' => 'string', 'default' => '' ),
+			),
+			'render_callback' => function ( $attrs ) {
+				$attrs = rcmi_apply_block_defaults( 'rcmi/role-selector-block', $attrs );
+				$roles = '';
+				for ( $i = 1; $i <= 6; $i++ ) {
+					$roles .= sprintf(
+						'<a href="%s" class="role-card"><h4>%s</h4><p>%s</p><span class="role-link">Start here <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6"/></svg></span></a>',
+						esc_url( $attrs[ "role{$i}Link" ] ),
+						esc_html( $attrs[ "role{$i}Title" ] ),
+						esc_html( $attrs[ "role{$i}Desc" ] )
+					);
+				}
+
+				// Build the scrim overlay style from block attributes.
+				$scrim_color   = $attrs['scrimColor'] ?? '#ffffff';
+				$scrim_opacity = $attrs['scrimOpacity'] ?? 0.9;
+				$scrim_angle   = $attrs['scrimAngle'] ?? 125;
+				$scrim_style   = sprintf(
+					'background: linear-gradient(%ddeg, %s 0%%, %s 40%%, transparent 100%%);',
+					intval( $scrim_angle ),
+					rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity ),
+					rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity * 0.85 )
 				);
-			}
-			ob_start();
-			?>
-			<section id="start" class="collaborating-section">
-				<div class="wrap">
-					<div class="section-head">
-						<div>
-							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
-							<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
+
+				// Optional inline background image on the section.
+				$section_style = '';
+				if ( ! empty( $attrs['bgImageUrl'] ) ) {
+					$section_style = 'background-image: url(' . esc_url( $attrs['bgImageUrl'] ) . '); background-size: cover; background-position: center;';
+				}
+
+				ob_start();
+				?>
+				<section id="start" class="collaborating-section"<?php echo $section_style ? ' style="' . esc_attr( $section_style ) . '"' : ''; ?>>
+					<div class="rcmi-section-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
+					<div class="wrap">
+						<div class="section-head">
+							<div>
+								<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ); ?></span>
+								<h2><?php echo esc_html( $attrs['heading'] ); ?></h2>
+							</div>
+							<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
 						</div>
-						<p class="section-note"><?php echo esc_html( $attrs['note'] ); ?></p>
+						<div class="role-grid"><?php echo $roles; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
 					</div>
-					<div class="role-grid"><?php echo $roles; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div>
-				</div>
-			</section>
-			<?php
-			return ob_get_clean();
-		},
-	) );
+				</section>
+				<?php
+				return ob_get_clean();
+			},
+		) );
 
 	// rcmi/impact-strip-block — interactive tabbed section with 5 tabs.
 	register_block_type( 'rcmi/impact-strip-block', array(
@@ -609,12 +612,24 @@ function rcmi_register_server_side_blocks() {
 						esc_html( $card['desc'] )
 					);
 				}
+				// Build per-tab scrim style from editable attributes.
+				$tab_scrim_color   = $tab['scrimColor'] ?? '#ffffff';
+				$tab_scrim_opacity = $tab['scrimOpacity'] ?? 0.9;
+				$tab_scrim_angle   = intval( $tab['scrimAngle'] ?? 90 );
+				$tab_scrim_style   = sprintf(
+					'background: linear-gradient(%ddeg, %s 0%%, %s 50%%, transparent 100%%);',
+					$tab_scrim_angle,
+					rcmi_toolkit_hex_to_rgba( $tab_scrim_color, $tab_scrim_opacity ),
+					rcmi_toolkit_hex_to_rgba( $tab_scrim_color, $tab_scrim_opacity * 0.6 )
+				);
+
 				$panels .= sprintf(
-					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div><div style="margin-top:var(--space-5);display:flex;gap:var(--space-2);flex-wrap:wrap;"><a href="%s" class="btn btn-primary">%s</a></div></div></section>',
+					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="rcmi-tab-scrim" aria-hidden="true" style="%s"></div><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div><div style="margin-top:var(--space-5);display:flex;gap:var(--space-2);flex-wrap:wrap;"><a href="%s" class="btn btn-primary">%s</a></div></div></section>',
 					esc_attr( $tab['id'] ),
 					esc_attr( $active ),
 					esc_attr( $bg_alt ),
 					! empty( $tab['bgImageUrl'] ) ? 'background-image: url(' . esc_url( $tab['bgImageUrl'] ) . ');' : '',
+					esc_attr( $tab_scrim_style ),
 					wp_kses_post( $tab['heading'] ),
 					esc_html( $tab['note'] ),
 					$cards_html,
@@ -627,9 +642,13 @@ function rcmi_register_server_side_blocks() {
 			return $strip . $panels;
 		},
 	) );
-	// rcmi/parallax — hero with three parallax image layers.
+	// rcmi/parallax — hero block with static or parallax mode.
+	// Replaces the old rcmi/hero block. Mode toggle: 'static' (single bg
+	// image) or 'parallax' (3-layer depth effect). Includes editable
+	// gradient scrim and content alignment controls.
 	register_block_type( 'rcmi/parallax', array(
 		'attributes' => array(
+			'mode'        => array( 'type' => 'string', 'default' => 'static' ),
 			'bgImageId'   => array( 'type' => 'number', 'default' => 0 ),
 			'bgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
 			'bgSpeed'     => array( 'type' => 'number', 'default' => 0.2 ),
@@ -640,6 +659,10 @@ function rcmi_register_server_side_blocks() {
 			'fgImageUrl'  => array( 'type' => 'string', 'default' => '' ),
 			'fgSpeed'     => array( 'type' => 'number', 'default' => 0.7 ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
+			'scrimColor'  => array( 'type' => 'string', 'default' => '#f8f5ee' ),
+			'scrimOpacity' => array( 'type' => 'number', 'default' => 0.85 ),
+			'scrimAngle'  => array( 'type' => 'number', 'default' => 90 ),
+			'contentAlign' => array( 'type' => 'string', 'default' => 'left' ),
 			'eyebrow'     => array( 'type' => 'string', 'default' => 'Accelerating Real‑World Impact.' ),
 			'headline'    => array( 'type' => 'string', 'default' => 'Advancing Chronic<br> Disease Research.' ),
 			'lede'        => array( 'type' => 'string', 'default' => 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.' ),
@@ -647,39 +670,94 @@ function rcmi_register_server_side_blocks() {
 			'buttonLink'  => array( 'type' => 'string', 'default' => '#start' ),
 		),
 		'render_callback' => function ( $attrs ) {
-			$layers = array(
-				array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background' ),
-				array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle' ),
-				array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground' ),
-			);
-			$height = intval( $attrs['height'] ?? 80 );
+			$mode    = $attrs['mode'] ?? 'static';
+			$height  = intval( $attrs['height'] ?? 80 );
 			if ( $height < 40 ) { $height = 40; }
 			if ( $height > 100 ) { $height = 100; }
 
+			// Build the scrim gradient from editable attributes.
+			$scrim_color   = $attrs['scrimColor'] ?? '#f8f5ee';
+			$scrim_opacity = $attrs['scrimOpacity'] ?? 0.85;
+			$scrim_angle   = intval( $attrs['scrimAngle'] ?? 90 );
+			$scrim_style   = sprintf(
+				'background: linear-gradient(%ddeg, %s 0%%, %s 40%%, transparent 65%%);',
+				$scrim_angle,
+				rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity ),
+				rcmi_toolkit_hex_to_rgba( $scrim_color, $scrim_opacity * 0.4 )
+			);
+
+			// Content alignment class.
+			$align = $attrs['contentAlign'] ?? 'left';
+			$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
+
+			// Copy style for alignment.
+			$copy_style = '';
+			if ( $align === 'center' ) {
+				$copy_style = 'text-align:center; margin:0 auto;';
+			} elseif ( $align === 'right' ) {
+				$copy_style = 'text-align:right; margin-left:auto;';
+			}
+
 			ob_start();
-			?>
-			<section class="rcmi-parallax alignfull" style="min-height: <?php echo $height; ?>vh;">
-				<?php foreach ( $layers as $layer ) : ?>
-					<?php if ( ! empty( $layer['url'] ) ) : ?>
-						<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
-							data-speed="<?php echo esc_attr( $layer['speed'] ); ?>"
-							style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>);"
-							aria-hidden="true"></div>
-					<?php endif; ?>
-				<?php endforeach; ?>
-				<div class="rcmi-parallax-scrim" aria-hidden="true"></div>
-				<div class="wrap rcmi-parallax-inner">
-					<div class="rcmi-parallax-copy">
-						<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
-						<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
-						<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
-						<div class="hero-actions">
-							<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
+
+			if ( $mode === 'parallax' ) {
+				// Parallax mode: 3 layers with data-speed attributes.
+				$layers = array(
+					array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background' ),
+					array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle' ),
+					array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground' ),
+				);
+				?>
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class ); ?>" style="min-height: <?php echo $height; ?>vh;">
+					<?php foreach ( $layers as $layer ) : ?>
+						<?php if ( ! empty( $layer['url'] ) ) : ?>
+							<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
+								data-speed="<?php echo esc_attr( $layer['speed'] ); ?>"
+								style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>);"
+								aria-hidden="true"></div>
+						<?php endif; ?>
+					<?php endforeach; ?>
+					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
+					<div class="wrap rcmi-parallax-inner">
+						<div class="rcmi-parallax-copy" style="<?php echo esc_attr( $copy_style ); ?>">
+							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
+							<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
+							<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
+							<div class="hero-actions">
+								<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
+							</div>
 						</div>
 					</div>
-				</div>
-			</section>
-			<?php
+				</section>
+				<?php
+			} else {
+				// Static mode: single background image (like the old hero block).
+				$media_style = '';
+				if ( ! empty( $attrs['bgImageUrl'] ) ) {
+					$media_style = 'background-image: url(' . esc_url( $attrs['bgImageUrl'] ) . '); background-size: cover; background-position: center;';
+				} else {
+					$media_style = 'background: #f8f5ee;';
+				}
+				?>
+				<section class="hero -tight <?php echo esc_attr( $align_class ); ?>" style="min-height: <?php echo $height; ?>vh;">
+					<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
+					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
+					<div class="wrap hero-inner">
+						<div class="hero-grid">
+							<div class="hero-copy" style="<?php echo esc_attr( $copy_style ); ?>">
+								<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
+								<span class="eyebrow"><?php echo esc_html( $attrs['eyebrow'] ?? '' ); ?></span>
+								<p class="lede"><?php echo esc_html( $attrs['lede'] ?? '' ); ?></p>
+								<div class="hero-actions">
+									<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
+				<?php
+			}
+
 			return ob_get_clean();
 		},
 	) );
