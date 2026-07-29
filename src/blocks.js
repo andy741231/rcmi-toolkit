@@ -168,43 +168,201 @@
 	}
 
 	// ============================================================
-	// Custom inline formats: always-visible font-family toolbar buttons.
-	// Adds Display, Body, and Serif buttons directly to the block
-	// toolbar (not inside a dropdown) so editors can click them
-	// without opening the "More" menu.
+	// Custom inline formats: always-visible toolbar controls.
+	// 1. Text Color (Highlight) — color picker in block toolbar
+	// 2. Font Family — dropdown showing actual font names
+	// 3. Font Size — dropdown with preset sizes
 	// ============================================================
 	var registerFormatType = wp.richText.registerFormatType;
+	var unregisterFormatType = wp.richText.unregisterFormatType;
 	var BlockControls = wp.blockEditor.BlockControls;
 	var ToolbarButton = wp.components.ToolbarButton;
+	var Dropdown = wp.components.Dropdown;
+	var ColorPalette = wp.components.ColorPalette;
+	var applyFormat = wp.richText.applyFormat;
+	var removeFormat = wp.richText.removeFormat;
+	var getActiveFormat = wp.richText.getActiveFormat;
 
-	function makeFontFormat( slug, name, fontFamily ) {
-		registerFormatType( 'rcmi/' + slug + '-font', {
-			title: name,
-			tagName: 'span',
-			className: 'has-' + slug + '-font',
-			edit: function ( props ) {
-				return el( BlockControls, null,
-					el( ToolbarButton, {
-						icon: 'editor-textcolor',
-						label: name,
-						isPressed: props.isActive,
-						onClick: function () {
-							props.onChange(
-								wp.richText.toggleFormat( props.value, {
-									type: 'rcmi/' + slug + '-font',
-									attributes: { style: 'font-family: ' + fontFamily }
-								} )
-							);
-						}
-					} )
-				);
-			}
-		} );
+	// Unregister core text-color so our custom one can use the same className
+	try { unregisterFormatType( 'core/text-color' ); } catch ( e ) {}
+
+	function getColors() {
+		var s = wp.data.select( 'core/editor' ).getEditorSettings();
+		return s.colors || [];
 	}
 
-	makeFontFormat( 'display', 'Display', "'League Gothic', 'Arial Narrow', sans-serif" );
-	makeFontFormat( 'body', 'Body', "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif" );
-	makeFontFormat( 'serif', 'Serif', "'Crimson Pro', Georgia, serif" );
+	// --- 1. Text Color (Highlight) ---
+	registerFormatType( 'rcmi/text-color', {
+		title: __( 'Text Color', 'rcmi-toolkit' ),
+		tagName: 'mark',
+		className: 'has-inline-color',
+		attributes: { style: 'style', class: 'class' },
+		edit: function ( props ) {
+			var activeColor;
+			var fmt = getActiveFormat( props.value, 'rcmi/text-color' );
+			if ( fmt ) {
+				var cls = fmt.attributes.class || '';
+				var match = cls.match( /has-([^-]+)-color/ );
+				if ( match ) {
+					var colors = getColors();
+					for ( var i = 0; i < colors.length; i++ ) {
+						if ( colors[ i ].slug === match[ 1 ] ) { activeColor = colors[ i ].color; break; }
+					}
+				}
+				if ( ! activeColor ) {
+					var style = fmt.attributes.style || '';
+					var m = style.match( /color:\s*([^;]+)/ );
+					if ( m ) { activeColor = m[ 1 ].trim(); }
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							icon: 'editor-textcolor',
+							label: __( 'Highlight', 'rcmi-toolkit' ),
+							isPressed: props.isActive,
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						} );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '8px' } },
+							el( ColorPalette, {
+								value: activeColor,
+								colors: getColors(),
+								onChange: function ( color ) {
+									if ( ! color ) {
+										props.onChange( removeFormat( props.value, { type: 'rcmi/text-color' } ) );
+									} else {
+										var colors = getColors();
+										var preset = null;
+										for ( var i = 0; i < colors.length; i++ ) {
+											if ( colors[ i ].color === color ) { preset = colors[ i ]; break; }
+										}
+										var attrs;
+										if ( preset ) {
+											attrs = { class: 'has-inline-color has-' + preset.slug + '-color', style: 'background-color:rgba(0, 0, 0, 0)' };
+										} else {
+											attrs = { class: 'has-inline-color', style: 'color:' + color + ';background-color:rgba(0, 0, 0, 0)' };
+										}
+										props.onChange( applyFormat( props.value, { type: 'rcmi/text-color', attributes: attrs } ) );
+									}
+								}
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- 2. Font Family dropdown ---
+	var fontFamilies = [
+		{ slug: 'display', name: 'League Gothic', fontFamily: "'League Gothic', 'Arial Narrow', sans-serif" },
+		{ slug: 'body', name: 'Source Sans 3', fontFamily: "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif" },
+		{ slug: 'serif', name: 'Crimson Pro', fontFamily: "'Crimson Pro', Georgia, serif" }
+	];
+
+	registerFormatType( 'rcmi/font-family', {
+		title: __( 'Font Family', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'has-inline-font-family',
+		attributes: { style: 'style', class: 'class' },
+		edit: function ( props ) {
+			var activeFont = __( 'Font Family', 'rcmi-toolkit' );
+			var fmt = getActiveFormat( props.value, 'rcmi/font-family' );
+			if ( fmt && fmt.attributes.style ) {
+				var m = fmt.attributes.style.match( /font-family:\s*([^;]+)/ );
+				if ( m ) {
+					for ( var i = 0; i < fontFamilies.length; i++ ) {
+						if ( fontFamilies[ i ].fontFamily === m[ 1 ].trim() ) { activeFont = fontFamilies[ i ].name; break; }
+					}
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						}, activeFont );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '4px', minWidth: '160px' } },
+							fontFamilies.map( function ( f ) {
+								return el( 'button', {
+									key: f.slug,
+									onClick: function () {
+										props.onChange( applyFormat( props.value, {
+											type: 'rcmi/font-family',
+											attributes: { style: 'font-family: ' + f.fontFamily, class: 'has-' + f.slug + '-font' }
+										} ) );
+									},
+									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontFamily: f.fontFamily, fontSize: '14px', cursor: 'pointer', background: 'transparent', border: 'none' }
+								}, f.name );
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- 3. Font Size dropdown ---
+	var fontSizes = [
+		{ slug: 'small', name: 'Small', size: '0.78rem' },
+		{ slug: 'medium', name: 'Medium', size: '1rem' },
+		{ slug: 'large', name: 'Large', size: '1.1rem' },
+		{ slug: 'x-large', name: 'Extra Large', size: '1.35rem' },
+		{ slug: 'xx-large', name: 'Display', size: '2rem' },
+		{ slug: 'xxx-large', name: 'Hero', size: '2.75rem' }
+	];
+
+	registerFormatType( 'rcmi/font-size', {
+		title: __( 'Font Size', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'has-inline-font-size',
+		attributes: { style: 'style' },
+		edit: function ( props ) {
+			var activeSize = __( 'Font Size', 'rcmi-toolkit' );
+			var fmt = getActiveFormat( props.value, 'rcmi/font-size' );
+			if ( fmt && fmt.attributes.style ) {
+				var m = fmt.attributes.style.match( /font-size:\s*([^;]+)/ );
+				if ( m ) {
+					for ( var i = 0; i < fontSizes.length; i++ ) {
+						if ( fontSizes[ i ].size === m[ 1 ].trim() ) { activeSize = fontSizes[ i ].name; break; }
+					}
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						}, activeSize );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '4px', minWidth: '140px' } },
+							fontSizes.map( function ( f ) {
+								return el( 'button', {
+									key: f.slug,
+									onClick: function () {
+										props.onChange( applyFormat( props.value, {
+											type: 'rcmi/font-size',
+											attributes: { style: 'font-size: ' + f.size }
+										} ) );
+									},
+									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: f.size, cursor: 'pointer', background: 'transparent', border: 'none' }
+								}, f.name );
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
 
 	// Block: rcmi/quote-block
 	// Large pull quote with quotation marks and citation.
@@ -246,7 +404,7 @@
 							value: attrs.quote,
 							onChange: function ( v ) { setAttributes( { quote: v } ); },
 							placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 						} ),
 						el( 'cite', null,
 							el( RichText, {
@@ -254,14 +412,14 @@
 								value: attrs.citeName,
 								onChange: function ( v ) { setAttributes( { citeName: v } ); },
 								placeholder: __( 'Citation name…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 							} ),
 							el( RichText, {
 								tagName: 'span',
 								value: attrs.citeRole,
 								onChange: function ( v ) { setAttributes( { citeRole: v } ); },
 								placeholder: __( 'Citation role…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 							} )
 						)
 					),
@@ -342,14 +500,14 @@
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} ),
 								el( RichText, {
 									tagName: 'p',
 									value: attrs.text,
 									onChange: function ( v ) { setAttributes( { text: v } ); },
 									placeholder: __( 'Text…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} )
 							),
 							el( 'div', { className: 'cta-actions' },
@@ -439,21 +597,21 @@
 						value: attrs[prefix + 'Value'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Value'] = v; setAttributes( u ); },
 						placeholder: __( 'Value…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
 					el( RichText, {
 						tagName: 'span',
 						value: attrs[prefix + 'Label'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Label'] = v; setAttributes( u ); },
 						placeholder: __( 'Label…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 					} )
 				);
 			};
@@ -575,14 +733,14 @@
 						value: attrs[prefix + 'Title'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Title'] = v; setAttributes( u ); },
 						placeholder: __( 'Role title…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						value: attrs[prefix + 'Desc'],
 						onChange: function ( v ) { var u = {}; u[prefix + 'Desc'] = v; setAttributes( u ); },
 						placeholder: __( 'Description…', 'rcmi-toolkit' ),
-						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+						allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 					} ),
 					el( 'span', { className: 'role-link' }, 'Start here \u2192' )
 				);
@@ -631,14 +789,14 @@
 									value: attrs.eyebrow,
 									onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} ),
 								el( RichText, {
 									tagName: 'h2',
 									value: attrs.heading,
 									onChange: function ( v ) { setAttributes( { heading: v } ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} )
 							),
 							el( RichText, {
@@ -647,7 +805,7 @@
 								value: attrs.note,
 								onChange: function ( v ) { setAttributes( { note: v } ); },
 								placeholder: __( 'Note…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+								allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 							} )
 						),
 						el( 'div', { className: 'role-grid' },
@@ -871,7 +1029,7 @@
 									value: activeTabData.heading,
 									onChange: function ( v ) { updateTab( activeTabIndex, 'heading', v ); },
 									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} ) ),
 								el( RichText, {
 									tagName: 'p',
@@ -879,7 +1037,7 @@
 									value: activeTabData.note,
 									onChange: function ( v ) { updateTab( activeTabIndex, 'note', v ); },
 									placeholder: __( 'Note…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 								} )
 							),
 							el( 'div', { className: 'card-grid' },
@@ -891,21 +1049,21 @@
 											value: card.tag,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'tag', v ); },
 											placeholder: __( 'Tag…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 										} ),
 										el( RichText, {
 											tagName: 'h4',
 											value: card.title,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'title', v ); },
 											placeholder: __( 'Title…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 										} ),
 										el( RichText, {
 											tagName: 'p',
 											value: card.desc,
 											onChange: function ( v ) { updateCard( activeTabIndex, ci, 'desc', v ); },
 											placeholder: __( 'Description…', 'rcmi-toolkit' ),
-											allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+											allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 										} )
 									);
 								} )
@@ -1257,7 +1415,7 @@
 							value: attrs.headline,
 							onChange: function ( v ) { setAttributes( { headline: v } ); },
 							placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ],
 							style: { margin: '0 0 10px' }
 						} ),
 						el( RichText, {
@@ -1266,7 +1424,7 @@
 							value: attrs.eyebrow,
 							onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
 							placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ],
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ],
 							style: { display: 'block', margin: '0 0 12px' }
 						} ),
 						el( RichText, {
@@ -1275,7 +1433,7 @@
 							value: attrs.lede,
 							onChange: function ( v ) { setAttributes( { lede: v } ); },
 							placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'core/text-color', 'core/font-family', 'core/text-align', 'rcmi/display-font', 'rcmi/body-font', 'rcmi/serif-font' ]
+							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/font-family', 'rcmi/font-size' ]
 						} ),
 						el( 'div', { className: 'hero-actions' },
 							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
