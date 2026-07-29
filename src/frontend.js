@@ -81,6 +81,7 @@
 			newPanel.classList.add( 'is-active' );
 			if ( panelsContainer ) {
 				panelsContainer.classList.remove( 'is-animating' );
+				panelsContainer.style.minHeight = '';
 			}
 			isAnimating = false;
 		}
@@ -129,6 +130,11 @@
 				isAnimating = true;
 				if ( panelsContainer ) {
 					panelsContainer.classList.add( 'is-animating' );
+					// Retain the container height while panels are position:absolute,
+					// so the section below doesn't jump up during the transition.
+					if ( currentPanel ) {
+						panelsContainer.style.minHeight = currentPanel.offsetHeight + 'px';
+					}
 				}
 
 				if ( hasGsap && gsapTransitions[ transition ] ) {
@@ -154,6 +160,7 @@
 						targetPanel.classList.remove( 'tab-entering', 'tab-entered' );
 						if ( panelsContainer ) {
 							panelsContainer.classList.remove( 'is-animating' );
+							panelsContainer.style.minHeight = '';
 						}
 						isAnimating = false;
 					}, 420 );

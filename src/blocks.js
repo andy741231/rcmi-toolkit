@@ -208,7 +208,7 @@
 		{ slug: 'large', name: 'Large', size: '1.1rem' },
 		{ slug: 'x-large', name: 'Extra Large', size: '1.35rem' },
 		{ slug: 'xx-large', name: 'Display', size: '2rem' },
-		{ slug: 'xxx-large', name: 'Hero', size: '2.75rem' }
+		{ slug: 'xxx-large', name: 'Hero', size: '3.75rem' }
 	];
 
 	// --- Font Family dropdown (priority 4) ---
