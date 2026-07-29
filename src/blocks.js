@@ -498,7 +498,14 @@
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
-			var blockProps = useBlockProps( { className: 'rcmi-role-selector-editor' } );
+			var blockProps = useBlockProps( {
+			className: 'rcmi-role-selector-editor collaborating-section',
+			style: attrs.bgImageUrl ? {
+				backgroundImage: 'url(' + attrs.bgImageUrl + ')',
+				backgroundSize: 'cover',
+				backgroundPosition: 'center'
+			} : undefined
+		} );
 			var roleFields = function ( n ) {
 				var prefix = 'role' + n;
 				return el( PanelBody, { title: __( 'Role ' + n, 'rcmi-toolkit' ), initialOpen: false },
