@@ -741,13 +741,8 @@ function rcmi_register_server_side_blocks() {
 			$align = $attrs['contentAlign'] ?? 'left';
 			$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
 
-			// Copy style for alignment.
+			// Alignment is handled by the rcmi-align-* CSS classes on the section.
 			$copy_style = '';
-			if ( $align === 'center' ) {
-				$copy_style = 'text-align:center; margin:0 auto;';
-			} elseif ( $align === 'right' ) {
-				$copy_style = 'text-align:right; margin-left:auto;';
-			}
 
 			ob_start();
 
