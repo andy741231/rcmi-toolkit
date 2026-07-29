@@ -989,7 +989,10 @@
 					] }
 				]
 			},
-			transition: { type: 'string', default: 'none' }
+			transition: { type: 'string', default: 'none' },
+			height: { type: 'number', default: 0 },
+			tabBgColor: { type: 'string', default: '' },
+			tabTextColor: { type: 'string', default: '' }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -1039,6 +1042,31 @@
 					onChange: function ( v ) { setAttributes( { transition: v } ); }
 				} ),
 				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Animation played when switching tabs. "Fade" cross-fades. "Slide" scrolls horizontally. "Curtain" scrolls vertically. "Wipe" reveals the new panel with a clip-path sweep. "Reveal" zooms the new panel in while fading.', 'rcmi-toolkit' ) )
+			);
+
+			// Layout panel: height + colors.
+			var layoutPanel = el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: false },
+				el( RangeControl, {
+					label: __( 'Tab panel height (px)', 'rcmi-toolkit' ),
+					value: attrs.height,
+					onChange: function ( v ) { setAttributes( { height: v } ); },
+					min: 0, max: 800, step: 10,
+					help: __( 'Fixed height for all tab panels. Set to 0 for auto height.', 'rcmi-toolkit' )
+				} ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px' } }, __( 'Tab Background Color', 'rcmi-toolkit' ) ),
+				el( ColorPalette, {
+					value: attrs.tabBgColor,
+					onChange: function ( v ) { setAttributes( { tabBgColor: v || '' } ); },
+					disableCustomColors: false,
+					clearable: true
+				} ),
+				el( 'p', { style: { fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Tab Text Color', 'rcmi-toolkit' ) ),
+				el( ColorPalette, {
+					value: attrs.tabTextColor,
+					onChange: function ( v ) { setAttributes( { tabTextColor: v || '' } ); },
+					disableCustomColors: false,
+					clearable: true
+				} )
 			);
 
 			// Build inspector controls for each tab.
@@ -1101,7 +1129,7 @@
 			// Build editor preview — show tab buttons + active tab content.
 			var activeTabData = tabs[ activeTabIndex ] || tabs[ 0 ] || {};
 			return el( Fragment, null,
-				el( InspectorControls, null, [ transitionPanel ].concat( tabPanels ) ),
+				el( InspectorControls, null, [ transitionPanel, layoutPanel ].concat( tabPanels ) ),
 				el( 'div', blockProps,
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
@@ -1116,7 +1144,12 @@
 							)
 						)
 					),
-					el( 'section', { className: 'tab-panel is-active', style: activeTabData.bgImageUrl ? { backgroundImage: 'url(' + activeTabData.bgImageUrl + ')' } : undefined },
+					el( 'section', { className: 'tab-panel is-active', style: Object.assign(
+						{ minHeight: attrs.height ? attrs.height + 'px' : undefined },
+						attrs.tabBgColor ? { backgroundColor: attrs.tabBgColor } : {},
+						attrs.tabTextColor ? { color: attrs.tabTextColor } : {},
+						activeTabData.bgImageUrl ? { backgroundImage: 'url(' + activeTabData.bgImageUrl + ')' } : {}
+					) },
 						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( activeTabData.scrimStops, activeTabData.scrimType, activeTabData.scrimAngle ) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },

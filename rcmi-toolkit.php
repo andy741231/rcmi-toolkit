@@ -744,6 +744,9 @@ function rcmi_register_server_side_blocks() {
 		'attributes' => array(
 			'tabs' => array( 'type' => 'array', 'default' => array() ),
 			'transition' => array( 'type' => 'string', 'default' => 'none' ),
+			'height' => array( 'type' => 'number', 'default' => 0 ),
+			'tabBgColor' => array( 'type' => 'string', 'default' => '' ),
+			'tabTextColor' => array( 'type' => 'string', 'default' => '' ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
@@ -791,12 +794,30 @@ function rcmi_register_server_side_blocks() {
 					intval( $tab['scrimAngle'] ?? 90 )
 				) . ';';
 
+				// Build panel inline style: background image + height + colors.
+				$panel_style = '';
+				if ( ! empty( $tab['bgImageUrl'] ) ) {
+					$panel_style .= 'background-image: url(' . esc_url( $tab['bgImageUrl'] ) . ');';
+				}
+				$panel_height = intval( $attrs['height'] ?? 0 );
+				if ( $panel_height > 0 ) {
+					$panel_style .= ' min-height:' . $panel_height . 'px;';
+				}
+				$tab_bg = sanitize_hex_color( $attrs['tabBgColor'] ?? '' );
+				if ( $tab_bg ) {
+					$panel_style .= ' background-color:' . $tab_bg . ';';
+				}
+				$tab_text = sanitize_hex_color( $attrs['tabTextColor'] ?? '' );
+				if ( $tab_text ) {
+					$panel_style .= ' color:' . $tab_text . ';';
+				}
+
 				$panels .= sprintf(
 					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="rcmi-tab-scrim" aria-hidden="true" style="%s"></div><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div><div style="margin-top:var(--space-5);display:flex;gap:var(--space-2);flex-wrap:wrap;"><a href="%s" class="btn btn-primary">%s</a></div></div></section>',
 					esc_attr( $tab['id'] ),
 					esc_attr( $active ),
 					esc_attr( $bg_alt ),
-					! empty( $tab['bgImageUrl'] ) ? 'background-image: url(' . esc_url( $tab['bgImageUrl'] ) . ');' : '',
+					esc_attr( $panel_style ),
 					esc_attr( $tab_scrim_style ),
 					wp_kses_post( $tab['heading'] ),
 					wp_kses_post( $tab['note'] ),
