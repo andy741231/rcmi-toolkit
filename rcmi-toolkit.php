@@ -260,27 +260,46 @@ function rcmi_toolkit_plugins_api_info( $result, $action, $args ) {
 add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
 
 /**
- * Post-install cleanup: rename the GitHub ZIP's top-level folder
- * (which is "rcmi-toolkit-<hash>" for source ZIPs or the asset name)
- * back to "rcmi-toolkit" so WordPress doesn't end up with two folders.
- * Also records the installed commit SHA so we know what version is
- * currently running.
+ * Rename the extracted GitHub ZIP folder ("rcmi-toolkit-main") to the
+ * plugin's real folder name ("rcmi-toolkit") BEFORE WordPress computes
+ * the install destination from basename($source).
  *
- * @param bool   $response    Install response.
- * @param array  $hook_extra  Extra arguments.
- * @param array  $result      Installation result data.
- * @return array
+ * This is the reliable fix for the problem the old post_install rename
+ * caused: the result array is passed to upgrader_post_install by value,
+ * so changing destination_name there never reached the caller - the
+ * AJAX update handler then called get_plugins() on the ZIP's folder
+ * name (which our old filter had deleted), producing the
+ * "Trying to access array offset on false" warning in ajax-actions.php.
+ *
+ * The extracted folder lives in wp-content/upgrade/ and is never locked,
+ * so rename() works on every platform including Windows.
  */
+function rcmi_toolkit_fix_source_folder( $source, $remote_source, $upgrader, $hook_extra ) {
+	if ( is_wp_error( $source ) || ! isset( $hook_extra['plugin'] ) ) {
+		return $source;
+	}
+	if ( false === strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) ) {
+		return $source;
+	}
+	$expected = 'rcmi-toolkit';
+	if ( basename( $source ) === $expected ) {
+		return $source;
+	}
+	$new_source = trailingslashit( dirname( untrailingslashit( $source ) ) ) . $expected;
+	if ( @rename( untrailingslashit( $source ), $new_source ) ) {
+		return trailingslashit( $new_source );
+	}
+	return $source;
+}
+add_filter( 'upgrader_source_selection', 'rcmi_toolkit_fix_source_folder', 10, 4 );
+
 /**
- * Prevent WordPress from trying to delete the old plugin folder before
- * updating. On Windows, the active plugin's files are locked by PHP and
- * cannot be deleted, which causes the entire update to abort before
- * our upgrader_post_install filter can run.
+ * Prevent WordPress from aborting the update when the old plugin folder
+ * cannot be deleted. On Windows, the active plugin's files are locked by
+ * PHP (opcache) and delete fails, which would otherwise abort the install.
  *
- * By returning true here, the install proceeds and the new plugin is
- * extracted to a temp folder (e.g. rcmi-toolkit-main). Our post_install
- * filter then copies files from the temp folder into the existing
- * rcmi-toolkit folder (overwriting locked files with PHP's native copy()).
+ * By returning true here, the install proceeds: WordPress's copy step
+ * (copy_dir with overwrite=true) overwrites the old files in place.
  */
 function rcmi_toolkit_skip_clear_destination( $removed, $local_destination, $remote_destination, $hook_extra ) {
 	if ( ! isset( $hook_extra['plugin'] ) ) {
@@ -291,88 +310,29 @@ function rcmi_toolkit_skip_clear_destination( $removed, $local_destination, $rem
 	}
 	// Override WordPress's delete_old_plugin (which fails on Windows
 	// because locked files can't be deleted). Return true so the install
-	// proceeds — our post_install filter handles file replacement.
+	// proceeds - the copy step overwrites files in place (copy_dir uses
+	// overwrite=true).
 	return true;
 }
 add_filter( 'upgrader_clear_destination', 'rcmi_toolkit_skip_clear_destination', 20, 4 );
 
 /**
- * Recursively copy files from $src to $dst using PHP's native copy().
- * Unlike WP_Filesystem methods, PHP's copy() can overwrite files on
- * Windows even when they are locked by the running PHP process.
+ * Post-install bookkeeping: clears the plugin cache and records the
+ * installed commit SHA. All file placement is handled by WordPress itself
+ * because rcmi_toolkit_fix_source_folder() renames the extracted ZIP
+ * folder before the destination path is computed.
+ *
+ * @param bool   $response    Install response.
+ * @param array  $hook_extra  Extra arguments.
+ * @param array  $result      Installation result data.
+ * @return array
  */
-function rcmi_toolkit_recursive_copy( $src, $dst ) {
-	if ( ! is_dir( $src ) ) {
-		return false;
-	}
-	if ( ! is_dir( $dst ) ) {
-		@mkdir( $dst, 0755, true );
-	}
-	$dir = opendir( $src );
-	if ( ! $dir ) {
-		return false;
-	}
-	while ( false !== ( $file = readdir( $dir ) ) ) {
-		if ( '.' === $file || '..' === $file ) {
-			continue;
-		}
-		$src_path = $src . '/' . $file;
-		$dst_path = $dst . '/' . $file;
-		if ( is_dir( $src_path ) ) {
-			rcmi_toolkit_recursive_copy( $src_path, $dst_path );
-		} else {
-			@copy( $src_path, $dst_path );
-		}
-	}
-	closedir( $dir );
-	return true;
-}
-
-/**
- * Recursively delete a directory using PHP's native functions.
- */
-function rcmi_toolkit_recursive_delete( $dir ) {
-	if ( ! is_dir( $dir ) ) {
-		return false;
-	}
-	$files = new RecursiveIteratorIterator(
-		new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ),
-		RecursiveIteratorIterator::CHILD_FIRST
-	);
-	foreach ( $files as $fileinfo ) {
-		if ( $fileinfo->isDir() ) {
-			@rmdir( $fileinfo->getRealPath() );
-		} else {
-			@unlink( $fileinfo->getRealPath() );
-		}
-	}
-	@rmdir( $dir );
-	return true;
-}
-
 function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
 	if ( ! isset( $hook_extra['plugin'] ) ) {
 		return $result;
 	}
 	if ( false === strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) ) {
 		return $result;
-	}
-
-	$expected = 'rcmi-toolkit';
-	$actual   = basename( $result['destination'] );
-
-	if ( $expected !== $actual ) {
-		$new_destination = dirname( $result['destination'] ) . '/' . $expected;
-
-		// On Windows, the active plugin's files are locked by PHP and cannot
-		// be deleted or renamed. The only reliable approach is to COPY files
-		// one-by-one from the new folder into the old folder (overwriting),
-		// then delete the temp folder (which is NOT locked).
-		rcmi_toolkit_recursive_copy( $result['destination'], $new_destination );
-		rcmi_toolkit_recursive_delete( $result['destination'] );
-
-		$result['destination'] = $new_destination;
-		$result['destination_name'] = $expected;
 	}
 
 	// Clear the plugin cache so get_plugins() sees the new files.
