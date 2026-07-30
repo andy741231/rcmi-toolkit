@@ -44,26 +44,26 @@
 				// gradient and .rcmi-tab-scrim overlay don't double up at the
 				// midpoint (which causes a visible flash/jitter).
 				return gsap.timeline()
-					.set( newPanel, { opacity: 0, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 } )
+					.set( newPanel, { opacity: 0, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 } )
 					.set( oldPanel, { zIndex: 1 } )
 					.to( newPanel, { opacity: 1, duration: 0.4, ease: 'power2.inOut' } );
 			},
 			slide: function ( oldPanel, newPanel ) {
 				return gsap.timeline()
-					.set( newPanel, { opacity: 1, xPercent: 100, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
+					.set( newPanel, { opacity: 1, xPercent: 100, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0 } )
 					.to( oldPanel, { opacity: 0, xPercent: -100, duration: 0.45, ease: 'power3.inOut' }, 0 )
 					.to( newPanel, { xPercent: 0, duration: 0.45, ease: 'power3.inOut' }, 0 );
 			},
 			curtain: function ( oldPanel, newPanel ) {
 				return gsap.timeline()
-					.set( newPanel, { opacity: 1, yPercent: 100, display: 'block', position: 'absolute', top: 0, left: 0, right: 0 } )
+					.set( newPanel, { opacity: 1, yPercent: 100, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0 } )
 					.to( oldPanel, { opacity: 0, yPercent: -100, duration: 0.45, ease: 'power3.inOut' }, 0 )
 					.to( newPanel, { yPercent: 0, duration: 0.45, ease: 'power3.inOut' }, 0 );
 			},
 			wipe: function ( oldPanel, newPanel ) {
 				// Clip-path wipe: new panel reveals left-to-right over the old one.
 				return gsap.timeline()
-					.set( newPanel, { opacity: 1, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, clipPath: 'inset(0 100% 0 0)' } )
+					.set( newPanel, { opacity: 1, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0, clipPath: 'inset(0 100% 0 0)' } )
 					.to( newPanel, { clipPath: 'inset(0 0% 0 0)', duration: 0.5, ease: 'power2.inOut' }, 0 )
 					.to( oldPanel, { opacity: 0.3, duration: 0.5, ease: 'power2.inOut' }, 0 );
 			},
@@ -72,18 +72,24 @@
 				// Old panel stays in place underneath (no fade-out) to avoid
 				// double-overlay jitter at the midpoint.
 				return gsap.timeline()
-					.set( newPanel, { opacity: 0, scale: 1.08, display: 'block', position: 'absolute', top: 0, left: 0, right: 0, transformOrigin: 'center center', zIndex: 2 } )
+					.set( newPanel, { opacity: 0, scale: 1.08, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0, transformOrigin: 'center center', zIndex: 2 } )
 					.set( oldPanel, { zIndex: 1 } )
 					.to( newPanel, { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' } );
 			}
 		};
 
 		function cleanup( oldPanel, newPanel ) {
+			// Only clear properties GSAP actually set during the transition
+			// (opacity, transform, display, position, offsets, zIndex, clipPath,
+			// transformOrigin). Using clearProps:'all' would also wipe height and
+			// background-image — inline styles set by the PHP render callback —
+			// causing the panel height to reset after every tab transition.
+			var gsapProps = 'opacity,transform,display,position,top,left,right,zIndex,clipPath,transformOrigin';
 			if ( oldPanel ) {
-				gsap.set( oldPanel, { clearProps: 'all' } );
+				gsap.set( oldPanel, { clearProps: gsapProps } );
 				oldPanel.classList.remove( 'is-active' );
 			}
-			gsap.set( newPanel, { clearProps: 'all' } );
+			gsap.set( newPanel, { clearProps: gsapProps } );
 			newPanel.classList.add( 'is-active' );
 			if ( panelsContainer ) {
 				panelsContainer.classList.remove( 'is-animating' );
@@ -93,8 +99,18 @@
 		}
 
 		tabs.forEach( function ( tab ) {
-			tab.addEventListener( 'click', function () {
+			// Prevent the browser from focusing the button on mouse click,
+			// which would scroll the button into the viewport center.
+			// Standard pattern for tab widgets — keyboard users can still
+			// Tab to the button and press Enter/Space to activate it.
+			tab.addEventListener( 'mousedown', function ( e ) { e.preventDefault(); } );
+			tab.addEventListener( 'click', function ( e ) {
 				if ( isAnimating ) return;
+				e.preventDefault();
+				// Remove focus from the button to prevent the browser from
+				// scrolling to keep the focused element in view. This must
+				// happen synchronously before any layout changes.
+				if ( document.activeElement === tab ) { tab.blur(); }
 				var tabId = tab.getAttribute( 'data-tab' );
 
 				var currentPanel = null;
@@ -135,11 +151,18 @@
 				// Animated transition.
 				isAnimating = true;
 				if ( panelsContainer ) {
+					// Measure the panel height BEFORE adding is-animating.
+					// Reading offsetHeight after is-animating would force a
+					// reflow where panels are already position:absolute and the
+					// container has briefly collapsed to zero height — the
+					// browser's scroll anchoring sees that collapse and scrolls
+					// to compensate. By measuring first and setting minHeight in
+					// the same synchronous block as is-animating, the container
+					// never collapses and no layout shift occurs.
+					var panelHeight = currentPanel ? currentPanel.offsetHeight : 0;
 					panelsContainer.classList.add( 'is-animating' );
-					// Retain the container height while panels are position:absolute,
-					// so the section below doesn't jump up during the transition.
-					if ( currentPanel ) {
-						panelsContainer.style.minHeight = currentPanel.offsetHeight + 'px';
+					if ( panelHeight ) {
+						panelsContainer.style.minHeight = panelHeight + 'px';
 					}
 				}
 
