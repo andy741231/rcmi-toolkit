@@ -40,8 +40,8 @@
 		var gsapTransitions = {
 			fade: function ( oldPanel, newPanel ) {
 				// Cross-fade: new panel fades in ON TOP of old panel.
-				// Old panel stays at full opacity underneath so its ::before
-				// gradient and .rcmi-tab-scrim overlay don't double up at the
+				// Old panel stays at full opacity underneath so the two
+				// .rcmi-tab-scrim overlays don't double up at the
 				// midpoint (which causes a visible flash/jitter).
 				return gsap.timeline()
 					.set( newPanel, { opacity: 0, display: 'flex', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 } )

@@ -43,6 +43,11 @@ function rcmi_toolkit_hex_to_rgba( $hex, $alpha = 1 ) {
  * the new multi-stop format. Returns a 3-stop gradient array.
  */
 function rcmi_toolkit_migrate_scrim_stops( $attrs ) {
+	// Explicitly-empty scrimStops means the editor cleared the gradient
+	// — return empty so no scrim is rendered.
+	if ( array_key_exists( 'scrimStops', $attrs ) && is_array( $attrs['scrimStops'] ) && empty( $attrs['scrimStops'] ) ) {
+		return array();
+	}
 	if ( ! empty( $attrs['scrimStops'] ) ) {
 		return $attrs['scrimStops'];
 	}
@@ -513,6 +518,11 @@ function rcmi_block_defaults( $block_name ) {
 function rcmi_apply_block_defaults( $block_name, $attrs ) {
 	$defaults = rcmi_block_defaults( $block_name );
 	foreach ( $defaults as $key => $default ) {
+		// scrimStops: an explicitly-empty array means the editor cleared
+		// the gradient — respect it and don't refill with the default.
+		if ( 'scrimStops' === $key && array_key_exists( $key, $attrs ) && is_array( $attrs[ $key ] ) && empty( $attrs[ $key ] ) ) {
+			continue;
+		}
 		if ( ! array_key_exists( $key, $attrs ) || '' === $attrs[ $key ] || null === $attrs[ $key ] || ( is_array( $attrs[ $key ] ) && empty( $attrs[ $key ] ) ) ) {
 			$attrs[ $key ] = $default;
 		}
@@ -761,11 +771,17 @@ function rcmi_register_server_side_blocks() {
 				}
 
 				// Build the scrim overlay style from block attributes.
-				$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-					rcmi_toolkit_migrate_scrim_stops( $attrs ),
-					$attrs['scrimType'] ?? 'linear',
-					intval( $attrs['scrimAngle'] ?? 125 )
-				) . ';';
+				// Skip the scrim div entirely when stops are empty (editor cleared it).
+				$scrim_stops = rcmi_toolkit_migrate_scrim_stops( $attrs );
+				$scrim_html = '';
+				if ( ! empty( $scrim_stops ) ) {
+					$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$scrim_stops,
+						$attrs['scrimType'] ?? 'linear',
+						intval( $attrs['scrimAngle'] ?? 125 )
+					) . ';';
+					$scrim_html = '<div class="rcmi-section-scrim" aria-hidden="true" style="' . esc_attr( $scrim_style ) . '"></div>';
+				}
 
 				// Optional inline background image on the section.
 				$section_style = '';
@@ -786,7 +802,7 @@ function rcmi_register_server_side_blocks() {
 				ob_start();
 				?>
 				<section id="start" class="collaborating-section<?php echo esc_attr( $color_class ); ?>"<?php echo ( $section_style || $color_style ) ? ' style="' . esc_attr( trim( $section_style . ' ' . $color_style ) ) . '"' : ''; ?>>
-					<div class="rcmi-section-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style ); ?>"></div>
+					<?php echo $scrim_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="wrap">
 						<div class="section-head">
 							<div>
@@ -879,12 +895,17 @@ function rcmi_register_server_side_blocks() {
 					);
 				}
 				// Build per-tab scrim style from multi-stop gradient.
+				// Skip the scrim div when stops are empty (editor cleared it).
 				$tab_stops = rcmi_toolkit_migrate_scrim_stops( $tab );
-				$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-					$tab_stops,
-					$tab['scrimType'] ?? 'linear',
-					intval( $tab['scrimAngle'] ?? 90 )
-				) . ';';
+				$tab_scrim_html = '';
+				if ( ! empty( $tab_stops ) ) {
+					$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$tab_stops,
+						$tab['scrimType'] ?? 'linear',
+						intval( $tab['scrimAngle'] ?? 90 )
+					) . ';';
+					$tab_scrim_html = '<div class="rcmi-tab-scrim" aria-hidden="true" style="' . esc_attr( $tab_scrim_style ) . '"></div>';
+				}
 
 				// Build panel inline style: background image + height + colors.
 				$panel_style = '';
@@ -918,12 +939,12 @@ function rcmi_register_server_side_blocks() {
 				}
 
 				$panels .= sprintf(
-					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s"><div class="rcmi-tab-scrim" aria-hidden="true" style="%s"></div><div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div>%s</div></section>',
+					'<section id="%s" class="tab-panel%s%s" role="tabpanel" style="%s">%s<div class="wrap"><div class="section-head"><div><h2>%s</h2></div><p class="section-note">%s</p></div><div class="card-grid">%s</div>%s</div></section>',
 					esc_attr( $tab['id'] ),
 					esc_attr( $active ),
 					esc_attr( $bg_alt ),
 					esc_attr( $panel_style ),
-					esc_attr( $tab_scrim_style ),
+					$tab_scrim_html, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 					wp_kses_post( $tab['heading'] ),
 					wp_kses_post( $tab['note'] ),
 					$cards_html,
@@ -1004,11 +1025,18 @@ function rcmi_register_server_side_blocks() {
 			if ( $height > 100 ) { $height = 100; }
 
 			// Build the scrim gradient from multi-stop picker attributes.
-			$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-				rcmi_toolkit_migrate_scrim_stops( $attrs ),
-				$attrs['scrimType'] ?? 'linear',
-				intval( $attrs['scrimAngle'] ?? 90 )
-			) . ';';
+			// Skip the scrim div when stops are empty (editor cleared it).
+			$scrim_z    = intval( $attrs['scrimZIndex'] ?? 3 );
+			$scrim_stops = rcmi_toolkit_migrate_scrim_stops( $attrs );
+			$scrim_html  = '';
+			if ( ! empty( $scrim_stops ) ) {
+				$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+					$scrim_stops,
+					$attrs['scrimType'] ?? 'linear',
+					intval( $attrs['scrimAngle'] ?? 90 )
+				) . ';';
+				$scrim_html = '<div class="rcmi-parallax-scrim" aria-hidden="true" style="' . esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ) . '"></div>';
+			}
 
 			// Content alignment class.
 			$align = $attrs['contentAlign'] ?? 'left';
@@ -1045,7 +1073,6 @@ function rcmi_register_server_side_blocks() {
 				}
 				// Scrim z-index from attribute (no longer auto-calculated).
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
-				$scrim_z = intval( $attrs['scrimZIndex'] ?? 3 );
 				?>
 				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php foreach ( $layers as $layer ) : ?>
@@ -1056,7 +1083,7 @@ function rcmi_register_server_side_blocks() {
 								aria-hidden="true"></div>
 						<?php endif; ?>
 					<?php endforeach; ?>
-					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
+					<?php echo $scrim_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="wrap rcmi-parallax-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
 							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
@@ -1073,7 +1100,6 @@ function rcmi_register_server_side_blocks() {
 				// Static mode: single background image (like the old hero block).
 				$bg_z      = intval( $attrs['bgZIndex'] ?? 0 );
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
-				$scrim_z   = intval( $attrs['scrimZIndex'] ?? 3 );
 
 				$media_style = '';
 				if ( ! empty( $attrs['bgImageUrl'] ) ) {
@@ -1085,7 +1111,7 @@ function rcmi_register_server_side_blocks() {
 				?>
 				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
-					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
+					<?php echo $scrim_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<div class="wrap hero-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="hero-grid">
 							<div class="hero-copy" style="<?php echo esc_attr( $copy_style ); ?>">
