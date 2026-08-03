@@ -520,6 +520,100 @@ function rcmi_apply_block_defaults( $block_name, $attrs ) {
 	return $attrs;
 }
 
+/**
+ * Legacy content fallback for rcmi/parallax (hero) block.
+ *
+ * Existing hero instances that were saved before the InnerBlocks migration
+ * are self-closing (no inner HTML). Their text lives in attributes
+ * (eyebrow, headline, lede, buttonText, buttonLink). This helper renders
+ * that attribute-based markup so old pages keep working until migrated.
+ *
+ * @param array $attrs Block attributes.
+ * @return string HTML markup for the hero content area.
+ */
+function rcmi_legacy_hero_content( $attrs ) {
+	$headline   = $attrs['headline'] ?? '';
+	$eyebrow    = $attrs['eyebrow'] ?? '';
+	$lede       = $attrs['lede'] ?? '';
+	$button_text = $attrs['buttonText'] ?? '';
+	$button_link = $attrs['buttonLink'] ?? '#';
+
+	$html  = '<h1>' . wp_kses_post( $headline ) . '</h1>';
+	$html .= '<span class="eyebrow">' . wp_kses_post( $eyebrow ) . '</span>';
+	$html .= '<p class="lede">' . wp_kses_post( $lede ) . '</p>';
+	$html .= '<div class="hero-actions">';
+	$html .= '<a href="' . esc_url( $button_link ) . '" class="btn btn-primary">' . esc_html( $button_text ) . '</a>';
+	$html .= '</div>';
+	return $html;
+}
+
+/**
+ * Resolve the inner-block content for a dynamic block with InnerBlocks.
+ *
+ * If $content contains inner-block markup (post-migration), use it.
+ * Otherwise, fall back to the legacy attribute-based content.
+ *
+ * @param string $content       The inner HTML passed to the render_callback.
+ * @param string $legacy_html   Pre-rendered legacy fallback HTML.
+ * @return string The content HTML to echo inside the block wrapper.
+ */
+function rcmi_resolve_inner_content( $content, $legacy_html ) {
+	$content = trim( $content );
+	if ( ! empty( $content ) ) {
+		return $content;
+	}
+	return $legacy_html;
+}
+
+/**
+ * Legacy content fallback for rcmi/quote-block.
+ *
+ * Pre-migration instances store quote text in attributes (quote, citeName,
+ * citeRole). This renders that markup so old pages keep working.
+ *
+ * @param array $attrs Block attributes.
+ * @return string HTML for the quote body.
+ */
+function rcmi_legacy_quote_content( $attrs ) {
+	$quote    = $attrs['quote'] ?? '';
+	$citeName = $attrs['citeName'] ?? '';
+	$citeRole = $attrs['citeRole'] ?? '';
+
+	$html  = '<p>' . wp_kses_post( $quote ) . '</p>';
+	$html .= '<cite>' . wp_kses_post( $citeName ) . ' <span>' . wp_kses_post( $citeRole ) . '</span></cite>';
+	return $html;
+}
+
+/**
+ * Legacy content fallback for rcmi/cta-band.
+ *
+ * Pre-migration instances store heading, text, and button attributes.
+ * This renders that markup so old pages keep working.
+ *
+ * @param array $attrs Block attributes.
+ * @return string HTML for the CTA band content.
+ */
+function rcmi_legacy_cta_content( $attrs ) {
+	$heading   = $attrs['heading'] ?? '';
+	$text      = $attrs['text'] ?? '';
+	$btn1Text  = $attrs['btn1Text'] ?? '';
+	$btn1Link  = $attrs['btn1Link'] ?? '';
+	$btn1Style = $attrs['btn1Style'] ?? 'btn-outline';
+	$btn2Text  = $attrs['btn2Text'] ?? '';
+	$btn2Link  = $attrs['btn2Link'] ?? '';
+	$btn2Style = $attrs['btn2Style'] ?? 'btn-primary';
+
+	$html  = '<div class="cta-copy">';
+	$html .= '<h2>' . wp_kses_post( $heading ) . '</h2>';
+	$html .= '<p>' . wp_kses_post( $text ) . '</p>';
+	$html .= '</div>';
+	$html .= '<div class="cta-actions">';
+	$html .= '<a href="' . esc_url( $btn1Link ) . '" class="btn ' . esc_attr( $btn1Style ) . '">' . esc_html( $btn1Text ) . '</a>';
+	$html .= '<a href="' . esc_url( $btn2Link ) . '" class="btn ' . esc_attr( $btn2Style ) . '">' . esc_html( $btn2Text ) . '</a>';
+	$html .= '</div>';
+	return $html;
+}
+
 function rcmi_register_server_side_blocks() {
 	// rcmi/quote-block — large pull quote with citation.
 	register_block_type( 'rcmi/quote-block', array(
@@ -542,7 +636,7 @@ function rcmi_register_server_side_blocks() {
 				'textAlign'  => true,
 			),
 		),
-		'render_callback' => function ( $attrs ) {
+		'render_callback' => function ( $attrs, $content = '' ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/quote-block', $attrs );
 
 			$color_class = '';
@@ -554,14 +648,15 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
+			$inner_content = rcmi_resolve_inner_content( $content, rcmi_legacy_quote_content( $attrs ) );
+
 			ob_start();
 			?>
 			<section class="bg-alt<?php echo esc_attr( $color_class ); ?>"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
 				<div class="wrap quote-block">
 					<div class="quote-mark">&ldquo;</div>
 					<div class="quote-body">
-						<p><?php echo wp_kses_post( $attrs['quote'] ?? '' ); ?></p>
-						<cite><?php echo wp_kses_post( $attrs['citeName'] ?? '' ); ?> <span><?php echo wp_kses_post( $attrs['citeRole'] ?? '' ); ?></span></cite>
+						<?php echo $inner_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP, legacy content uses wp_kses_post() ?>
 					</div>
 					<div class="quote-mark quote-mark-close">&rdquo;</div>
 				</div>
@@ -597,7 +692,7 @@ function rcmi_register_server_side_blocks() {
 				'textAlign'  => true,
 			),
 		),
-		'render_callback' => function ( $attrs ) {
+		'render_callback' => function ( $attrs, $content = '' ) {
 			$attrs = rcmi_apply_block_defaults( 'rcmi/cta-band', $attrs );
 
 			$color_class = '';
@@ -609,19 +704,14 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
+			$inner_content = rcmi_resolve_inner_content( $content, rcmi_legacy_cta_content( $attrs ) );
+
 			ob_start();
 			?>
 			<section class="bg-primary<?php echo esc_attr( $color_class ); ?>"<?php echo $color_style ? ' style="' . esc_attr( $color_style ) . '"' : ''; ?>>
 				<div class="wrap">
 					<div class="cta-band">
-						<div class="cta-copy">
-							<h2><?php echo wp_kses_post( $attrs['heading'] ?? '' ); ?></h2>
-							<p><?php echo wp_kses_post( $attrs['text'] ?? '' ); ?></p>
-						</div>
-						<div class="cta-actions">
-							<a href="<?php echo esc_url( $attrs['btn1Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn1Style'] ); ?>"><?php echo esc_html( $attrs['btn1Text'] ); ?></a>
-							<a href="<?php echo esc_url( $attrs['btn2Link'] ); ?>" class="btn <?php echo esc_attr( $attrs['btn2Style'] ); ?>"><?php echo esc_html( $attrs['btn2Text'] ); ?></a>
-						</div>
+						<?php echo $inner_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP, legacy content uses wp_kses_post() ?>
 					</div>
 				</div>
 			</section>
@@ -997,11 +1087,15 @@ function rcmi_register_server_side_blocks() {
 			'buttonText'  => array( 'type' => 'string', 'default' => 'Request Support' ),
 			'buttonLink'  => array( 'type' => 'string', 'default' => '#start' ),
 		),
-		'render_callback' => function ( $attrs ) {
+		'render_callback' => function ( $attrs, $content = '' ) {
 			$mode    = $attrs['mode'] ?? 'static';
 			$height  = intval( $attrs['height'] ?? 80 );
 			if ( $height < 40 ) { $height = 40; }
 			if ( $height > 100 ) { $height = 100; }
+
+			// Resolve inner-block content, falling back to legacy attributes
+			// for instances that haven't been migrated yet.
+			$inner_content = rcmi_resolve_inner_content( $content, rcmi_legacy_hero_content( $attrs ) );
 
 			// Build the scrim gradient from multi-stop picker attributes.
 			$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
@@ -1059,12 +1153,7 @@ function rcmi_register_server_side_blocks() {
 					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
 					<div class="wrap rcmi-parallax-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
-							<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
-							<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
-							<p class="lede"><?php echo wp_kses_post( $attrs['lede'] ?? '' ); ?></p>
-							<div class="hero-actions">
-								<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
-							</div>
+							<?php echo $inner_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP, legacy content uses wp_kses_post() ?>
 						</div>
 					</div>
 				</section>
@@ -1089,12 +1178,7 @@ function rcmi_register_server_side_blocks() {
 					<div class="wrap hero-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="hero-grid">
 							<div class="hero-copy" style="<?php echo esc_attr( $copy_style ); ?>">
-								<h1><?php echo wp_kses_post( $attrs['headline'] ?? '' ); ?></h1>
-								<span class="eyebrow"><?php echo wp_kses_post( $attrs['eyebrow'] ?? '' ); ?></span>
-								<p class="lede"><?php echo wp_kses_post( $attrs['lede'] ?? '' ); ?></p>
-								<div class="hero-actions">
-									<a href="<?php echo esc_url( $attrs['buttonLink'] ?? '#' ); ?>" class="btn btn-primary"><?php echo esc_html( $attrs['buttonText'] ?? '' ); ?></a>
-								</div>
+								<?php echo $inner_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP, legacy content uses wp_kses_post() ?>
 							</div>
 						</div>
 					</div>

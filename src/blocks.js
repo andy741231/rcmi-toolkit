@@ -14,6 +14,7 @@
 	var TextareaControl = wp.components.TextareaControl;
 	var MediaUpload = wp.blockEditor.MediaUpload;
 	var RichText = wp.blockEditor.RichText;
+	var InnerBlocks = wp.blockEditor.InnerBlocks;
 	var __ = wp.i18n.__;
 
 	// UH brand color palette (matches theme.json). Used as the default
@@ -538,53 +539,35 @@
 			citeRole: { type: 'string', default: 'Guiding Principle' }
 		},
 		edit: function ( props ) {
-			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var blockProps = useBlockProps( { className: 'rcmi-quote-editor' } );
 			return el( 'section', blockProps,
 				el( 'div', { className: 'wrap quote-block' },
 					el( 'div', { className: 'quote-mark' }, '\u201C' ),
 					el( 'div', { className: 'quote-body' },
-						el( RichText, {
-							tagName: 'p',
-							value: attrs.quote,
-							onChange: function ( v ) { setAttributes( { quote: v } ); },
-							placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-						} ),
-						el( 'cite', null,
-							el( RichText, {
-								tagName: 'span',
-								value: attrs.citeName,
-								onChange: function ( v ) { setAttributes( { citeName: v } ); },
-								placeholder: __( 'Citation name…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-							} ),
-							el( RichText, {
-								tagName: 'span',
-								value: attrs.citeRole,
-								onChange: function ( v ) { setAttributes( { citeRole: v } ); },
-								placeholder: __( 'Citation role…', 'rcmi-toolkit' ),
-								allowedFormats: [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-							} )
-						)
+						el( InnerBlocks, {
+							allowedBlocks: [ 'core/paragraph', 'core/heading', 'core/list', 'core/quote', 'core/image' ],
+							template: [
+								[ 'core/paragraph', {
+									placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
+									content: "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved."
+								} ],
+								[ 'core/paragraph', {
+									placeholder: __( 'Citation…', 'rcmi-toolkit' ),
+									content: 'RCMI Coordinating Center, Guiding Principle',
+									className: 'cite'
+								} ]
+							],
+							templateLock: false
+						} )
 					),
 					el( 'div', { className: 'quote-mark quote-mark-close' }, '\u201D' )
 				)
 			);
 		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var blockProps = useBlockProps.save( { className: 'bg-alt' } );
-			return el( 'section', blockProps,
-				el( 'div', { className: 'wrap quote-block' },
-					el( 'div', { className: 'quote-mark' }, '\u201C' ),
-					el( 'div', { className: 'quote-body' },
-						el( 'p', null, attrs.quote ),
-						el( 'cite', null, attrs.citeName, el( 'span', null, attrs.citeRole ) )
-					),
-					el( 'div', { className: 'quote-mark quote-mark-close' }, '\u201D' )
-				)
-			);
+		save: function () {
+			// InnerBlocks content is serialized between the block delimiters.
+			// The render_callback wraps it with the quote-block layout.
+			return el( InnerBlocks.Content );
 		}
 	} );
 
@@ -623,64 +606,51 @@
 			btn2Style:   { type: 'string', default: 'btn-primary' }
 		},
 		edit: function ( props ) {
-			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var blockProps = useBlockProps( { className: 'rcmi-cta-editor' } );
-			return el( Fragment, null,
-				el( InspectorControls, null,
-					el( PanelBody, { title: __( 'Button 1', 'rcmi-toolkit' ), initialOpen: false },
-						el( TextControl, { label: __( 'Button 1 Text', 'rcmi-toolkit' ), value: attrs.btn1Text, onChange: function ( v ) { setAttributes( { btn1Text: v } ); } } ),
-						el( TextControl, { label: __( 'Button 1 Link', 'rcmi-toolkit' ), value: attrs.btn1Link, onChange: function ( v ) { setAttributes( { btn1Link: v } ); } } )
-					),
-					el( PanelBody, { title: __( 'Button 2', 'rcmi-toolkit' ), initialOpen: false },
-						el( TextControl, { label: __( 'Button 2 Text', 'rcmi-toolkit' ), value: attrs.btn2Text, onChange: function ( v ) { setAttributes( { btn2Text: v } ); } } ),
-						el( TextControl, { label: __( 'Button 2 Link', 'rcmi-toolkit' ), value: attrs.btn2Link, onChange: function ( v ) { setAttributes( { btn2Link: v } ); } } )
-					)
-				),
-				el( 'section', blockProps,
-					el( 'div', { className: 'wrap' },
-						el( 'div', { className: 'cta-band' },
-							el( 'div', { className: 'cta-copy' },
-								el( RichText, {
-									tagName: 'h2',
-									value: attrs.heading,
-									onChange: function ( v ) { setAttributes( { heading: v } ); },
-									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-								} ),
-								el( RichText, {
-									tagName: 'p',
-									value: attrs.text,
-									onChange: function ( v ) { setAttributes( { text: v } ); },
-									placeholder: __( 'Text…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-								} )
-							),
-							el( 'div', { className: 'cta-actions' },
-								el( 'a', { href: attrs.btn1Link, className: 'btn ' + attrs.btn1Style, onClick: function ( e ) { e.preventDefault(); } }, attrs.btn1Text ),
-								el( 'a', { href: attrs.btn2Link, className: 'btn ' + attrs.btn2Style, onClick: function ( e ) { e.preventDefault(); } }, attrs.btn2Text )
-							)
-						)
+			return el( 'section', blockProps,
+				el( 'div', { className: 'wrap' },
+					el( 'div', { className: 'cta-band' },
+						el( InnerBlocks, {
+							allowedBlocks: [ 'core/columns', 'core/heading', 'core/paragraph', 'core/buttons', 'core/image', 'core/spacer', 'core/separator' ],
+							template: [
+								[ 'core/columns', {}, [
+									[ 'core/column', { className: 'cta-copy' }, [
+										[ 'core/heading', {
+											level: 2,
+											placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+											content: 'Ready to start?'
+										} ],
+										[ 'core/paragraph', {
+											placeholder: __( 'Text…', 'rcmi-toolkit' ),
+											content: 'Find the support you need to move your research forward.'
+										} ]
+									] ],
+									[ 'core/column', { className: 'cta-actions' }, [
+										[ 'core/buttons', {}, [
+											[ 'core/button', {
+												text: 'Request Support',
+												url: '/#start',
+												className: 'btn-outline'
+											} ],
+											[ 'core/button', {
+												text: 'Explore Research',
+												url: '/cores/#investigator',
+												className: 'btn-primary'
+											} ]
+										] ]
+									] ]
+								] ]
+							],
+							templateLock: false
+						} )
 					)
 				)
 			);
 		},
-		save: function ( props ) {
-			var attrs = props.attributes;
-			var blockProps = useBlockProps.save( { className: 'bg-primary' } );
-			return el( 'section', blockProps,
-				el( 'div', { className: 'wrap' },
-					el( 'div', { className: 'cta-band' },
-						el( 'div', { className: 'cta-copy' },
-							el( 'h2', null, attrs.heading ),
-							el( 'p', null, attrs.text )
-						),
-						el( 'div', { className: 'cta-actions' },
-							el( 'a', { href: attrs.btn1Link, className: 'btn ' + attrs.btn1Style }, attrs.btn1Text ),
-							el( 'a', { href: attrs.btn2Link, className: 'btn ' + attrs.btn2Style }, attrs.btn2Text )
-						)
-					)
-				)
-			);
+		save: function () {
+			// InnerBlocks content is serialized between the block delimiters.
+			// The render_callback wraps it with the CTA band layout.
+			return el( InnerBlocks.Content );
 		}
 	} );
 
@@ -1767,10 +1737,6 @@
 					) : null,
 					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
 					alignButtons
-				),
-				el( PanelBody, { title: __( 'Content', 'rcmi-toolkit' ), initialOpen: true },
-					el( TextControl, { label: __( 'Button Text', 'rcmi-toolkit' ), value: attrs.buttonText, onChange: function ( v ) { setAttributes( { buttonText: v } ); } } ),
-					el( TextControl, { label: __( 'Button Link', 'rcmi-toolkit' ), value: attrs.buttonLink, onChange: function ( v ) { setAttributes( { buttonLink: v } ); } } )
 				)
 			);
 
@@ -1813,37 +1779,40 @@
 				copyStyle.marginLeft = 'auto';
 			}
 
+			// InnerBlocks content area — editors can add/reorder/remove
+			// any block (heading, paragraph, buttons, images, etc.).
+			// Template seeds the default hero content on new instances.
 			previewChildren.push(
 				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
-						el( RichText, {
-							tagName: 'h1',
-							value: attrs.headline,
-							onChange: function ( v ) { setAttributes( { headline: v } ); },
-							placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ],
-							style: { margin: '0 0 10px' }
-						} ),
-						el( RichText, {
-							tagName: 'span',
-							className: 'eyebrow',
-							value: attrs.eyebrow,
-							onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
-							placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ],
-							style: { display: 'block', margin: '0 0 12px' }
-						} ),
-						el( RichText, {
-							tagName: 'p',
-							className: 'lede',
-							value: attrs.lede,
-							onChange: function ( v ) { setAttributes( { lede: v } ); },
-							placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-							allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-						} ),
-						el( 'div', { className: 'hero-actions' },
-							el( 'a', { href: attrs.buttonLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.buttonText )
-						)
+						el( InnerBlocks, {
+							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator' ],
+							template: [
+								[ 'core/heading', {
+									level: 1,
+									placeholder: __( 'Headline…', 'rcmi-toolkit' ),
+									content: 'Advancing Chronic Disease Research.'
+								} ],
+								[ 'core/paragraph', {
+									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+									content: 'Accelerating Real‑World Impact.',
+									className: 'eyebrow'
+								} ],
+								[ 'core/paragraph', {
+									placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
+									content: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
+									className: 'lede'
+								} ],
+								[ 'core/buttons', {}, [
+									[ 'core/button', {
+										text: 'Request Support',
+										url: '#start',
+										className: 'btn btn-primary'
+									} ]
+								] ]
+							],
+							templateLock: false
+						} )
 					)
 				)
 			);
@@ -1854,9 +1823,9 @@
 			);
 		},
 		save: function () {
-			// Server-side rendered (dynamic block) so parallax data attributes
-			// and gradient styles always reflect the latest attributes.
-			return null;
+			// InnerBlocks content is serialized between the block delimiters.
+			// The render_callback wraps it with parallax layers + scrim.
+			return el( InnerBlocks.Content );
 		}
 	} );
 
