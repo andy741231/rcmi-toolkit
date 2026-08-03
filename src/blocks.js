@@ -96,9 +96,13 @@
 	function hexToRgba( hex, alpha ) {
 		var h = ( hex || '#ffffff' ).replace( '#', '' );
 		if ( h.length === 3 ) { h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; }
-		var r = parseInt( h.substr( 0, 2 ), 16 ) || 255;
-		var g = parseInt( h.substr( 2, 2 ), 16 ) || 255;
-		var b = parseInt( h.substr( 4, 2 ), 16 ) || 255;
+		var r = parseInt( h.substr( 0, 2 ), 16 );
+		var g = parseInt( h.substr( 2, 2 ), 16 );
+		var b = parseInt( h.substr( 4, 2 ), 16 );
+		// Use isNaN check, not || (0 is falsy but valid for black #000000)
+		if ( isNaN( r ) ) { r = 255; }
+		if ( isNaN( g ) ) { g = 255; }
+		if ( isNaN( b ) ) { b = 255; }
 		return 'rgba(' + r + ',' + g + ',' + b + ',' + ( alpha != null ? alpha : 1 ) + ')';
 	}
 
@@ -1535,6 +1539,9 @@
 				var r = parseInt( h.substr( 0, 2 ), 16 );
 				var g = parseInt( h.substr( 2, 2 ), 16 );
 				var b = parseInt( h.substr( 4, 2 ), 16 );
+				if ( isNaN( r ) ) { r = 255; }
+				if ( isNaN( g ) ) { g = 255; }
+				if ( isNaN( b ) ) { b = 255; }
 				return 'rgba(' + r + ',' + g + ',' + b + ',' + ( Math.round( alpha * 100 ) / 100 ) + ')';
 			};
 
