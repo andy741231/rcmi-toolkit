@@ -1605,16 +1605,6 @@
 
 			// Build inspector controls.
 			var inspectorChildren = [
-				// Help panel — how to move/reorder inner blocks.
-				el( PanelBody, { title: __( 'How to Edit Content', 'rcmi-toolkit' ), initialOpen: false },
-					el( 'p', { style: { marginTop: 0 } }, __( 'This hero contains editable blocks (heading, paragraph, buttons). You can:', 'rcmi-toolkit' ) ),
-					el( 'ul', { style: { paddingLeft: '20px', fontSize: '13px' } },
-						el( 'li', null, __( 'Click any text to edit it directly.', 'rcmi-toolkit' ) ),
-						el( 'li', null, __( 'Click the "+" button to add new blocks (headings, paragraphs, buttons, images, groups).', 'rcmi-toolkit' ) ),
-						el( 'li', null, __( 'To move a text block: click on it, then press Esc to exit text-editing mode. The block toolbar will show up/down arrows and a drag handle for reordering.', 'rcmi-toolkit' ) ),
-						el( 'li', null, __( 'To delete a block: select it, then click the three dots menu in the toolbar and choose "Delete".', 'rcmi-toolkit' ) )
-					)
-				),
 				// Mode toggle — always first.
 				el( PanelBody, { title: __( 'Hero Mode', 'rcmi-toolkit' ), initialOpen: true },
 					el( SelectControl, {
