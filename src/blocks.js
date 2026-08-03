@@ -125,27 +125,9 @@
 	// onChange( newStops, newType, newAngle ) is called with updated values.
 	function renderGradientPicker( stops, type, angle, onChange ) {
 		var maxStops = 6;
-		var hasStops = stops && stops.length > 0;
+		stops = stops && stops.length ? stops : defaultScrimStops( '#ffffff', 0.9 );
 		type = type || 'linear';
 		angle = angle != null ? angle : 90;
-
-		// When scrim is cleared (empty stops), show a "no scrim" state
-		// with a button to restore the default gradient.
-		if ( ! hasStops ) {
-			return [
-				el( 'div', {
-					key: 'grad-empty',
-					style: { padding: '12px', textAlign: 'center', color: '#666', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px', marginBottom: '12px' }
-				}, __( 'No scrim overlay — gradient is disabled.', 'rcmi-toolkit' ) ),
-				el( wp.components.Button, {
-					key: 'grad-restore',
-					onClick: function () { onChange( defaultScrimStops( '#ffffff', 0.9 ), type, angle ); },
-					variant: 'secondary',
-					isSmall: true,
-					style: { width: '100%', justifyContent: 'center' }
-				}, __( '+ Add scrim gradient', 'rcmi-toolkit' ) )
-			];
-		}
 
 		function updateStop( idx, key, val ) {
 			var newStops = stops.map( function ( s, i ) {
@@ -249,16 +231,7 @@
 				variant: 'secondary',
 				isSmall: true,
 				style: { width: '100%', justifyContent: 'center' }
-			}, __( '+ Add color stop', 'rcmi-toolkit' ) ) : null,
-			// Clear scrim button — removes the gradient overlay entirely.
-			el( wp.components.Button, {
-				key: 'grad-clear',
-				onClick: function () { onChange( [], type, angle ); },
-				variant: 'tertiary',
-				isDestructive: true,
-				isSmall: true,
-				style: { width: '100%', justifyContent: 'center', marginTop: '8px' }
-			}, __( 'Clear scrim (disable gradient)', 'rcmi-toolkit' ) )
+			}, __( '+ Add color stop', 'rcmi-toolkit' ) ) : null
 		];
 	}
 
