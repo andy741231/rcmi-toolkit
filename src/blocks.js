@@ -39,7 +39,7 @@
 		{ name: 'Forest',         color: '#005950', slug: 'uh-forest' },
 		{ name: 'Background Alt', color: '#F4F5F5', slug: 'bg-alt' },
 		{ name: 'Background Dark',color: '#101112', slug: 'bg-dark' },
-		{ name: 'Border',         color: '#DEE1E2', slug: 'uh-border' }
+		{ name: 'Border',         color: '#DEE1E2', slug: 'border' }
 	];
 
 	// ============================================================
