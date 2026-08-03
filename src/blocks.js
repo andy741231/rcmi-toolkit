@@ -4,6 +4,8 @@
 	var el = wp.element.createElement;
 	var Fragment = wp.element.Fragment;
 	var useState = wp.element.useState;
+	var useRef = wp.element.useRef;
+	var useEffect = wp.element.useEffect;
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
 	var SelectControl = wp.components.SelectControl;
@@ -544,23 +546,26 @@
 		},
 		edit: function ( props ) {
 			var blockProps = useBlockProps( { className: 'rcmi-quote-editor' } );
+			var templateApplied = useRef( false );
+			useEffect( function () { templateApplied.current = true; }, [] );
+			var quoteTemplate = [
+				[ 'core/paragraph', {
+					placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
+					content: "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved."
+				} ],
+				[ 'core/paragraph', {
+					placeholder: __( 'Citation…', 'rcmi-toolkit' ),
+					content: 'RCMI Coordinating Center, Guiding Principle',
+					className: 'cite'
+				} ]
+			];
 			return el( 'section', blockProps,
 				el( 'div', { className: 'wrap quote-block' },
 					el( 'div', { className: 'quote-mark' }, '\u201C' ),
 					el( 'div', { className: 'quote-body' },
 						el( InnerBlocks, {
 							allowedBlocks: [ 'core/paragraph', 'core/heading', 'core/list', 'core/quote', 'core/image' ],
-							template: [
-								[ 'core/paragraph', {
-									placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
-									content: "Chronic disease doesn't yield to single disciplines or single institutions. It yields to relationships — built slowly, across communities, and measured in lives improved."
-								} ],
-								[ 'core/paragraph', {
-									placeholder: __( 'Citation…', 'rcmi-toolkit' ),
-									content: 'RCMI Coordinating Center, Guiding Principle',
-									className: 'cite'
-								} ]
-							],
+							template: templateApplied.current ? undefined : quoteTemplate,
 							templateLock: false
 						} )
 					),
@@ -611,50 +616,53 @@
 		},
 		edit: function ( props ) {
 			var blockProps = useBlockProps( { className: 'rcmi-cta-editor' } );
+			var templateApplied = useRef( false );
+			useEffect( function () { templateApplied.current = true; }, [] );
+			var ctaTemplate = [
+				[ 'core/columns', {}, [
+					[ 'core/column', { className: 'cta-copy' }, [
+						[ 'core/heading', {
+							level: 2,
+							placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+							content: 'Ready to start?'
+						} ],
+						[ 'core/paragraph', {
+							placeholder: __( 'Text…', 'rcmi-toolkit' ),
+							content: 'Find the support you need to move your research forward.'
+						} ]
+					] ],
+					[ 'core/column', { className: 'cta-actions' }, [
+						[ 'core/buttons', {}, [
+							[ 'core/button', {
+								text: 'Request Support',
+								url: '/#start',
+								className: 'btn-outline',
+								style: {
+									color: { background: 'transparent', text: '#ffffff' },
+									border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
+									spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+								}
+							} ],
+							[ 'core/button', {
+								text: 'Explore Research',
+								url: '/cores/#investigator',
+								className: 'btn-primary',
+								style: {
+									color: { background: '#ffffff', text: '#C8102E' },
+									border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
+									spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+								}
+							} ]
+						] ]
+					] ]
+				] ]
+			];
 			return el( 'section', blockProps,
 				el( 'div', { className: 'wrap' },
 					el( 'div', { className: 'cta-band' },
 						el( InnerBlocks, {
 							allowedBlocks: [ 'core/columns', 'core/heading', 'core/paragraph', 'core/buttons', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
-							template: [
-								[ 'core/columns', {}, [
-									[ 'core/column', { className: 'cta-copy' }, [
-										[ 'core/heading', {
-											level: 2,
-											placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-											content: 'Ready to start?'
-										} ],
-										[ 'core/paragraph', {
-											placeholder: __( 'Text…', 'rcmi-toolkit' ),
-											content: 'Find the support you need to move your research forward.'
-										} ]
-									] ],
-									[ 'core/column', { className: 'cta-actions' }, [
-										[ 'core/buttons', {}, [
-											[ 'core/button', {
-												text: 'Request Support',
-												url: '/#start',
-												className: 'btn-outline',
-												style: {
-													color: { background: 'transparent', text: '#ffffff' },
-													border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
-													spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
-												}
-											} ],
-											[ 'core/button', {
-												text: 'Explore Research',
-												url: '/cores/#investigator',
-												className: 'btn-primary',
-												style: {
-													color: { background: '#ffffff', text: '#C8102E' },
-													border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
-													spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
-												}
-											} ]
-										] ]
-									] ]
-								] ]
-							],
+							template: templateApplied.current ? undefined : ctaTemplate,
 							templateLock: false
 						} )
 					)
@@ -1532,6 +1540,16 @@
 			var isParallax = attrs.mode === 'parallax';
 			var blockProps = useBlockProps( { className: 'rcmi-parallax-editor', style: { minHeight: attrs.height + 'vh' } } );
 
+			// Track whether the InnerBlocks template has been applied once.
+			// Without this, deleting all inner blocks re-seeds the template
+			// (Gutenberg re-applies the template prop when InnerBlocks is empty
+			// and the block hasn't been saved yet). After the first application,
+			// we stop passing the template so deletions are respected.
+			var templateApplied = useRef( false );
+			useEffect( function () {
+				templateApplied.current = true;
+			}, [] );
+
 			// Helper: convert hex + alpha to rgba string.
 			var hexToRgba = function ( hex, alpha ) {
 				var h = ( hex || '#f8f5ee' ).replace( '#', '' );
@@ -1798,41 +1816,44 @@
 
 			// InnerBlocks content area — editors can add/reorder/remove
 			// any block (heading, paragraph, buttons, images, etc.).
-			// Template seeds the default hero content on new instances.
+			// Template seeds the default hero content on new instances only.
+			// After the first render, template is not passed so that deleting
+			// all inner blocks doesn't re-seed the default content.
+			var heroTemplate = [
+				[ 'core/heading', {
+					level: 1,
+					placeholder: __( 'Headline…', 'rcmi-toolkit' ),
+					content: 'Advancing Chronic Disease Research.'
+				} ],
+				[ 'core/paragraph', {
+					placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+					content: 'Accelerating Real‑World Impact.',
+					className: 'eyebrow'
+				} ],
+				[ 'core/paragraph', {
+					placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
+					content: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
+					className: 'lede'
+				} ],
+				[ 'core/buttons', {}, [
+					[ 'core/button', {
+						text: 'Request Support',
+						url: '#start',
+						className: 'btn btn-primary',
+						style: {
+							color: { background: '#C8102E', text: '#ffffff' },
+							border: { radius: '999px', color: '#C8102E', width: '1px', style: 'solid' },
+							spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+						}
+					} ]
+				] ]
+			];
 			previewChildren.push(
 				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
 						el( InnerBlocks, {
 							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
-							template: [
-								[ 'core/heading', {
-									level: 1,
-									placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-									content: 'Advancing Chronic Disease Research.'
-								} ],
-								[ 'core/paragraph', {
-									placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-									content: 'Accelerating Real‑World Impact.',
-									className: 'eyebrow'
-								} ],
-								[ 'core/paragraph', {
-									placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-									content: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
-									className: 'lede'
-								} ],
-								[ 'core/buttons', {}, [
-									[ 'core/button', {
-										text: 'Request Support',
-										url: '#start',
-										className: 'btn btn-primary',
-										style: {
-											color: { background: '#C8102E', text: '#ffffff' },
-											border: { radius: '999px', color: '#C8102E', width: '1px', style: 'solid' },
-											spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
-										}
-									} ]
-								] ]
-							],
+							template: templateApplied.current ? undefined : heroTemplate,
 							templateLock: false
 						} )
 					)
