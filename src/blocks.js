@@ -19,23 +19,23 @@
 	// UH brand color palette (matches theme.json). Used as the default
 	// swatch set for ColorPalette controls in our custom blocks.
 	var UH_COLORS = [
-		{ name: 'White',          color: '#FFFFFF' },
-		{ name: 'Black',          color: '#000000' },
-		{ name: 'UH Red',         color: '#C8102E' },
-		{ name: 'Slate',          color: '#54585A' },
-		{ name: 'Brick',          color: '#960C22' },
-		{ name: 'Chocolate',      color: '#640817' },
-		{ name: 'Cream',          color: '#FFF9D9' },
-		{ name: 'Gray',           color: '#888B8D' },
-		{ name: 'Gold',           color: '#F6BE00' },
-		{ name: 'Mustard',        color: '#D89B00' },
-		{ name: 'Ocher',          color: '#B97800' },
-		{ name: 'Teal',           color: '#00B388' },
-		{ name: 'Green',          color: '#00866C' },
-		{ name: 'Forest',         color: '#005950' },
-		{ name: 'Background Alt', color: '#F4F5F5' },
-		{ name: 'Background Dark',color: '#101112' },
-		{ name: 'Border',         color: '#DEE1E2' }
+		{ name: 'White',          color: '#FFFFFF', slug: 'uh-white' },
+		{ name: 'Black',          color: '#000000', slug: 'uh-black' },
+		{ name: 'UH Red',         color: '#C8102E', slug: 'uh-red' },
+		{ name: 'Slate',          color: '#54585A', slug: 'uh-slate' },
+		{ name: 'Brick',          color: '#960C22', slug: 'uh-brick' },
+		{ name: 'Chocolate',      color: '#640817', slug: 'uh-chocolate' },
+		{ name: 'Cream',          color: '#FFF9D9', slug: 'uh-cream' },
+		{ name: 'Gray',           color: '#888B8D', slug: 'uh-gray' },
+		{ name: 'Gold',           color: '#F6BE00', slug: 'uh-gold' },
+		{ name: 'Mustard',        color: '#D89B00', slug: 'uh-mustard' },
+		{ name: 'Ocher',          color: '#B97800', slug: 'uh-ocher' },
+		{ name: 'Teal',           color: '#00B388', slug: 'uh-teal' },
+		{ name: 'Green',          color: '#00866C', slug: 'uh-green' },
+		{ name: 'Forest',         color: '#005950', slug: 'uh-forest' },
+		{ name: 'Background Alt', color: '#F4F5F5', slug: 'bg-alt' },
+		{ name: 'Background Dark',color: '#101112', slug: 'bg-dark' },
+		{ name: 'Border',         color: '#DEE1E2', slug: 'border' }
 	];
 
 	// ============================================================
@@ -437,7 +437,7 @@
 										}
 										var attrs;
 										if ( preset ) {
-											attrs = { class: 'has-inline-color has-' + preset.slug + '-color', style: 'background-color:rgba(0, 0, 0, 0)' };
+											attrs = { class: 'has-inline-color has-' + preset.slug + '-color', style: 'color:' + color + ';background-color:rgba(0, 0, 0, 0)' };
 										} else {
 											attrs = { class: 'has-inline-color', style: 'color:' + color + ';background-color:rgba(0, 0, 0, 0)' };
 										}
