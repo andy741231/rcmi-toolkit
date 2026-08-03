@@ -9,6 +9,7 @@
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
 	var SelectControl = wp.components.SelectControl;
+	var ToggleControl = wp.components.ToggleControl;
 	var useBlockProps = wp.blockEditor.useBlockProps;
 	var InspectorControls = wp.blockEditor.InspectorControls;
 	var PanelBody = wp.components.PanelBody;
@@ -372,6 +373,61 @@
 									},
 									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: f.size, cursor: 'pointer', background: 'transparent', border: 'none' }
 								}, f.name );
+							} )
+						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- Line Height dropdown (priority 5.5) ---
+	var lineHeights = [
+		{ slug: 'tight',   name: __( 'Tight', 'rcmi-toolkit' ),   value: '0.8' },
+		{ slug: 'snug',    name: __( 'Snug', 'rcmi-toolkit' ),    value: '1.0' },
+		{ slug: 'normal',  name: __( 'Normal', 'rcmi-toolkit' ),  value: '1.2' },
+		{ slug: 'relaxed', name: __( 'Relaxed', 'rcmi-toolkit' ), value: '1.4' },
+		{ slug: 'loose',   name: __( 'Loose', 'rcmi-toolkit' ),   value: '1.6' }
+	];
+
+	registerFormatType( 'rcmi/line-height', {
+		title: __( 'Line Height', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'has-inline-line-height',
+		attributes: { style: 'style' },
+		priority: 5.5,
+		edit: function ( props ) {
+			var activeLH = __( 'Line Height', 'rcmi-toolkit' );
+			var fmt = getActiveFormat( props.value, 'rcmi/line-height' );
+			if ( fmt && fmt.attributes.style ) {
+				var m = fmt.attributes.style.match( /line-height:\s*([^;]+)/ );
+				if ( m ) {
+					for ( var i = 0; i < lineHeights.length; i++ ) {
+						if ( lineHeights[ i ].value === m[ 1 ].trim() ) { activeLH = lineHeights[ i ].name; break; }
+					}
+				}
+			}
+			return el( BlockControls, null,
+				el( Dropdown, {
+					renderToggle: function ( ref ) {
+						return el( ToolbarButton, {
+							onClick: ref.onToggle,
+							'aria-expanded': ref.isOpen
+						}, activeLH );
+					},
+					renderContent: function () {
+						return el( 'div', { style: { padding: '4px', minWidth: '140px' } },
+							lineHeights.map( function ( lh ) {
+								return el( 'button', {
+									key: lh.slug,
+									onClick: function () {
+										props.onChange( applyFormat( props.value, {
+											type: 'rcmi/line-height',
+											attributes: { style: 'line-height: ' + lh.value }
+										} ) );
+									},
+									style: { display: 'block', width: '100%', padding: '8px 12px', textAlign: 'left', lineHeight: lh.value, fontSize: '14px', cursor: 'pointer', background: 'transparent', border: 'none' }
+								}, lh.name );
 							} )
 						);
 					}
@@ -1071,7 +1127,16 @@
 			tabBtnBgColor: { type: 'string', default: '#fbf7f0' },
 			tabBtnTextColor: { type: 'string', default: '#7d2832' },
 			tabBtnActiveBgColor: { type: 'string', default: '#ffffff' },
-			tabBtnActiveTextColor: { type: 'string', default: '#c8102e' }
+			tabBtnActiveTextColor: { type: 'string', default: '#c8102e' },
+			// Global gradient: when enabled, overrides per-tab scrim gradients.
+			globalScrim: { type: 'boolean', default: false },
+			globalScrimStops: { type: 'array', default: [
+				{ color: '#ffffff', opacity: 0.9, position: 0 },
+				{ color: '#ffffff', opacity: 0.54, position: 50 },
+				{ color: '#ffffff', opacity: 0, position: 100 }
+			] },
+			globalScrimType: { type: 'string', default: 'linear' },
+			globalScrimAngle: { type: 'number', default: 90 }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -1207,6 +1272,21 @@
 				renderColorSelector( __( 'Inactive Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnTextColor, function ( v ) { setAttributes( { tabBtnTextColor: v } ); } ),
 				renderColorSelector( __( 'Active Button Background', 'rcmi-toolkit' ), attrs.tabBtnActiveBgColor, function ( v ) { setAttributes( { tabBtnActiveBgColor: v } ); } ),
 				renderColorSelector( __( 'Active Button Text Color', 'rcmi-toolkit' ), attrs.tabBtnActiveTextColor, function ( v ) { setAttributes( { tabBtnActiveTextColor: v } ); } )
+			);
+
+			// Global gradient panel: set one gradient for all tabs at once.
+			var globalScrimPanel = el( PanelBody, { title: __( 'Global Background Gradient', 'rcmi-toolkit' ), initialOpen: false },
+				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'When enabled, this gradient overrides the per-tab background gradient for all tabs.', 'rcmi-toolkit' ) ),
+				el( ToggleControl, {
+					label: __( 'Enable global gradient', 'rcmi-toolkit' ),
+					checked: !! attrs.globalScrim,
+					onChange: function ( v ) { setAttributes( { globalScrim: v } ); }
+				} ),
+				attrs.globalScrim ? el( Fragment, null,
+					renderGradientPicker( attrs.globalScrimStops, attrs.globalScrimType, attrs.globalScrimAngle, function ( stops, type, angle ) {
+						setAttributes( { globalScrimStops: stops, globalScrimType: type, globalScrimAngle: angle } );
+					} )
+				) : null
 			);
 
 			// Tabs management panel: add/remove tabs.
@@ -1374,7 +1454,7 @@
 			if ( attrs.tabBtnActiveBgColor ) { stripStyle['--tab-btn-active-bg'] = attrs.tabBtnActiveBgColor; }
 			if ( attrs.tabBtnActiveTextColor ) { stripStyle['--tab-btn-active-text'] = attrs.tabBtnActiveTextColor; }
 			return el( Fragment, null,
-				el( InspectorControls, null, [ transitionPanel, layoutPanel, tabsPanel ].concat( tabPanels ) ),
+				el( InspectorControls, null, [ transitionPanel, layoutPanel, globalScrimPanel, tabsPanel ].concat( tabPanels ) ),
 				el( 'div', blockProps,
 					el( 'section', { className: 'impact-overview' },
 						el( 'div', { className: 'wrap' },
@@ -1394,7 +1474,11 @@
 						{ height: attrs.height ? attrs.height + 'px' : undefined },
 						activeTabData.bgImageUrl ? { backgroundImage: 'url(' + activeTabData.bgImageUrl + ')' } : {}
 					) },
-						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( activeTabData.scrimStops, activeTabData.scrimType, activeTabData.scrimAngle ) } } ),
+						el( 'div', { className: 'rcmi-tab-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS(
+							attrs.globalScrim ? attrs.globalScrimStops : activeTabData.scrimStops,
+							attrs.globalScrim ? attrs.globalScrimType : activeTabData.scrimType,
+							attrs.globalScrim ? attrs.globalScrimAngle : activeTabData.scrimAngle
+						) } } ),
 						el( 'div', { className: 'wrap' },
 							el( 'div', { className: 'section-head' },
 								el( 'div', null, el( RichText, {

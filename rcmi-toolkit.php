@@ -42,16 +42,25 @@ function rcmi_toolkit_hex_to_rgba( $hex, $alpha = 1 ) {
  * Migrate old simple scrim attributes (scrimColor/scrimOpacity) to
  * the new multi-stop format. Returns a 3-stop gradient array.
  */
-function rcmi_toolkit_migrate_scrim_stops( $attrs ) {
-	if ( ! empty( $attrs['scrimStops'] ) ) {
-		return $attrs['scrimStops'];
+function rcmi_toolkit_migrate_scrim_stops( $attrs, $key = 'scrimStops' ) {
+	if ( ! empty( $attrs[ $key ] ) ) {
+		return $attrs[ $key ];
 	}
-	$color   = $attrs['scrimColor'] ?? '#ffffff';
-	$opacity = $attrs['scrimOpacity'] ?? 0.9;
+	// Only apply scrimColor/scrimOpacity fallback for the default key.
+	if ( 'scrimStops' === $key ) {
+		$color   = $attrs['scrimColor'] ?? '#ffffff';
+		$opacity = $attrs['scrimOpacity'] ?? 0.9;
+		return array(
+			array( 'color' => $color, 'opacity' => $opacity, 'position' => 0 ),
+			array( 'color' => $color, 'opacity' => $opacity * 0.6, 'position' => 50 ),
+			array( 'color' => $color, 'opacity' => 0, 'position' => 100 ),
+		);
+	}
+	// For non-default keys (e.g. globalScrimStops), return a sensible default.
 	return array(
-		array( 'color' => $color, 'opacity' => $opacity, 'position' => 0 ),
-		array( 'color' => $color, 'opacity' => $opacity * 0.6, 'position' => 50 ),
-		array( 'color' => $color, 'opacity' => 0, 'position' => 100 ),
+		array( 'color' => '#ffffff', 'opacity' => 0.9, 'position' => 0 ),
+		array( 'color' => '#ffffff', 'opacity' => 0.54, 'position' => 50 ),
+		array( 'color' => '#ffffff', 'opacity' => 0, 'position' => 100 ),
 	);
 }
 
@@ -763,7 +772,7 @@ function rcmi_register_server_side_blocks() {
 			$stat_count = intval( $attrs['statCount'] ?? 4 );
 			if ( $stat_count < 1 ) { $stat_count = 1; }
 			if ( $stat_count > 6 ) { $stat_count = 6; }
-			$grid_style = 'grid-template-columns: repeat(' . $stat_count . ', 1fr);';
+			$grid_style = '--stat-cols: ' . $stat_count . ';';
 			$stats = '';
 			for ( $i = 1; $i <= $stat_count; $i++ ) {
 				$stats .= sprintf(
@@ -917,6 +926,10 @@ function rcmi_register_server_side_blocks() {
 			'tabBtnTextColor' => array( 'type' => 'string', 'default' => '#7d2832' ),
 			'tabBtnActiveBgColor' => array( 'type' => 'string', 'default' => '#ffffff' ),
 			'tabBtnActiveTextColor' => array( 'type' => 'string', 'default' => '#c8102e' ),
+			'globalScrim' => array( 'type' => 'boolean', 'default' => false ),
+			'globalScrimStops' => array( 'type' => 'array', 'default' => array() ),
+			'globalScrimType' => array( 'type' => 'string', 'default' => 'linear' ),
+			'globalScrimAngle' => array( 'type' => 'number', 'default' => 90 ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
@@ -969,12 +982,22 @@ function rcmi_register_server_side_blocks() {
 					);
 				}
 				// Build per-tab scrim style from multi-stop gradient.
-				$tab_stops = rcmi_toolkit_migrate_scrim_stops( $tab );
-				$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-					$tab_stops,
-					$tab['scrimType'] ?? 'linear',
-					intval( $tab['scrimAngle'] ?? 90 )
-				) . ';';
+				// When global scrim is enabled, use the global gradient for all tabs.
+				if ( ! empty( $attrs['globalScrim'] ) ) {
+					$tab_stops = rcmi_toolkit_migrate_scrim_stops( $attrs, 'globalScrimStops' );
+					$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$tab_stops,
+						$attrs['globalScrimType'] ?? 'linear',
+						intval( $attrs['globalScrimAngle'] ?? 90 )
+					) . ';';
+				} else {
+					$tab_stops = rcmi_toolkit_migrate_scrim_stops( $tab );
+					$tab_scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$tab_stops,
+						$tab['scrimType'] ?? 'linear',
+						intval( $tab['scrimAngle'] ?? 90 )
+					) . ';';
+				}
 
 				// Build panel inline style: background image + height + colors.
 				$panel_style = '';
