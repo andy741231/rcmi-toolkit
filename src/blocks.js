@@ -611,7 +611,7 @@
 				el( 'div', { className: 'wrap' },
 					el( 'div', { className: 'cta-band' },
 						el( InnerBlocks, {
-							allowedBlocks: [ 'core/columns', 'core/heading', 'core/paragraph', 'core/buttons', 'core/image', 'core/spacer', 'core/separator' ],
+							allowedBlocks: [ 'core/columns', 'core/heading', 'core/paragraph', 'core/buttons', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
 							template: [
 								[ 'core/columns', {}, [
 									[ 'core/column', { className: 'cta-copy' }, [
@@ -630,12 +630,22 @@
 											[ 'core/button', {
 												text: 'Request Support',
 												url: '/#start',
-												className: 'btn-outline'
+												className: 'btn-outline',
+												style: {
+													color: { background: 'transparent', text: '#ffffff' },
+													border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
+													spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+												}
 											} ],
 											[ 'core/button', {
 												text: 'Explore Research',
 												url: '/cores/#investigator',
-												className: 'btn-primary'
+												className: 'btn-primary',
+												style: {
+													color: { background: '#ffffff', text: '#C8102E' },
+													border: { radius: '999px', color: '#ffffff', width: '1px', style: 'solid' },
+													spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+												}
 											} ]
 										] ]
 									] ]
@@ -1786,7 +1796,7 @@
 				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
 						el( InnerBlocks, {
-							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator' ],
+							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
 							template: [
 								[ 'core/heading', {
 									level: 1,
@@ -1807,7 +1817,12 @@
 									[ 'core/button', {
 										text: 'Request Support',
 										url: '#start',
-										className: 'btn btn-primary'
+										className: 'btn btn-primary',
+										style: {
+											color: { background: '#C8102E', text: '#ffffff' },
+											border: { radius: '999px', color: '#C8102E', width: '1px', style: 'solid' },
+											spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
+										}
 									} ]
 								] ]
 							],

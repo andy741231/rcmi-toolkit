@@ -70,12 +70,18 @@ function rcmi_migrate_build_hero_inner( $attrs ) {
 	// Button
 	if ( ! empty( $button_text ) ) {
 		$btn_class = 'btn btn-primary';
+		$btn_style = array(
+			'color'   => array( 'background' => '#C8102E', 'text' => '#ffffff' ),
+			'border'  => array( 'radius' => '999px', 'color' => '#C8102E', 'width' => '1px', 'style' => 'solid' ),
+			'spacing' => array( 'padding' => array( 'top' => '14px', 'right' => '26px', 'bottom' => '14px', 'left' => '26px' ) ),
+		);
+		$inline_style = 'background-color:#C8102E;color:#ffffff;border-radius:999px;border:1px solid #C8102E;padding:14px 26px;';
 		$button_block = array(
 			'blockName'    => 'core/button',
-			'attrs'        => array( 'className' => $btn_class ),
+			'attrs'        => array( 'className' => $btn_class, 'style' => $btn_style ),
 			'innerBlocks'  => array(),
-			'innerHTML'    => '<div class="wp-block-button ' . $btn_class . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $button_link ) . '">' . esc_html( $button_text ) . '</a></div>',
-			'innerContent' => array( '<div class="wp-block-button ' . $btn_class . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $button_link ) . '">' . esc_html( $button_text ) . '</a></div>' ),
+			'innerHTML'    => '<div class="wp-block-button ' . $btn_class . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline_style . '" href="' . esc_attr( $button_link ) . '">' . esc_html( $button_text ) . '</a></div>',
+			'innerContent' => array( '<div class="wp-block-button ' . $btn_class . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline_style . '" href="' . esc_attr( $button_link ) . '">' . esc_html( $button_text ) . '</a></div>' ),
 		);
 		$blocks[] = array(
 			'blockName'    => 'core/buttons',
@@ -163,21 +169,33 @@ function rcmi_migrate_build_cta_inner( $attrs ) {
 	// Build right column inner blocks (buttons).
 	$right_inner = array();
 	if ( ! empty( $btn1Text ) ) {
+		$style1 = array(
+			'color'   => array( 'background' => 'transparent', 'text' => '#ffffff' ),
+			'border'  => array( 'radius' => '999px', 'color' => '#ffffff', 'width' => '1px', 'style' => 'solid' ),
+			'spacing' => array( 'padding' => array( 'top' => '14px', 'right' => '26px', 'bottom' => '14px', 'left' => '26px' ) ),
+		);
+		$inline1 = 'background-color:transparent;color:#ffffff;border-radius:999px;border:1px solid #ffffff;padding:14px 26px;';
 		$right_inner[] = array(
 			'blockName'    => 'core/button',
-			'attrs'        => array( 'className' => $btn1Style ),
+			'attrs'        => array( 'className' => $btn1Style, 'style' => $style1 ),
 			'innerBlocks'  => array(),
-			'innerHTML'    => '<div class="wp-block-button ' . $btn1Style . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $btn1Link ) . '">' . esc_html( $btn1Text ) . '</a></div>',
-			'innerContent' => array( '<div class="wp-block-button ' . $btn1Style . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $btn1Link ) . '">' . esc_html( $btn1Text ) . '</a></div>' ),
+			'innerHTML'    => '<div class="wp-block-button ' . $btn1Style . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline1 . '" href="' . esc_attr( $btn1Link ) . '">' . esc_html( $btn1Text ) . '</a></div>',
+			'innerContent' => array( '<div class="wp-block-button ' . $btn1Style . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline1 . '" href="' . esc_attr( $btn1Link ) . '">' . esc_html( $btn1Text ) . '</a></div>' ),
 		);
 	}
 	if ( ! empty( $btn2Text ) ) {
+		$style2 = array(
+			'color'   => array( 'background' => '#ffffff', 'text' => '#C8102E' ),
+			'border'  => array( 'radius' => '999px', 'color' => '#ffffff', 'width' => '1px', 'style' => 'solid' ),
+			'spacing' => array( 'padding' => array( 'top' => '14px', 'right' => '26px', 'bottom' => '14px', 'left' => '26px' ) ),
+		);
+		$inline2 = 'background-color:#ffffff;color:#C8102E;border-radius:999px;border:1px solid #ffffff;padding:14px 26px;';
 		$right_inner[] = array(
 			'blockName'    => 'core/button',
-			'attrs'        => array( 'className' => $btn2Style ),
+			'attrs'        => array( 'className' => $btn2Style, 'style' => $style2 ),
 			'innerBlocks'  => array(),
-			'innerHTML'    => '<div class="wp-block-button ' . $btn2Style . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $btn2Link ) . '">' . esc_html( $btn2Text ) . '</a></div>',
-			'innerContent' => array( '<div class="wp-block-button ' . $btn2Style . '"><a class="wp-block-button__link wp-element-button" href="' . esc_attr( $btn2Link ) . '">' . esc_html( $btn2Text ) . '</a></div>' ),
+			'innerHTML'    => '<div class="wp-block-button ' . $btn2Style . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline2 . '" href="' . esc_attr( $btn2Link ) . '">' . esc_html( $btn2Text ) . '</a></div>',
+			'innerContent' => array( '<div class="wp-block-button ' . $btn2Style . '"><a class="wp-block-button__link wp-element-button has-text-color has-background" style="' . $inline2 . '" href="' . esc_attr( $btn2Link ) . '">' . esc_html( $btn2Text ) . '</a></div>' ),
 		);
 	}
 
