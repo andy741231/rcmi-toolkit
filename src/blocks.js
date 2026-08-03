@@ -971,6 +971,7 @@
 					rolesPanel
 				),
 				el( 'section', blockProps,
+					el( 'div', { className: 'rcmi-section-scrim', 'aria-hidden': 'true', style: { background: buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle ) } } ),
 					el( 'div', { className: 'wrap' },
 						el( 'div', { className: 'section-head' },
 							el( 'div', null,
