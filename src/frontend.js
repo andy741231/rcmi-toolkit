@@ -222,34 +222,11 @@
 
 	// ============================================================
 	// Parallax layers for rcmi/parallax blocks.
-	// Each .rcmi-parallax-layer is an <img> element with a data-speed
-	// attribute (-2 to 2). Two modes controlled by data-mode on the section:
-	//   scroll (default): layers translate based on scroll position
-	//   mouse: layers follow mouse position (parallax tilt effect)
-	//
-	// Speed sign controls direction. The foreground/content layers and
-	// background/middle layers always move in opposite directions to
-	// create depth. The sign of each layer's speed flips which way it
-	// moves:
-	//   positive speed: foreground drifts down, background/middle rise
-	//   negative speed: foreground rises, background/middle drift down
-	//
-	// SIMPLE ABSOLUTE APPROACH:
-	// Layers stay exactly as PHP renders them: position:absolute, scale% ×
-	// scale% of section, centered, object-fit:cover. The engine ONLY adds a
-	// parallax Y-offset on top of the existing centering/pan transform.
-	// No fixed positioning, no clip-path, no resizing — so the published
-	// page matches the editor preview by construction.
-	//
-	// The offset range is viewport-height × speed, which is large enough
-	// that the background can drift opposite to the scroll direction
-	// (climbwales.co.uk effect). At scale=100% the layer has no slack, so
-	// movement may reveal gaps at the section edges — this is accepted
-	// (gaps are preferable to cropping the image). Increasing scale adds
-	// slack and eliminates gaps.
-	//
-	// Uses requestAnimationFrame + translate3d for GPU-composited 60fps.
-	// Disabled for prefers-reduced-motion.
+	// Each .rcmi-parallax-layer has a data-speed attribute (0–1).
+	// Layers translate vertically at rate = scrollProgress * speed,
+	// giving a depth effect: background slowest, foreground fastest.
+	// Uses requestAnimationFrame + translate3d for GPU-composited
+	// 60fps scrolling. Disabled for prefers-reduced-motion.
 	// ============================================================
 	function initParallax() {
 		var sections = document.querySelectorAll( '.rcmi-parallax' );
@@ -262,251 +239,71 @@
 			return;
 		}
 
-		// Mobile intensity and tablet scale multiplier are read per-section
-		// from data attributes (set by PHP from each block's own attributes).
-		// Desktop uses full intensity (1.0).
-		var TABLET_WIDTH = 768;
-		var DESKTOP_WIDTH = 1440;
-
-		function isMobileWidth() {
-			return window.matchMedia( '(max-width: ' + ( TABLET_WIDTH - 1 ) + 'px)' ).matches;
-		}
-
-		function getTravelMultiplier( item ) {
-			if ( ! isMobileWidth() ) {
-				return 1.0;
-			}
-			var mi = parseFloat( item.mobileIntensity );
-			if ( isNaN( mi ) ) {
-				mi = 0.7;
-			}
-			return Math.max( 0, Math.min( 2, mi ) );
-		}
-
-		// Build items list. Each item stores its section, layers, and the
-		// original inline transform of each layer (so we can restore it
-		// when the section leaves the viewport).
 		var items = [];
 		sections.forEach( function ( section ) {
+			// Query any element with data-speed inside the section —
+			// this includes image layers AND the content layer.
 			var layers = section.querySelectorAll( '[data-speed]' );
-			if ( ! layers.length ) {
-				return;
+			if ( layers.length ) {
+				items.push( { section: section, layers: layers } );
 			}
-			// Cache each layer's original transform (the centering + pan
-			// transform set by PHP), its original pan CSS custom properties
-			// (--pos-x, --pos-y), and its original scale (width/height %)
-			// so we can scale them proportionally on small screens.
-			var layerData = [];
-			layers.forEach( function ( layer ) {
-				layerData.push( {
-					el: layer,
-					baseTransform: layer.style.transform || '',
-					posX: layer.style.getPropertyValue( '--pos-x' ) || '0%',
-					posY: layer.style.getPropertyValue( '--pos-y' ) || '0%',
-					scale: parseFloat( layer.style.width ) || 100,
-					mobileScale: parseFloat( layer.getAttribute( 'data-mobile-scale' ) ) || 100,
-					mobilePosX: parseFloat( layer.getAttribute( 'data-mobile-pos-x' ) ) || 50,
-					mobilePosY: parseFloat( layer.getAttribute( 'data-mobile-pos-y' ) ) || 50,
-					origObjectFit: getComputedStyle( layer ).objectFit || 'contain',
-					origObjectPosition: layer.style.objectPosition || ''
-				} );
-			} );
-			var initialRect = section.getBoundingClientRect();
-			var initialMargin = 200;
-			items.push( {
-				section: section,
-				layers: layers,
-				layerData: layerData,
-				// Initialize visibility synchronously so the first scroll does
-				// not apply the parallax transform for the first time and jump.
-				visible: initialRect.bottom >= -initialMargin && initialRect.top <= window.innerHeight + initialMargin,
-				mode: section.getAttribute( 'data-mode' ) || 'scroll',
-				// Per-block responsive settings (each hero has its own).
-				mobileIntensity: section.getAttribute( 'data-mobile-intensity' ),
-				tabletScaleMult: section.getAttribute( 'data-tablet-scale-mult' )
-			} );
 		} );
 		if ( ! items.length ) {
 			return;
 		}
 
-		// ---- Responsive scale + pan (smooth transition) ----
-		// Scale and pan are reduced on smaller screens to keep images
-		// visible. Three breakpoints with smooth interpolation:
-		//   - Desktop (≥1440px): full scale and pan (user's values)
-		//   - Tablet (768–1440px): scale × tabletMult, pan interpolated
-		//   - Mobile (≤767px): dedicated per-layer mobile scale & position
-		// The tablet multiplier is read per-item so each hero block can
-		// have independent responsive behavior.
-
-		function applyPanScaling() {
-			var w = window.innerWidth;
-
-			items.forEach( function ( item ) {
-				// Read this item's own tablet multiplier.
-				var itemTabletMult = parseFloat( item.tabletScaleMult );
-				if ( isNaN( itemTabletMult ) ) { itemTabletMult = 0.75; }
-
-				var scaleMult, panFactor;
-
-				if ( w >= DESKTOP_WIDTH ) {
-					// Desktop: full scale, full pan.
-					scaleMult = 1;
-					panFactor = 1;
-				} else if ( w <= TABLET_WIDTH - 1 ) {
-					// Mobile: dedicated per-layer mobile scale & position.
-					// scaleMult/panFactor are not used on mobile.
-					scaleMult = 0;
-					panFactor = 0;
-				} else {
-					// Tablet: interpolate between tabletMult (at the tablet
-					// boundary) and 1 (at 1440px) for scale and pan.
-					var t = ( w - TABLET_WIDTH ) / ( DESKTOP_WIDTH - TABLET_WIDTH );
-					scaleMult = itemTabletMult + ( 1 - itemTabletMult ) * t;
-					panFactor = t;
-				}
-
-				var isMobile = w <= TABLET_WIDTH - 1;
-
-				item.layerData.forEach( function ( d ) {
-					// On mobile, use the dedicated mobile scale & position.
-					// On desktop/tablet, use the responsive interpolation.
-					var useScale, usePosX, usePosY, useObjectPosition;
-
-					if ( isMobile ) {
-						useScale = d.mobileScale;
-						// Compute pan offset from mobile position values.
-						var mSlack = Math.max( 0, useScale - 100 ) / 2;
-						var mRange = Math.max( 100, mSlack );
-						usePosX = ( d.mobilePosX - 50 ) * mRange / useScale;
-						usePosY = ( d.mobilePosY - 50 ) * mRange / useScale;
-						useObjectPosition = d.mobilePosX + '% ' + d.mobilePosY + '%';
-					} else {
-						useScale = d.scale * scaleMult;
-						var origX = parseFloat( d.posX ) || 0;
-						var origY = parseFloat( d.posY ) || 0;
-						usePosX = origX * panFactor;
-						usePosY = origY * panFactor;
-						useObjectPosition = d.origObjectPosition;
-					}
-
-					d.el.style.width = useScale + '%';
-					d.el.style.height = useScale + '%';
-					d.el.style.setProperty( '--pos-x', usePosX + '%' );
-					d.el.style.setProperty( '--pos-y', usePosY + '%' );
-
-					// On mobile: if a dedicated mobile image is set,
-					// use contain (show the full pre-cropped image). If no
-					// mobile image, use cover (fills screen, may crop).
-					if ( isMobile ) {
-						var hasMobile = d.el.getAttribute( 'data-has-mobile' ) === '1';
-						d.el.style.objectFit = hasMobile ? 'contain' : 'cover';
-						d.el.style.objectPosition = useObjectPosition;
-					} else {
-						d.el.style.objectFit = d.origObjectFit;
-						d.el.style.objectPosition = useObjectPosition;
-					}
-				} );
-			} );
-		}
-
-		// Apply on init, then flag the section as JS-managed so the
-		// first-paint CSS rule (which uses !important to prevent the
-		// mobile jump) stops overriding inline styles. From this point
-		// JS owns all responsive scaling/panning.
-		applyPanScaling();
-		items.forEach( function ( item ) {
-			item.section.classList.add( 'rcmi-parallax-js' );
-		} );
-
-		// IntersectionObserver: track which sections are on-screen.
-		if ( 'IntersectionObserver' in window ) {
-			var io = new IntersectionObserver( function ( entries ) {
-				entries.forEach( function ( entry ) {
-					var item = items.find( function ( i ) { return i.section === entry.target; } );
-					if ( item ) {
-						item.visible = entry.isIntersecting;
-						// Restore base transform when section leaves viewport.
-						if ( ! entry.isIntersecting ) {
-							item.layerData.forEach( function ( d ) {
-								d.el.style.transform = d.baseTransform;
-							} );
-						}
-					}
-				} );
-			}, { rootMargin: '200px' } );
-			items.forEach( function ( item ) { io.observe( item.section ); } );
-		}
-
-		// ---- Per-layer depth multiplier ----
-		// Foreground/content layers and background/middle layers always
-		// move in opposite directions to create the parallax depth
-		// illusion. The sign of each layer's data-speed attribute
-		// determines which way the foreground drifts:
-		//   positive speed → foreground drifts down, background rises
-		//   negative speed → foreground rises, background drifts down
-		function getLayerDirMultiplier( layer ) {
-			var isForeground = layer.classList.contains( 'rcmi-parallax-layer-foreground' )
-				|| layer.classList.contains( 'rcmi-parallax-copy' );
-			return isForeground ? 1 : -1;
-		}
-
-		// ---- Mode 1: Scroll ----
 		var ticking = false;
 
-		function updateScroll() {
+		function update() {
 			ticking = false;
 			var viewportHeight = window.innerHeight;
 
 			items.forEach( function ( item ) {
-				if ( item.mode !== 'scroll' ) {
-					return;
-				}
-				if ( ! item.visible ) {
-					return;
-				}
-
 				var rect = item.section.getBoundingClientRect();
-				var travelMultiplier = getTravelMultiplier( item );
 
-				// Distance of the section's center from the viewport's center.
-				// As you scroll down, the section moves up, so this value
-				// decreases. The offset changes at exactly `speed` px per
-				// px scrolled, making the parallax rate directly proportional
-				// to speed (not diluted by the scroll-progress formula).
-				//   At speed=1: layer is locked to viewport (net 0 movement)
-				//   At speed=2: layer moves down 1px per px scrolled (visible)
-				//   At speed<1: layer drifts up slowly (subtle depth)
-				// Negative speed reverses the direction.
-				var sectionCenter = rect.top + rect.height / 2;
-				var viewportCenter = viewportHeight / 2;
-				var distFromCenter = sectionCenter - viewportCenter;
+				// Skip sections fully outside the viewport.
+				if ( rect.bottom < 0 || rect.top > viewportHeight ) {
+					return;
+				}
 
-				item.layerData.forEach( function ( d ) {
-					var layer = d.el;
+				// Progress: 0 when section top hits viewport bottom,
+				// 1 when section bottom hits viewport top.
+				var progress = ( viewportHeight - rect.top ) / ( viewportHeight + rect.height );
+				progress = Math.min( 1, Math.max( 0, progress ) );
+
+				// Center the range around 0: -0.5 (entering) to 0.5 (leaving).
+				var centered = progress - 0.5;
+
+				// Read direction from the section's data-direction attribute.
+				// 'down' = layers drift downward (default), 'up' = layers rise,
+				// 'left'/'right' = horizontal drift.
+				var direction = item.section.getAttribute( 'data-direction' ) || 'down';
+
+				item.layers.forEach( function ( layer ) {
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
-					var dirMul = getLayerDirMultiplier( layer );
+					// Travel distance scales with section height so faster
+					// layers cover more ground regardless of section size.
+					var travel = rect.height * speed;
+					var offset = centered * travel;
+					var tx = '0', ty = '0';
 
-					// Offset = -distFromCenter × speed × dirMul × travelMultiplier.
-					// The negative sign makes the layer move opposite to the
-					// section's scroll direction (for dirMul=+1, speed>0): as
-					// the section scrolls up (distFromCenter decreases), the
-					// offset increases (layer moves down on screen).
-					// A negative speed flips the direction.
-					// No clamping — layers move freely at full speed. Gaps
-					// may appear at the section edges when the layer slides
-					// out of view; increase scale to add headroom.
-					var offset = -distFromCenter * speed * travelMultiplier * dirMul;
+					switch ( direction ) {
+						case 'up':
+							ty = ( -offset ).toFixed( 2 );
+							break;
+						case 'left':
+							tx = ( -offset ).toFixed( 2 );
+							break;
+						case 'right':
+							tx = offset.toFixed( 2 );
+							break;
+						case 'down':
+						default:
+							ty = offset.toFixed( 2 );
+							break;
+					}
 
-					// On mobile, the travelMultiplier (mobile intensity) is
-					// the sole dampener. If edges appear at low mobile scale,
-					// increase the layer's mobile scale to add headroom.
-
-					// Append the parallax offset to the layer's base transform
-					// (which handles centering + panning). The base transform
-					// is translate(calc(-50% + var(--pos-x)), calc(-50% + var(--pos-y))).
-					// We add the parallax Y offset as a second translate.
-					layer.style.transform = d.baseTransform + ' translate3d(0, ' + offset.toFixed( 2 ) + 'px, 0)';
+					layer.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0)';
 				} );
 			} );
 		}
@@ -514,65 +311,13 @@
 		function onScroll() {
 			if ( ! ticking ) {
 				ticking = true;
-				window.requestAnimationFrame( updateScroll );
+				window.requestAnimationFrame( update );
 			}
 		}
 
-		// ---- Mode 2: Mouse ----
-		var mouseItems = items.filter( function ( i ) { return i.mode === 'mouse'; } );
-		var mousePending = false;
-		var mouseTargetY = 0;
-
-		if ( mouseItems.length ) {
-			window.addEventListener( 'mousemove', function ( e ) {
-				mouseTargetY = ( e.clientY / window.innerHeight ) * 2 - 1;
-				if ( ! mousePending ) {
-					mousePending = true;
-					window.requestAnimationFrame( updateMouse );
-				}
-			}, { passive: true } );
-		}
-
-		function updateMouse() {
-			mousePending = false;
-			mouseItems.forEach( function ( item ) {
-				if ( ! item.visible ) {
-					return;
-				}
-				var travelMultiplier = getTravelMultiplier( item );
-				var rect = item.section.getBoundingClientRect();
-				item.layerData.forEach( function ( d ) {
-					var layer = d.el;
-					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
-					var dirMul = getLayerDirMultiplier( layer );
-					var travelY = rect.height * speed * 0.15 * travelMultiplier * dirMul;
-					layer.style.transform = d.baseTransform
-						+ ' translate3d(0, ' + ( mouseTargetY * travelY ).toFixed( 2 ) + 'px, 0)';
-				} );
-			} );
-		}
-
-		// ---- Init ----
-		if ( items.some( function ( i ) { return i.mode === 'scroll'; } ) ) {
-			window.addEventListener( 'scroll', onScroll, { passive: true } );
-			window.addEventListener( 'resize', function () { applyPanScaling(); onScroll(); } );
-			updateScroll();
-		} else {
-			// Mouse-only: still need resize for pan scaling.
-			window.addEventListener( 'resize', applyPanScaling );
-		}
-		// Mouse mode: initialize layers to base transform.
-		mouseItems.forEach( function ( item ) {
-			item.layerData.forEach( function ( d ) {
-				d.el.style.transform = d.baseTransform;
-			} );
-		} );
-	}
-
-	if ( document.readyState === 'loading' ) {
-		document.addEventListener( 'DOMContentLoaded', initImpactStripTabs );
-	} else {
-		initImpactStripTabs();
+		window.addEventListener( 'scroll', onScroll, { passive: true } );
+		window.addEventListener( 'resize', onScroll );
+		update();
 	}
 
 	if ( document.readyState === 'loading' ) {

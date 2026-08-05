@@ -447,7 +447,7 @@ function rcmi_toolkit_editor_assets() {
 	wp_enqueue_script(
 		'rcmi-toolkit-editor',
 		RCMI_TOOLKIT_URL . 'src/blocks.js',
-		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-server-side-render', 'wp-api-fetch' ),
+		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-server-side-render' ),
 		$ver,
 		true
 	);
@@ -1071,99 +1071,6 @@ function rcmi_register_server_side_blocks() {
 	// Replaces the old rcmi/hero block. Mode toggle: 'static' (single bg
 	// image) or 'parallax' (3-layer depth effect). Includes editable
 	// gradient scrim and content alignment controls.
-
-	// Generate responsive image sizes for parallax layers.
-	// Produces 3 widths (desktop, tablet, mobile) × 2 formats (webp, png).
-	// Images are RESIZED but NOT cropped — the original aspect ratio is
-	// preserved so the full image is always visible with object-fit:contain.
-	// Files are cached in wp-content/uploads/rcmi-crops/.
-	//
-	// Max widths:
-	//   desktop: 1920px
-	//   tablet:  1100px
-	//   mobile:  800px
-	if ( ! function_exists( 'rcmi_generate_responsive_sizes' ) ) {
-		function rcmi_generate_responsive_sizes( $image_id ) {
-			$image_id = intval( $image_id );
-			if ( ! $image_id ) {
-				return array();
-			}
-
-			$src = wp_get_attachment_image_src( $image_id, 'full' );
-			if ( ! $src ) {
-				return array();
-			}
-			$orig_url  = $src[0];
-			$orig_w    = $src[1];
-			$orig_h    = $src[2];
-
-			$upload_dir = wp_upload_dir();
-			$orig_path  = str_replace( $upload_dir['baseurl'], $upload_dir['basedir'], $orig_url );
-			if ( ! file_exists( $orig_path ) ) {
-				return array();
-			}
-
-			// Target max widths (height auto-scales to preserve aspect).
-			$widths = array(
-				'desktop' => 1920,
-				'tablet'  => 1100,
-				'mobile'  => 800,
-			);
-
-			$filename_base = pathinfo( $orig_path, PATHINFO_FILENAME );
-			$crop_dir = $upload_dir['basedir'] . '/rcmi-crops/';
-			$crop_url_base = $upload_dir['baseurl'] . '/rcmi-crops/';
-
-			if ( ! file_exists( $crop_dir ) ) {
-				wp_mkdir_p( $crop_dir );
-			}
-
-			$results = array();
-
-			foreach ( $widths as $name => $max_w ) {
-				// Skip if original is already smaller than target —
-				// no point upscaling.
-				if ( $orig_w <= $max_w ) {
-					$results[ $name ] = array();
-					continue;
-				}
-
-				$formats = array( 'webp', 'png' );
-				$results[ $name ] = array();
-
-				foreach ( $formats as $fmt ) {
-					$out_path = $crop_dir . $filename_base . '-' . $name . '.' . $fmt;
-					$out_url  = $crop_url_base . $filename_base . '-' . $name . '.' . $fmt;
-
-					// Check cache.
-					if ( file_exists( $out_path ) ) {
-						$results[ $name ][ $fmt ] = $out_url;
-						continue;
-					}
-
-					$editor = wp_get_image_editor( $orig_path );
-					if ( is_wp_error( $editor ) ) {
-						continue;
-					}
-
-					// Resize without cropping — preserve aspect ratio.
-					$editor->resize( $max_w, null, false );
-					$quality = $fmt === 'webp' ? 85 : 90;
-					$editor->set_quality( $quality );
-
-					$saved = $editor->save( $out_path, 'image/' . $fmt );
-					if ( is_wp_error( $saved ) ) {
-						continue;
-					}
-
-					$results[ $name ][ $fmt ] = $out_url;
-				}
-			}
-
-			return $results;
-		}
-	}
-
 	register_block_type( 'rcmi/parallax', array(
 		'supports' => array(
 			'html' => false,
@@ -1196,43 +1103,8 @@ function rcmi_register_server_side_blocks() {
 			'fgZIndex'      => array( 'type' => 'number', 'default' => 2 ),
 			'scrimZIndex'   => array( 'type' => 'number', 'default' => 3 ),
 			'contentZIndex' => array( 'type' => 'number', 'default' => 4 ),
-			'parallaxMode' => array( 'type' => 'string', 'default' => 'scroll' ),
+			'parallaxDirection' => array( 'type' => 'string', 'default' => 'down' ),
 			'height'      => array( 'type' => 'number', 'default' => 80 ),
-			'mobileIntensity' => array( 'type' => 'number', 'default' => 0.7 ),
-			'tabletScaleMultiplier' => array( 'type' => 'number', 'default' => 0.75 ),
-			// Per-layer position (object-position) and scale (visual zoom).
-			// Position X/Y: 0-100% controls which part of the image is visible
-			// (50/50 = center). Scale: 100-300% controls how much larger the
-			// image is than the section — bigger scale = more parallax headroom
-			// and deeper zoom. Default 200% matches the original 2× oversize.
-			'bgPositionX' => array( 'type' => 'number', 'default' => 50 ),
-			'bgPositionY' => array( 'type' => 'number', 'default' => 50 ),
-			'bgScale'     => array( 'type' => 'number', 'default' => 200 ),
-			'midPositionX'=> array( 'type' => 'number', 'default' => 50 ),
-			'midPositionY'=> array( 'type' => 'number', 'default' => 50 ),
-			'midScale'    => array( 'type' => 'number', 'default' => 200 ),
-			'fgPositionX' => array( 'type' => 'number', 'default' => 50 ),
-			'fgPositionY' => array( 'type' => 'number', 'default' => 50 ),
-			'fgScale'     => array( 'type' => 'number', 'default' => 200 ),
-			// Per-layer mobile scale & position (used on screens <768px).
-			// These are independent from desktop values.
-			'bgMobileScale'    => array( 'type' => 'number', 'default' => 100 ),
-			'bgMobilePositionX'=> array( 'type' => 'number', 'default' => 50 ),
-			'bgMobilePositionY'=> array( 'type' => 'number', 'default' => 50 ),
-			'midMobileScale'    => array( 'type' => 'number', 'default' => 100 ),
-			'midMobilePositionX'=> array( 'type' => 'number', 'default' => 50 ),
-			'midMobilePositionY'=> array( 'type' => 'number', 'default' => 50 ),
-			'fgMobileScale'    => array( 'type' => 'number', 'default' => 100 ),
-			'fgMobilePositionX'=> array( 'type' => 'number', 'default' => 50 ),
-			'fgMobilePositionY'=> array( 'type' => 'number', 'default' => 50 ),
-			// Per-layer mobile image (optional). If set, used on screens
-			// <768px via <picture><source>. User should pre-crop to portrait.
-			'bgMobileImageId'  => array( 'type' => 'number', 'default' => 0 ),
-			'bgMobileImageUrl' => array( 'type' => 'string', 'default' => '' ),
-			'midMobileImageId'  => array( 'type' => 'number', 'default' => 0 ),
-			'midMobileImageUrl' => array( 'type' => 'string', 'default' => '' ),
-			'fgMobileImageId'  => array( 'type' => 'number', 'default' => 0 ),
-			'fgMobileImageUrl' => array( 'type' => 'string', 'default' => '' ),
 			'scrimStops'  => array( 'type' => 'array', 'default' => array(
 				array( 'color' => '#f8f5ee', 'opacity' => 0.85, 'position' => 0 ),
 				array( 'color' => '#f8f5ee', 'opacity' => 0.34, 'position' => 40 ),
@@ -1252,170 +1124,6 @@ function rcmi_register_server_side_blocks() {
 			$height  = intval( $attrs['height'] ?? 80 );
 			if ( $height < 40 ) { $height = 40; }
 			if ( $height > 100 ) { $height = 100; }
-
-			// Helper: build an <img srcset> element for a parallax layer.
-			// Accepts a structured $layer array with keys:
-			//   image_id, fallback_url, pos_x, pos_y, scale, speed,
-			//   z_index, layer_name, mobile_image_id, mobile_scale,
-			//   mobile_pos_x, mobile_pos_y
-			// Uses wp_get_attachment_image_srcset() so the browser natively
-			// picks the right image file for the viewport — mobile downloads
-			// a smaller file, desktop downloads a larger one. Falls back to
-			// a plain <img src> when there's no attachment ID (e.g. the image
-			// was deleted from the media library or imported from a URL).
-			//
-			// $scale is a percentage (25-300) controlling visual zoom:
-			//   25  = image is 1/4 the section size (windowed, shows section bg around it)
-			//   100 = image exactly fills the section (no parallax headroom)
-			//   200 = image is 2× the section size (good parallax room)
-			//   300 = deep zoom, lots of parallax travel
-			//
-			// $pos_x / $pos_y are 0-100 percentages controlling which
-			// part of the image stays visible. Panning uses TWO mechanisms
-			// that stack:
-			//   1. object-position — shifts image content within the img
-			//      box. Works in the dimension where object-fit:cover crops
-			//      (image aspect ≠ section aspect). This works at ANY scale,
-			//      including 100%, so the position slider always does
-			//      something. At scale 100% this is the only panning mechanism.
-			//   2. transform — shifts the entire img element. Works in both
-			//      dimensions, but only when scale > 100% (img must be larger
-			//      than the section to have room to shift).
-			// object-fit:cover locks the aspect ratio (crops, never stretches).
-			$render_layer_img = function ( $layer ) {
-				$image_id = intval( $layer['image_id'] ?? 0 );
-				$fallback_url = $layer['fallback_url'] ?? '';
-				$pos_x    = intval( $layer['pos_x'] ?? 50 );
-				$pos_y    = intval( $layer['pos_y'] ?? 50 );
-				$scale    = max( 25, min( 300, intval( $layer['scale'] ?? 200 ) ) );
-				$speed    = floatval( $layer['speed'] ?? 0 );
-				$z_index  = intval( $layer['z_index'] ?? 0 );
-				$layer_name = $layer['layer_name'] ?? 'background';
-				$mobile_image_id = intval( $layer['mobile_image_id'] ?? 0 );
-				$mobile_scale    = max( 25, min( 300, intval( $layer['mobile_scale'] ?? 100 ) ) );
-				$mobile_pos_x    = intval( $layer['mobile_pos_x'] ?? 50 );
-				$mobile_pos_y    = intval( $layer['mobile_pos_y'] ?? 50 );
-
-				// Position offset as % of the img's own width/height.
-				$img_slack = max( 0, $scale - 100 ) / 2;
-				$range = max( 100, $img_slack );
-				$pos_offset_x = ( $pos_x - 50 ) * $range / $scale;
-				$pos_offset_y = ( $pos_y - 50 ) * $range / $scale;
-
-				// Desktop/tablet: object-fit:contain (full image visible).
-				// Mobile: object-fit:cover (fills screen, may crop).
-				// The JS in frontend.js handles the switch at ≤768px.
-				// Mobile values are stored as CSS custom properties so a
-				// single global media-query rule in rcmi.css can apply them
-				// at first paint (before JS runs), preventing the initial
-				// mobile "jump" without per-layer <style> tags.
-				$mobile_slack = max( 0, $mobile_scale - 100 ) / 2;
-				$mobile_range = max( 100, $mobile_slack );
-				$mobile_pos_offset_x = ( $mobile_pos_x - 50 ) * $mobile_range / $mobile_scale;
-				$mobile_pos_offset_y = ( $mobile_pos_y - 50 ) * $mobile_range / $mobile_scale;
-				$mobile_object_fit = $mobile_image_id ? 'contain' : 'cover';
-
-				$style = 'position:absolute;top:50%;left:50%;'
-					. 'width:' . $scale . '%;height:' . $scale . '%;'
-					. 'max-width:none;max-height:none;'
-					. 'object-fit:contain;'
-					. 'object-position:' . $pos_x . '% ' . $pos_y . '%;'
-					. '--pos-x:' . $pos_offset_x . '%;'
-					. '--pos-y:' . $pos_offset_y . '%;'
-					. '--rcmi-mobile-scale:' . $mobile_scale . '%;'
-					. '--rcmi-mobile-pos-x:' . $mobile_pos_offset_x . '%;'
-					. '--rcmi-mobile-pos-y:' . $mobile_pos_offset_y . '%;'
-					. '--rcmi-mobile-object-fit:' . $mobile_object_fit . ';'
-					. '--rcmi-mobile-object-position:' . $mobile_pos_x . '% ' . $mobile_pos_y . '%;'
-					. 'transform:translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)));'
-					. 'z-index:' . $z_index . ';'
-					. 'will-change:transform;pointer-events:none;';
-
-				// Class identifies the layer; no random UID needed since
-				// mobile styling is handled by the global CSS rule using
-				// the custom properties set above.
-				$class = 'rcmi-parallax-layer rcmi-parallax-layer-' . esc_attr( $layer_name );
-
-				if ( $image_id ) {
-					// Generate responsive resized copies (no cropping).
-					$crops = rcmi_generate_responsive_sizes( $image_id );
-					$src    = wp_get_attachment_image_src( $image_id, 'full' );
-					$src_url = $src ? $src[0] : $fallback_url;
-					if ( empty( $src_url ) ) {
-						return '';
-					}
-
-					// Build <picture> with <source> tags for each breakpoint.
-					// Media queries match the JS breakpoints:
-					//   desktop: min-width: 1440px
-					//   tablet:  768px – 1439px
-					//   mobile:  max-width: 767px
-					$sources = '';
-
-					// Desktop source (≥1440px).
-					if ( ! empty( $crops['desktop']['webp'] ) ) {
-						$sources .= '<source media="(min-width: 1440px)" srcset="' . esc_url( $crops['desktop']['webp'] ) . '" type="image/webp" />';
-					}
-					if ( ! empty( $crops['desktop']['png'] ) ) {
-						$sources .= '<source media="(min-width: 1440px)" srcset="' . esc_url( $crops['desktop']['png'] ) . '" type="image/png" />';
-					}
-
-					// Tablet source (768–1439px).
-					if ( ! empty( $crops['tablet']['webp'] ) ) {
-						$sources .= '<source media="(min-width: 768px)" srcset="' . esc_url( $crops['tablet']['webp'] ) . '" type="image/webp" />';
-					}
-					if ( ! empty( $crops['tablet']['png'] ) ) {
-						$sources .= '<source media="(min-width: 768px)" srcset="' . esc_url( $crops['tablet']['png'] ) . '" type="image/png" />';
-					}
-
-					// Mobile source (<768px): if a dedicated mobile image is
-					// set, use it (user pre-cropped to portrait). Otherwise
-					// fall back to the auto-resized mobile version.
-					$mobile_src_url = '';
-					if ( $mobile_image_id ) {
-						$mobile_src = wp_get_attachment_image_src( $mobile_image_id, 'full' );
-						if ( $mobile_src ) {
-							$mobile_src_url = $mobile_src[0];
-						}
-					}
-					if ( empty( $mobile_src_url ) && ! empty( $crops['mobile']['webp'] ) ) {
-						$mobile_src_url = $crops['mobile']['webp'];
-					}
-					if ( empty( $mobile_src_url ) && ! empty( $crops['mobile']['png'] ) ) {
-						$mobile_src_url = $crops['mobile']['png'];
-					}
-					if ( empty( $mobile_src_url ) ) {
-						$mobile_src_url = $src_url;
-					}
-
-					$sources .= '<source media="(max-width: 767px)" srcset="' . esc_url( $mobile_src_url ) . '" />';
-
-					// Fallback <img> (also used by the parallax JS for transforms).
-					$img_attrs = array(
-						'class'             => $class,
-						'style'             => $style,
-						'data-speed'        => esc_attr( $speed ),
-						'data-has-mobile'   => $mobile_image_id ? '1' : '0',
-						'data-mobile-scale' => esc_attr( $mobile_scale ),
-						'data-mobile-pos-x' => esc_attr( $mobile_pos_x ),
-						'data-mobile-pos-y' => esc_attr( $mobile_pos_y ),
-						'src'               => esc_url( $src_url ),
-						'alt'               => '',
-						'aria-hidden'       => 'true',
-						'decoding'          => 'async',
-						'loading'           => 'eager',
-					);
-
-					$img_tag = '<img ' . array_reduce( array_keys( $img_attrs ), function ( $carry, $key ) use ( $img_attrs ) {
-						return $carry . $key . '="' . $img_attrs[ $key ] . '" ';
-					}, '' ) . '/>';
-
-					return '<picture>' . $sources . $img_tag . '</picture>';
-				} elseif ( $fallback_url ) {
-					return '<img class="' . esc_attr( $class ) . '" style="' . esc_attr( $style ) . '" data-speed="' . esc_attr( $speed ) . '" src="' . esc_url( $fallback_url ) . '" alt="" aria-hidden="true" decoding="async" loading="eager" />';
-				}
-				return '';
-			};
 
 			// Resolve inner-block content, falling back to legacy attributes
 			// for instances that haven't been migrated yet.
@@ -1451,53 +1159,29 @@ function rcmi_register_server_side_blocks() {
 			ob_start();
 
 			if ( $mode === 'parallax' ) {
-				// Parallax mode: 3 <img> layers with data-speed attributes.
-				// Each layer is an <img srcset> element so the browser picks
-				// the right image file for the viewport (mobile gets smaller
-				// files automatically). Scale controls visual zoom and
-				// parallax headroom; position X/Y controls object-position.
-				// Speed is signed: positive = foreground drifts down, negative
-				// = foreground rises. The fg/bg depth split is handled in JS.
-				$parallax_mode = $attrs['parallaxMode'] ?? 'scroll';
-				if ( ! in_array( $parallax_mode, array( 'scroll', 'mouse' ), true ) ) {
-					$parallax_mode = 'scroll';
+				// Parallax mode: 3 layers with data-speed attributes.
+				$layers = array(
+					array( 'url' => $attrs['bgImageUrl'] ?? '',  'speed' => $attrs['bgSpeed'] ?? 0.2,  'name' => 'background',  'z' => intval( $attrs['bgZIndex'] ?? 0 ) ),
+					array( 'url' => $attrs['midImageUrl'] ?? '', 'speed' => $attrs['midSpeed'] ?? 0.45, 'name' => 'middle',     'z' => intval( $attrs['midZIndex'] ?? 1 ) ),
+					array( 'url' => $attrs['fgImageUrl'] ?? '',  'speed' => $attrs['fgSpeed'] ?? 0.7,  'name' => 'foreground', 'z' => intval( $attrs['fgZIndex'] ?? 2 ) ),
+				);
+				$parallax_dir = $attrs['parallaxDirection'] ?? 'down';
+				if ( ! in_array( $parallax_dir, array( 'down', 'up', 'left', 'right' ), true ) ) {
+					$parallax_dir = 'down';
 				}
 				// Scrim z-index from attribute (no longer auto-calculated).
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
 				$scrim_z = intval( $attrs['scrimZIndex'] ?? 3 );
-				$mobile_intensity = max( 0, min( 2, floatval( $attrs['mobileIntensity'] ?? 0.7 ) ) );
-				$tablet_scale_mult = $attrs['tabletScaleMultiplier'] ?? 0.75;
 				?>
-				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-mode="<?php echo esc_attr( $parallax_mode ); ?>" data-mobile-intensity="<?php echo esc_attr( $mobile_intensity ); ?>" data-tablet-scale-mult="<?php echo esc_attr( $tablet_scale_mult ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
-					<?php
-					// Build structured layer arrays for the three parallax layers.
-					$parallax_layers = array(
-						array(
-							'image_id' => $attrs['bgImageId'] ?? 0, 'fallback_url' => $attrs['bgImageUrl'] ?? '',
-							'pos_x' => $attrs['bgPositionX'] ?? 50, 'pos_y' => $attrs['bgPositionY'] ?? 50, 'scale' => $attrs['bgScale'] ?? 200,
-							'speed' => $attrs['bgSpeed'] ?? 0.2, 'z_index' => $attrs['bgZIndex'] ?? 0, 'layer_name' => 'background',
-							'mobile_image_id' => $attrs['bgMobileImageId'] ?? 0,
-							'mobile_scale' => $attrs['bgMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['bgMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['bgMobilePositionY'] ?? 50,
-						),
-						array(
-							'image_id' => $attrs['midImageId'] ?? 0, 'fallback_url' => $attrs['midImageUrl'] ?? '',
-							'pos_x' => $attrs['midPositionX'] ?? 50, 'pos_y' => $attrs['midPositionY'] ?? 50, 'scale' => $attrs['midScale'] ?? 200,
-							'speed' => $attrs['midSpeed'] ?? 0.45, 'z_index' => $attrs['midZIndex'] ?? 1, 'layer_name' => 'middle',
-							'mobile_image_id' => $attrs['midMobileImageId'] ?? 0,
-							'mobile_scale' => $attrs['midMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['midMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['midMobilePositionY'] ?? 50,
-						),
-						array(
-							'image_id' => $attrs['fgImageId'] ?? 0, 'fallback_url' => $attrs['fgImageUrl'] ?? '',
-							'pos_x' => $attrs['fgPositionX'] ?? 50, 'pos_y' => $attrs['fgPositionY'] ?? 50, 'scale' => $attrs['fgScale'] ?? 200,
-							'speed' => $attrs['fgSpeed'] ?? 0.7, 'z_index' => $attrs['fgZIndex'] ?? 2, 'layer_name' => 'foreground',
-							'mobile_image_id' => $attrs['fgMobileImageId'] ?? 0,
-							'mobile_scale' => $attrs['fgMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['fgMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['fgMobilePositionY'] ?? 50,
-						),
-					);
-					foreach ( $parallax_layers as $layer ) {
-						echo $render_layer_img( $layer ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- HTML built with esc_* functions
-					}
-					?>
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-direction="<?php echo esc_attr( $parallax_dir ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
+					<?php foreach ( $layers as $layer ) : ?>
+						<?php if ( ! empty( $layer['url'] ) ) : ?>
+							<div class="rcmi-parallax-layer rcmi-parallax-layer-<?php echo esc_attr( $layer['name'] ); ?>"
+								data-speed="<?php echo esc_attr( $layer['speed'] ); ?>"
+								style="background-image: url(<?php echo esc_url( $layer['url'] ); ?>); z-index: <?php echo esc_attr( $layer['z'] ); ?>;"
+								aria-hidden="true"></div>
+						<?php endif; ?>
+					<?php endforeach; ?>
 					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
 					<div class="wrap rcmi-parallax-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="rcmi-parallax-copy" data-speed="<?php echo esc_attr( $attrs['contentSpeed'] ?? 0.1 ); ?>" style="<?php echo esc_attr( $copy_style ); ?>">
@@ -1507,27 +1191,21 @@ function rcmi_register_server_side_blocks() {
 				</section>
 				<?php
 			} else {
-				// Static mode: single background image as an <img srcset>.
-				// Position X/Y and scale work the same as parallax layers.
+				// Static mode: single background image (like the old hero block).
 				$bg_z      = intval( $attrs['bgZIndex'] ?? 0 );
 				$content_z = intval( $attrs['contentZIndex'] ?? 4 );
 				$scrim_z   = intval( $attrs['scrimZIndex'] ?? 3 );
 
-				$bg_img_html = $render_layer_img( array(
-					'image_id' => $attrs['bgImageId'] ?? 0, 'fallback_url' => $attrs['bgImageUrl'] ?? '',
-					'pos_x' => $attrs['bgPositionX'] ?? 50, 'pos_y' => $attrs['bgPositionY'] ?? 50, 'scale' => $attrs['bgScale'] ?? 200,
-					'speed' => 0, // No parallax in static mode.
-					'z_index' => $bg_z, 'layer_name' => 'background',
-					'mobile_image_id' => $attrs['bgMobileImageId'] ?? 0,
-					'mobile_scale' => $attrs['bgMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['bgMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['bgMobilePositionY'] ?? 50,
-				) );
+				$media_style = '';
+				if ( ! empty( $attrs['bgImageUrl'] ) ) {
+					$media_style = 'background-image: url(' . esc_url( $attrs['bgImageUrl'] ) . '); background-size: cover; background-position: center;';
+				} else {
+					$media_style = 'background: #f8f5ee;';
+				}
+				$media_style .= ' z-index: ' . $bg_z . ';';
 				?>
 				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
-					<?php if ( $bg_img_html ) : ?>
-						<?php echo $bg_img_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-					<?php else : ?>
-						<div class="hero-media" aria-hidden="true" style="background: #f8f5ee; z-index: <?php echo esc_attr( $bg_z ); ?>;"></div>
-					<?php endif; ?>
+					<div class="hero-media" aria-hidden="true" style="<?php echo esc_attr( $media_style ); ?>"></div>
 					<div class="rcmi-parallax-scrim" aria-hidden="true" style="<?php echo esc_attr( $scrim_style . ' z-index: ' . $scrim_z . ';' ); ?>"></div>
 					<div class="wrap hero-inner" style="z-index: <?php echo esc_attr( $content_z ); ?>;">
 						<div class="hero-grid">
