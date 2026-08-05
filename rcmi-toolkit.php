@@ -433,7 +433,10 @@ add_filter( 'block_categories_all', 'rcmi_toolkit_category' );
  * Enqueue editor assets (block registration JS).
  */
 function rcmi_toolkit_editor_assets() {
-	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) : RCMI_TOOLKIT_VERSION;
+	// Use filemtime + installed SHA for cache busting (see frontend assets for details).
+	$mtime = file_exists( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) : RCMI_TOOLKIT_VERSION;
+	$sha   = rcmi_toolkit_get_installed_sha();
+	$ver   = $sha ? $mtime . '-' . substr( $sha, 0, 7 ) : $mtime;
 
 	wp_enqueue_script(
 		'rcmi-toolkit-editor',
@@ -1555,7 +1558,13 @@ function rcmi_toolkit_frontend_assets() {
 		true
 	);
 
-	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) : RCMI_TOOLKIT_VERSION;
+	// Use filemtime + installed SHA for cache busting.
+	// On Windows/IIS, copy_dir(overwrite=true) may preserve the old
+	// file's mtime, so filemtime alone doesn't bust caches on update.
+	// The SHA changes with every commit, guaranteeing a new version.
+	$mtime = file_exists( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/frontend.js' ) : RCMI_TOOLKIT_VERSION;
+	$sha   = rcmi_toolkit_get_installed_sha();
+	$ver   = $sha ? $mtime . '-' . substr( $sha, 0, 7 ) : $mtime;
 
 	wp_enqueue_script(
 		'rcmi-toolkit-frontend',
