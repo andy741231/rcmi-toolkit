@@ -357,6 +357,12 @@ function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
 	// Clear the commit cache so the next check fetches fresh data.
 	delete_transient( 'rcmi_toolkit_github_commit' );
 
+	// Clear PHP opcache so the new PHP files are actually loaded.
+	// On Windows/IIS, overwritten files don't automatically invalidate opcache.
+	if ( function_exists( 'opcache_reset' ) ) {
+		opcache_reset();
+	}
+
 	return $result;
 }
 add_filter( 'upgrader_post_install', 'rcmi_toolkit_post_install_rename', 10, 3 );
