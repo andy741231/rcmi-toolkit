@@ -557,6 +557,11 @@
 			window.addEventListener( 'scroll', onScroll, { passive: true } );
 			window.addEventListener( 'resize', function () { applyPanScaling(); onScroll(); } );
 			updateScroll();
+			// Recalculate after layout fully settles (fixed header offset,
+			// web fonts, etc.). Without this, the initial offsets are
+			// calculated before nav.js applies --rcmi-header-offset, causing
+			// the parallax images to jump on the first scroll event.
+			window.addEventListener( 'load', updateScroll );
 		} else {
 			// Mouse-only: still need resize for pan scaling.
 			window.addEventListener( 'resize', applyPanScaling );
