@@ -13,12 +13,245 @@
 	var useBlockProps = wp.blockEditor.useBlockProps;
 	var InspectorControls = wp.blockEditor.InspectorControls;
 	var PanelBody = wp.components.PanelBody;
+	var TabPanel = wp.components.TabPanel;
 	var TextControl = wp.components.TextControl;
 	var TextareaControl = wp.components.TextareaControl;
 	var MediaUpload = wp.blockEditor.MediaUpload;
 	var RichText = wp.blockEditor.RichText;
 	var InnerBlocks = wp.blockEditor.InnerBlocks;
 	var __ = wp.i18n.__;
+
+	// ============================================================
+	// MobileImagePicker — stable top-level component.
+	// Provides a canvas-based 2:3 portrait cropper for mobile images.
+	// Extracted from the parallax block's edit() so it is not recreated
+	// on every render (which caused crop-modal state loss).
+	// ============================================================
+	var MobileImagePicker = function ( props ) {
+		var label = props.label;
+		var mobileUrl = props.mobileUrl;
+		var onSelect = props.onSelect;
+		var onRemove = props.onRemove;
+
+		// cropImage: null = no modal, {url,id,nw,nh} = showing crop
+		var cropImage = useState( null );
+		var displayW = useState( 0 );
+		var displayH = useState( 0 );
+		var cropX = useState( 0 );  // crop box offset in display px
+		var cropY = useState( 0 );
+		var uploading = useState( false );
+		var dragRef = useRef( null );
+		var imgRef = useRef( null );
+
+		// Max display width for the crop modal
+		var MAX_DISPLAY = 400;
+
+		// Compute crop box size (largest 2:3 box within displayed image)
+		var boxW, boxH;
+		if ( displayW[0] && displayH[0] ) {
+			var imgAR = displayW[0] / displayH[0];
+			var cropAR = 2 / 3;
+			if ( imgAR > cropAR ) {
+				// Image wider than 2:3 → box height = image height
+				boxH = displayH[0];
+				boxW = boxH * cropAR;
+			} else {
+				// Image taller than 2:3 → box width = image width
+				boxW = displayW[0];
+				boxH = boxW / cropAR;
+			}
+		}
+
+		var handleMediaSelect = function ( media ) {
+			var img = new Image();
+			img.onload = function () {
+				var scale = Math.min( 1, MAX_DISPLAY / img.naturalWidth );
+				var dw = Math.round( img.naturalWidth * scale );
+				var dh = Math.round( img.naturalHeight * scale );
+				displayW[1]( dw );
+				displayH[1]( dh );
+				// Center the crop box
+				cropX[1]( Math.round( ( dw - ( dh * 2 / 3 > dw ? dw : dh * 2 / 3 ) ) / 2 ) );
+				cropY[1]( Math.round( ( dh - ( dw * 3 / 2 > dh ? dh : dw * 3 / 2 ) ) / 2 ) );
+				cropImage[1]( { url: media.url, id: media.id, nw: img.naturalWidth, nh: img.naturalHeight } );
+			};
+			img.src = media.url;
+		};
+
+		// Recompute centered crop box when image loads
+		useEffect( function () {
+			if ( cropImage[0] && displayW[0] && displayH[0] ) {
+				var ar = displayW[0] / displayH[0];
+				var bw, bh;
+				if ( ar > 2 / 3 ) {
+					bh = displayH[0];
+					bw = bh * 2 / 3;
+				} else {
+					bw = displayW[0];
+					bh = bw * 3 / 2;
+				}
+				cropX[1]( Math.round( ( displayW[0] - bw ) / 2 ) );
+				cropY[1]( Math.round( ( displayH[0] - bh ) / 2 ) );
+			}
+		}, [ cropImage[0], displayW[0], displayH[0] ] );
+
+		var handleCrop = function () {
+			if ( ! cropImage[0] ) { return; }
+			uploading[1]( true );
+
+			var scale = cropImage[0].nw / displayW[0];
+			var bw, bh;
+			if ( displayW[0] / displayH[0] > 2 / 3 ) {
+				bh = displayH[0]; bw = bh * 2 / 3;
+			} else {
+				bw = displayW[0]; bh = bw * 3 / 2;
+			}
+			var sx = Math.round( cropX[0] * scale );
+			var sy = Math.round( cropY[0] * scale );
+			var sw = Math.round( bw * scale );
+			var sh = Math.round( bh * scale );
+
+			var img = new Image();
+			img.crossOrigin = 'anonymous';
+			img.onload = function () {
+				var canvas = document.createElement( 'canvas' );
+				canvas.width = sw;
+				canvas.height = sh;
+				var ctx = canvas.getContext( '2d' );
+				ctx.drawImage( img, sx, sy, sw, sh, 0, 0, sw, sh );
+				canvas.toBlob( function ( blob ) {
+					var formData = new FormData();
+					formData.append( 'file', blob, 'mobile-crop-' + Date.now() + '.png' );
+					wp.apiFetch( {
+						path: '/wp/v2/media',
+						method: 'POST',
+						body: formData
+					} ).then( function ( response ) {
+						onSelect( response.id, response.source_url );
+						cropImage[1]( null );
+						uploading[1]( false );
+					} ).catch( function ( err ) {
+						uploading[1]( false );
+						window.alert( 'Upload failed: ' + ( err.message || 'Unknown error' ) );
+					} );
+				}, 'image/png' );
+			};
+			img.src = cropImage[0].url;
+		};
+
+		// Drag handlers for crop box
+		var onMouseDown = function ( e ) {
+			e.preventDefault();
+			dragRef.current = {
+				startX: e.clientX,
+				startY: e.clientY,
+				origX: cropX[0],
+				origY: cropY[0]
+			};
+			var onMove = function ( ev ) {
+				if ( ! dragRef.current ) { return; }
+				var dx = ev.clientX - dragRef.current.startX;
+				var dy = ev.clientY - dragRef.current.startY;
+				var nx = dragRef.current.origX + dx;
+				var ny = dragRef.current.origY + dy;
+				// Clamp within image bounds
+				nx = Math.max( 0, Math.min( nx, displayW[0] - boxW ) );
+				ny = Math.max( 0, Math.min( ny, displayH[0] - boxH ) );
+				cropX[1]( nx );
+				cropY[1]( ny );
+			};
+			var onUp = function () {
+				dragRef.current = null;
+				document.removeEventListener( 'mousemove', onMove );
+				document.removeEventListener( 'mouseup', onUp );
+			};
+			document.addEventListener( 'mousemove', onMove );
+			document.addEventListener( 'mouseup', onUp );
+		};
+
+		return el( 'div', null,
+			// Label + choose button
+			el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Mobile image (portrait crop)', 'rcmi-toolkit' ) ),
+			el( MediaUpload, {
+				onSelect: handleMediaSelect,
+				allowedTypes: 'image',
+				value: 0,
+				render: function ( obj ) {
+					return el( wp.components.Button, {
+						onClick: obj.open,
+						variant: 'secondary',
+						className: 'rcmi-image-picker-btn'
+					}, mobileUrl ? __( 'Replace Mobile Image (Crop)', 'rcmi-toolkit' ) : __( 'Choose Mobile Image (Crop)', 'rcmi-toolkit' ) );
+				}
+			} ),
+			// Preview + remove
+			mobileUrl ? el( 'div', { className: 'rcmi-image-preview' },
+				el( 'img', { src: mobileUrl, alt: label + ' (mobile)' } ),
+				el( wp.components.Button, {
+					onClick: onRemove,
+					variant: 'tertiary',
+					isDestructive: true
+				}, __( 'Remove mobile image', 'rcmi-toolkit' ) )
+			) : null,
+			el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: '4px' } },
+				__( 'Crop to portrait (2:3 ratio). Used on screens <768px with object-fit:cover.', 'rcmi-toolkit' )
+			),
+			// Crop modal
+			cropImage[0] ? el( wp.components.Modal, {
+				title: __( 'Crop to Portrait (2:3)', 'rcmi-toolkit' ),
+				onRequestClose: function () { cropImage[1]( null ); },
+				shouldCloseOnClickOutside: ! uploading[0],
+				shouldCloseOnEsc: ! uploading[0],
+				style: { maxWidth: '500px' }
+			},
+				el( 'div', { style: { position: 'relative', display: 'inline-block', userSelect: 'none' } },
+					el( 'img', {
+						ref: function ( r ) { imgRef.current = r; },
+						src: cropImage[0].url,
+						alt: '',
+						style: { display: 'block', maxWidth: MAX_DISPLAY + 'px', height: 'auto' }
+					} ),
+					// Dark overlay
+					el( 'div', {
+						style: {
+							position: 'absolute', top: 0, left: 0,
+							width: '100%', height: '100%',
+							background: 'rgba(0,0,0,0.5)',
+							pointerEvents: 'none'
+						}
+					} ),
+					// Crop box "hole" — use box-shadow trick to cut out
+					el( 'div', {
+						onMouseDown: onMouseDown,
+						style: {
+							position: 'absolute',
+							left: cropX[0] + 'px',
+							top: cropY[0] + 'px',
+							width: ( boxW || 0 ) + 'px',
+							height: ( boxH || 0 ) + 'px',
+							cursor: 'move',
+							boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
+							border: '2px solid #fff',
+							background: 'transparent'
+						}
+					} )
+				),
+				el( 'div', { style: { display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' } },
+					uploading[0] ? el( wp.components.Spinner ) : null,
+					el( wp.components.Button, {
+						onClick: function () { cropImage[1]( null ); },
+						variant: 'tertiary',
+						disabled: uploading[0]
+					}, __( 'Cancel', 'rcmi-toolkit' ) ),
+					el( wp.components.Button, {
+						onClick: handleCrop,
+						variant: 'primary',
+						disabled: uploading[0]
+					}, __( 'Crop & Save', 'rcmi-toolkit' ) )
+				)
+			) : null
+		);
+	};
 
 	// UH brand color palette (matches theme.json). Used as the default
 	// swatch set for ColorPalette controls in our custom blocks.
@@ -1598,10 +1831,44 @@
 			fgZIndex:     { type: 'number', default: 2 },
 			scrimZIndex:  { type: 'number', default: 3 },
 			contentZIndex:{ type: 'number', default: 4 },
-			// Parallax direction: 'down', 'up', 'left', 'right'
-			parallaxDirection: { type: 'string', default: 'down' },
+			// Parallax mode: 'scroll' (on scroll), 'mouse' (follows mouse)
+			parallaxMode: { type: 'string', default: 'scroll' },
 			// Layout
 			height:      { type: 'number', default: 80 },
+			// Mobile parallax intensity (0-2): multiplier for parallax speed on small screens
+			mobileIntensity: { type: 'number', default: 0.7 },
+			tabletScaleMultiplier: { type: 'number', default: 0.75 },
+			// Per-layer position (object-position) and scale (visual zoom).
+			// Position X/Y: 0-100% controls which part of the image is visible.
+			// Scale: 100-300% controls image size relative to the section —
+			// bigger = more parallax headroom and deeper zoom.
+			bgPositionX:  { type: 'number', default: 50 },
+			bgPositionY:  { type: 'number', default: 50 },
+			bgScale:      { type: 'number', default: 200 },
+			midPositionX: { type: 'number', default: 50 },
+			midPositionY: { type: 'number', default: 50 },
+			midScale:     { type: 'number', default: 200 },
+			fgPositionX:  { type: 'number', default: 50 },
+			fgPositionY:  { type: 'number', default: 50 },
+			fgScale:      { type: 'number', default: 200 },
+			// Per-layer mobile scale & position (used on screens <768px).
+			'bgMobileScale':    { type: 'number', default: 100 },
+			'bgMobilePositionX':{ type: 'number', default: 50 },
+			'bgMobilePositionY':{ type: 'number', default: 50 },
+			'midMobileScale':    { type: 'number', default: 100 },
+			'midMobilePositionX':{ type: 'number', default: 50 },
+			'midMobilePositionY':{ type: 'number', default: 50 },
+			'fgMobileScale':    { type: 'number', default: 100 },
+			'fgMobilePositionX':{ type: 'number', default: 50 },
+			'fgMobilePositionY':{ type: 'number', default: 50 },
+			// Per-layer mobile image (optional). If set, used on screens
+			// <768px. User should pre-crop to portrait before uploading.
+			bgMobileImageId:  { type: 'number', default: 0 },
+			bgMobileImageUrl: { type: 'string', default: '' },
+			midMobileImageId:  { type: 'number', default: 0 },
+			midMobileImageUrl: { type: 'string', default: '' },
+			fgMobileImageId:  { type: 'number', default: 0 },
+			fgMobileImageUrl: { type: 'string', default: '' },
 			// Gradient scrim (editable multi-stop overlay for text readability)
 			scrimStops:  { type: 'array', default: [
 				{ color: '#f8f5ee', opacity: 0.85, position: 0 },
@@ -1622,7 +1889,29 @@
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var isParallax = attrs.mode === 'parallax';
+			var deviceTypeState = useState( ( wp.data.select( 'core/editor' ).getDeviceType && wp.data.select( 'core/editor' ).getDeviceType() ) || 'Desktop' );
+			var deviceType = deviceTypeState[0];
 			var blockProps = useBlockProps( { className: 'rcmi-parallax-editor', style: { minHeight: attrs.height + 'vh' } } );
+
+			// Follow WordPress's Desktop / Tablet / Mobile preview toolbar.
+			// The editor store changes device type when the preview toolbar is
+			// used; subscribing here makes the block preview update immediately.
+			useEffect( function () {
+				if ( ! wp.data || ! wp.data.subscribe ) {
+					return undefined;
+				}
+				var updateDeviceType = function () {
+					var selector = wp.data.select( 'core/editor' );
+					var next = selector.getDeviceType ? selector.getDeviceType() : 'Desktop';
+					if ( next ) {
+						// Always pass the latest store value. The previous
+						// comparison used a stale initial value, so switching
+						// Mobile → Desktop could leave the preview in Mobile.
+						deviceTypeState[1]( next );
+					}
+				};
+				return wp.data.subscribe( updateDeviceType );
+			}, [] );
 
 			// Track whether the InnerBlocks template has been applied once.
 			// Without this, deleting all inner blocks re-seeds the template
@@ -1650,54 +1939,233 @@
 			// Build the scrim gradient style from multi-stop picker.
 			var scrimGradient = buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle );
 
-			// Layer picker for parallax mode.
-			var layerPicker = function ( label, urlKey, idKey, speedKey ) {
+			// Helper: switch the editor to a specific device preview so the
+			// user can immediately see the effect of setting changes.
+			var switchToDevicePreview = function ( device ) {
+				if ( wp.data && wp.data.dispatch && wp.data.dispatch( 'core/editor' ) && wp.data.dispatch( 'core/editor' ).setDeviceType ) {
+					wp.data.dispatch( 'core/editor' ).setDeviceType( device );
+				}
+			};
+			var switchToMobilePreview = function () { switchToDevicePreview( 'Mobile' ); };
+			var switchToDesktopPreview = function () { switchToDevicePreview( 'Desktop' ); };
+
+			// Layer picker for parallax mode. Each layer panel uses a
+			// TabPanel to split Desktop and Mobile controls so only the
+			// relevant breakpoint's settings are visible at a time.
+			// The active tab follows the editor's device preview.
+			var layerPicker = function ( label, urlKey, idKey, speedKey, posXKey, posYKey, scaleKey, mobileIdKey, mobileUrlKey, mobileScaleKey, mobilePosXKey, mobilePosYKey ) {
+				// Determine which tab to show based on the editor device
+				// preview. Mobile → 'mobile'; Desktop/Tablet → 'desktop'.
+				var activeTab = ( deviceType === 'Mobile' ) ? 'mobile' : 'desktop';
+
 				return el( PanelBody, { title: label, initialOpen: urlKey === 'bgImageUrl' },
-					el( MediaUpload, {
-						onSelect: function ( media ) {
-							var u = {};
-							u[ idKey ] = media.id;
-							u[ urlKey ] = media.url;
-							setAttributes( u );
+					el( TabPanel, {
+						className: 'rcmi-layer-tabs',
+						initialTabName: activeTab,
+						key: activeTab, // remount when device changes
+						onSelect: function ( tabName ) {
+							// Switching the tab also switches the editor
+							// device preview, so the user sees the result
+							// of the breakpoint they're editing.
+							if ( tabName === 'mobile' ) {
+								switchToMobilePreview();
+							} else {
+								switchToDesktopPreview();
+							}
 						},
-						allowedTypes: 'image',
-						value: attrs[ idKey ],
-						render: function ( obj ) {
-							return el( wp.components.Button, {
-								onClick: obj.open,
-								variant: 'secondary',
-								className: 'rcmi-image-picker-btn'
-							}, attrs[ urlKey ] ? __( 'Replace Image', 'rcmi-toolkit' ) : __( 'Choose Image', 'rcmi-toolkit' ) );
+						tabs: [
+							{ name: 'desktop', title: __( 'Desktop', 'rcmi-toolkit' ), className: 'rcmi-layer-tab-desktop' },
+							{ name: 'mobile', title: __( 'Mobile', 'rcmi-toolkit' ), className: 'rcmi-layer-tab-mobile' }
+						]
+					}, function ( tab ) {
+						if ( tab.name === 'mobile' ) {
+							// ---- Mobile tab ----
+							if ( ! attrs[ urlKey ] ) {
+								return el( 'p', { style: { color: '#666', fontSize: '12px' } },
+									__( 'Set a desktop image first, then add a mobile crop.', 'rcmi-toolkit' ) );
+							}
+							return el( 'div', { className: 'rcmi-layer-tab-content' },
+								// Mobile image picker with built-in 2:3 portrait cropper.
+								el( MobileImagePicker, {
+									label: label,
+									mobileUrl: attrs[ mobileUrlKey ],
+									onSelect: function ( id, url ) {
+										var u = {}; u[ mobileIdKey ] = id; u[ mobileUrlKey ] = url;
+										setAttributes( u );
+									},
+									onRemove: function () {
+										var u = {}; u[ mobileIdKey ] = 0; u[ mobileUrlKey ] = '';
+										setAttributes( u );
+									}
+								} ),
+								// Mobile scale & position sliders.
+								el( 'div', { style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
+									el( RangeControl, {
+										label: __( 'Mobile scale (%)', 'rcmi-toolkit' ),
+										value: attrs[ mobileScaleKey ],
+										onChange: function ( v ) { var u = {}; u[ mobileScaleKey ] = v; setAttributes( u ); },
+										min: 25,
+										max: 300,
+										help: __( 'Image size on mobile. 100% = fills section, higher = zoom in.', 'rcmi-toolkit' )
+									} ),
+									el( RangeControl, {
+										label: __( 'Mobile position X', 'rcmi-toolkit' ),
+										value: attrs[ mobilePosXKey ],
+										onChange: function ( v ) { var u = {}; u[ mobilePosXKey ] = v; setAttributes( u ); },
+										min: 0,
+										max: 100
+									} ),
+									el( RangeControl, {
+										label: __( 'Mobile position Y', 'rcmi-toolkit' ),
+										value: attrs[ mobilePosYKey ],
+										onChange: function ( v ) { var u = {}; u[ mobilePosYKey ] = v; setAttributes( u ); },
+										min: 0,
+										max: 100
+									} )
+								)
+							);
 						}
-					} ),
-					attrs[ urlKey ] ? el( 'div', { className: 'rcmi-image-preview' },
-						el( 'img', { src: attrs[ urlKey ], alt: label } ),
-						el( wp.components.Button, {
-							onClick: function () { var u = {}; u[ idKey ] = 0; u[ urlKey ] = ''; setAttributes( u ); },
-							variant: 'tertiary',
-							isDestructive: true
-						}, __( 'Remove image', 'rcmi-toolkit' ) )
-					) : null,
-					el( RangeControl, {
-						label: __( 'Parallax speed (0 = static, 1 = fastest)', 'rcmi-toolkit' ),
-						value: attrs[ speedKey ],
-						onChange: function ( v ) { var u = {}; u[ speedKey ] = v; setAttributes( u ); },
-						min: 0,
-						max: 1,
-						step: 0.05
+						// ---- Desktop tab ----
+						return el( 'div', { className: 'rcmi-layer-tab-content' },
+							el( MediaUpload, {
+								onSelect: function ( media ) {
+									var u = {};
+									u[ idKey ] = media.id;
+									u[ urlKey ] = media.url;
+									setAttributes( u );
+								},
+								allowedTypes: 'image',
+								value: attrs[ idKey ],
+								render: function ( obj ) {
+									return el( wp.components.Button, {
+										onClick: obj.open,
+										variant: 'secondary',
+										className: 'rcmi-image-picker-btn'
+									}, attrs[ urlKey ] ? __( 'Replace Image', 'rcmi-toolkit' ) : __( 'Choose Image', 'rcmi-toolkit' ) );
+								}
+							} ),
+							attrs[ urlKey ] ? el( 'div', { className: 'rcmi-image-preview' },
+								el( 'img', { src: attrs[ urlKey ], alt: label } ),
+								el( wp.components.Button, {
+									onClick: function () { var u = {}; u[ idKey ] = 0; u[ urlKey ] = ''; setAttributes( u ); },
+									variant: 'tertiary',
+									isDestructive: true
+								}, __( 'Remove image', 'rcmi-toolkit' ) )
+							) : null,
+							el( 'div', { style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
+								el( RangeControl, {
+									label: __( 'Parallax speed', 'rcmi-toolkit' ),
+									value: attrs[ speedKey ],
+									onChange: function ( v ) { var u = {}; u[ speedKey ] = v; setAttributes( u ); },
+									min: -2,
+									max: 2,
+									step: 0.05,
+									help: __( 'Positive = foreground drifts down, negative = foreground rises. 0 = static. Foreground and background always move in opposite directions for depth.', 'rcmi-toolkit' )
+								} ),
+								el( RangeControl, {
+									label: __( 'Horizontal position', 'rcmi-toolkit' ),
+									value: attrs[ posXKey ],
+									onChange: function ( v ) { var u = {}; u[ posXKey ] = v; setAttributes( u ); },
+									min: 0,
+									max: 200,
+									step: 1,
+									help: __( '0% = left, 50% = center, 100% = right', 'rcmi-toolkit' )
+								} ),
+								el( RangeControl, {
+									label: __( 'Vertical position', 'rcmi-toolkit' ),
+									value: attrs[ posYKey ],
+									onChange: function ( v ) { var u = {}; u[ posYKey ] = v; setAttributes( u ); },
+									min: 0,
+									max: 200,
+									step: 1,
+									help: __( '0% = top, 50% = center, 100% = bottom', 'rcmi-toolkit' )
+								} ),
+								el( RangeControl, {
+									label: __( 'Scale (%)', 'rcmi-toolkit' ),
+									value: attrs[ scaleKey ],
+									onChange: function ( v ) { var u = {}; u[ scaleKey ] = v; setAttributes( u ); },
+									min: 25,
+									max: 300,
+									step: 5,
+									help: __( 'Image zoom. 100% = fills section, 200% = 2× headroom (default), 300% = deep zoom. Below 100% = windowed (shows section background around image).', 'rcmi-toolkit' )
+								} )
+							)
+						);
 					} )
 				);
 			};
 
-			// Layer preview div for the editor.
-			var layerPreview = function ( url, label, zIndex ) {
-				var style = { zIndex: zIndex };
+			// Layer preview for the editor — renders an <img> element matching
+			// the front-end: positioned at 50%/50%, sized to scale% of the
+			// section, with object-fit:cover. object-fit:cover locks the
+			// aspect ratio (crops, never stretches). Panning uses two
+			// mechanisms: object-position (works at any scale, in the cover-
+			// crop dimension) and transform (works at scale > 100%, both
+			// dimensions). At scale 100%, only object-position works.
+			var layerPreview = function ( url, label, zIndex, posX, posY, scale, objectFit ) {
+				// Matches the PHP render callback: scale% × scale%
+				// of section, centered, object-fit:contain (full image
+				// visible). Position X/Y controls the layer transform (pan).
+				var imgSlack = Math.max( 0, scale - 100 ) / 2;
+				var range = Math.max( 100, imgSlack );
+				var posOffsetX = ( posX - 50 ) * range / scale;
+				var posOffsetY = ( posY - 50 ) * range / scale;
 				if ( url ) {
-					style.backgroundImage = 'url(' + url + ')';
+					return el( 'img', {
+						className: 'rcmi-parallax-layer-preview',
+						src: url,
+						alt: '',
+						style: {
+							zIndex: zIndex,
+							width: scale + '%',
+							height: scale + '%',
+							maxWidth: 'none',
+							maxHeight: 'none',
+							objectFit: objectFit || 'contain',
+							objectPosition: posX + '% ' + posY + '%',
+							'--pos-x': posOffsetX + '%',
+							'--pos-y': posOffsetY + '%',
+							transform: 'translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)))'
+						}
+					} );
 				}
-				return el( 'div', { className: 'rcmi-parallax-layer-preview', style: style },
-					! url ? el( 'span', { className: 'rcmi-layer-label' }, label ) : null
-				);
+				return el( 'div', {
+					className: 'rcmi-parallax-layer-preview is-empty',
+					style: { zIndex: zIndex }
+				}, el( 'span', { className: 'rcmi-layer-label' }, label ) );
+			};
+
+			// Select the same layer values the frontend uses for the current
+			// editor device preview. Mobile uses the dedicated mobile image,
+			// scale, and position. Tablet uses the tablet scale multiplier
+			// with interpolated pan matching the 768px responsive boundary
+			// (panFactor ≈ 0 at tablet width, per frontend.js interpolation).
+			var previewLayer = function ( url, mobileUrl, label, zIndex, posX, posY, scale, mobilePosX, mobilePosY, mobileScale, hasMobile ) {
+				var isMobilePreview = deviceType === 'Mobile';
+				var isTabletPreview = deviceType === 'Tablet';
+				var previewUrl = isMobilePreview && mobileUrl ? mobileUrl : url;
+				var previewScale = scale;
+				var previewPosX = posX;
+				var previewPosY = posY;
+				var previewFit = 'contain';
+
+				if ( isMobilePreview ) {
+					previewScale = mobileScale;
+					previewPosX = mobilePosX;
+					previewPosY = mobilePosY;
+					previewFit = hasMobile ? 'contain' : 'cover';
+				} else if ( isTabletPreview ) {
+					// Tablet: scale × tabletMult, pan interpolated to ~0
+					// at the 768px boundary (matching frontend.js where
+					// panFactor = 0 when w <= TABLET_WIDTH).
+					previewScale = scale * ( attrs.tabletScaleMultiplier || 0.75 );
+					// Use 50/50 for object-position centering, and set
+					// transform pan to 0 by passing 50/50 (offset = 0).
+					previewPosX = 50;
+					previewPosY = 50;
+				}
+
+				return layerPreview( previewUrl, label, zIndex, previewPosX, previewPosY, previewScale, previewFit );
 			};
 
 			// Alignment buttons.
@@ -1729,14 +2197,14 @@
 			];
 
 			if ( isParallax ) {
-				// Parallax mode: show 3 layer pickers.
+				// Parallax mode: show 3 layer pickers with position + scale.
 				inspectorChildren.push(
-					layerPicker( __( 'Background Layer (slowest)', 'rcmi-toolkit' ), 'bgImageUrl', 'bgImageId', 'bgSpeed' ),
-					layerPicker( __( 'Middle Layer', 'rcmi-toolkit' ), 'midImageUrl', 'midImageId', 'midSpeed' ),
-					layerPicker( __( 'Foreground Layer (fastest)', 'rcmi-toolkit' ), 'fgImageUrl', 'fgImageId', 'fgSpeed' )
+					layerPicker( __( 'Background Layer (slowest)', 'rcmi-toolkit' ), 'bgImageUrl', 'bgImageId', 'bgSpeed', 'bgPositionX', 'bgPositionY', 'bgScale', 'bgMobileImageId', 'bgMobileImageUrl', 'bgMobileScale', 'bgMobilePositionX', 'bgMobilePositionY' ),
+					layerPicker( __( 'Middle Layer', 'rcmi-toolkit' ), 'midImageUrl', 'midImageId', 'midSpeed', 'midPositionX', 'midPositionY', 'midScale', 'midMobileImageId', 'midMobileImageUrl', 'midMobileScale', 'midMobilePositionX', 'midMobilePositionY' ),
+					layerPicker( __( 'Foreground Layer (fastest)', 'rcmi-toolkit' ), 'fgImageUrl', 'fgImageId', 'fgSpeed', 'fgPositionX', 'fgPositionY', 'fgScale', 'fgMobileImageId', 'fgMobileImageUrl', 'fgMobileScale', 'fgMobilePositionX', 'fgMobilePositionY' )
 				);
 			} else {
-				// Static mode: single background image picker.
+				// Static mode: single background image with position + scale.
 				inspectorChildren.push(
 					el( PanelBody, { title: __( 'Background Image', 'rcmi-toolkit' ), initialOpen: true },
 						el( MediaUpload, {
@@ -1760,14 +2228,105 @@
 								variant: 'tertiary',
 								isDestructive: true
 							}, __( 'Remove image', 'rcmi-toolkit' ) )
-						) : null
+						) : null,
+						el( RangeControl, {
+							label: __( 'Horizontal position', 'rcmi-toolkit' ),
+							value: attrs.bgPositionX,
+							onChange: function ( v ) { setAttributes( { bgPositionX: v } ); },
+							min: 0, max: 200, step: 1,
+							help: __( '0% = left, 50% = center, 100% = right', 'rcmi-toolkit' )
+						} ),
+						el( RangeControl, {
+							label: __( 'Vertical position', 'rcmi-toolkit' ),
+							value: attrs.bgPositionY,
+							onChange: function ( v ) { setAttributes( { bgPositionY: v } ); },
+							min: 0, max: 200, step: 1,
+							help: __( '0% = top, 50% = center, 100% = bottom', 'rcmi-toolkit' )
+						} ),
+						el( RangeControl, {
+							label: __( 'Scale (%)', 'rcmi-toolkit' ),
+							value: attrs.bgScale,
+							onChange: function ( v ) { setAttributes( { bgScale: v } ); },
+							min: 25, max: 300, step: 5,
+							help: __( 'Image zoom. 100% = fills section, 200% = 2× headroom (default), 300% = deep zoom. Below 100% = windowed.', 'rcmi-toolkit' )
+						} )
 					)
 				);
 			}
 
-			// Gradient scrim controls — always available.
+			// Reorganized inspector panels (after the layer panels above):
+			//   1. Movement — parallax mode, content speed, mobile intensity, tablet multiplier
+			//   2. Hero Layout — section height, content alignment
+			//   3. Readability Overlay — gradient scrim picker
+			//   4. Advanced Stacking — z-index controls (collapsed by default)
 			inspectorChildren.push(
-				el( PanelBody, { title: __( 'Layer Order', 'rcmi-toolkit' ), initialOpen: false },
+				// ---- Movement panel (parallax only) ----
+				isParallax ? el( PanelBody, { title: __( 'Movement', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Parallax mode', 'rcmi-toolkit' ) ),
+					el( 'div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
+						[ 'scroll', 'mouse' ].map( function ( m ) {
+							return el( wp.components.Button, {
+								key: 'mode-' + m,
+								onClick: function () { setAttributes( { parallaxMode: m } ); },
+								variant: attrs.parallaxMode === m ? 'primary' : 'secondary',
+								isPressed: attrs.parallaxMode === m
+							}, m.charAt( 0 ).toUpperCase() + m.slice( 1 ) );
+						} )
+					),
+					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Scroll = layers move as you scroll (default). Mouse = layers follow mouse position.', 'rcmi-toolkit' ) ),
+					el( RangeControl, {
+						label: __( 'Content layer speed (text + button)', 'rcmi-toolkit' ),
+						value: attrs.contentSpeed,
+						onChange: function ( v ) { setAttributes( { contentSpeed: v } ); },
+						min: -2,
+						max: 2,
+						step: 0.05,
+						help: __( 'Positive = content drifts down, negative = content rises. 0 = fixed. Foreground and background always move in opposite directions for depth.', 'rcmi-toolkit' )
+					} ),
+					el( RangeControl, {
+						label: __( 'Mobile parallax intensity', 'rcmi-toolkit' ),
+						value: attrs.mobileIntensity,
+						onChange: function ( v ) { setAttributes( { mobileIntensity: v } ); },
+						min: 0,
+						max: 2,
+						step: 0.05,
+						help: __( '0 = no parallax on mobile, 1 = normal intensity, 2 = double intensity. If edges appear, increase the layer mobile scale for headroom.', 'rcmi-toolkit' )
+					} ),
+					el( RangeControl, {
+						label: __( 'Tablet scale multiplier', 'rcmi-toolkit' ),
+						value: attrs.tabletScaleMultiplier,
+						onChange: function ( v ) { setAttributes( { tabletScaleMultiplier: v } ); },
+						min: 0.25,
+						max: 1,
+						step: 0.05,
+						help: __( 'Scales layers on tablet (768–1440px). 0.75 = 75% of desktop scale. E.g., desktop 200% → tablet 150%.', 'rcmi-toolkit' )
+					} )
+				) : null,
+
+				// ---- Hero Layout panel ----
+				el( PanelBody, { title: __( 'Hero Layout', 'rcmi-toolkit' ), initialOpen: false },
+					el( RangeControl, {
+						label: __( 'Section height (viewport %)', 'rcmi-toolkit' ),
+						value: attrs.height,
+						onChange: function ( v ) { setAttributes( { height: v } ); },
+						min: 40,
+						max: 100,
+						step: 5
+					} ),
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px', marginTop: '12px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
+					alignButtons
+				),
+
+				// ---- Readability Overlay panel ----
+				el( PanelBody, { title: __( 'Readability Overlay', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Overlay that darkens/tints the background for text readability.', 'rcmi-toolkit' ) ),
+					renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
+						setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
+					} )
+				),
+
+				// ---- Advanced Stacking panel (collapsed by default) ----
+				el( PanelBody, { title: __( 'Advanced Stacking', 'rcmi-toolkit' ), initialOpen: false },
 					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Control the stacking order of layers. Lower numbers appear further back, higher numbers appear in front. The scrim stays between image layers and text.', 'rcmi-toolkit' ) ),
 					isParallax ? el( Fragment, null,
 						el( RangeControl, {
@@ -1815,47 +2374,6 @@
 							isSmall: true
 						}, __( 'Reset to defaults', 'rcmi-toolkit' ) )
 					)
-				),
-				el( PanelBody, { title: __( 'Gradient Scrim', 'rcmi-toolkit' ), initialOpen: false },
-					el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Overlay that darkens/tints the background for text readability.', 'rcmi-toolkit' ) ),
-					renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
-						setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
-					} )
-				),
-				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: false },
-					el( RangeControl, {
-						label: __( 'Section height (viewport %)', 'rcmi-toolkit' ),
-						value: attrs.height,
-						onChange: function ( v ) { setAttributes( { height: v } ); },
-						min: 40,
-						max: 100,
-						step: 5
-					} ),
-					isParallax ? el( 'div', { style: { marginTop: '16px' } },
-						el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Parallax direction', 'rcmi-toolkit' ) ),
-						el( 'div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
-							[ 'down', 'up', 'left', 'right' ].map( function ( d ) {
-								return el( wp.components.Button, {
-									key: 'dir-' + d,
-									onClick: function () { setAttributes( { parallaxDirection: d } ); },
-									variant: attrs.parallaxDirection === d ? 'primary' : 'secondary',
-									isPressed: attrs.parallaxDirection === d
-								}, d.charAt( 0 ).toUpperCase() + d.slice( 1 ) );
-							} )
-						),
-						el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'Direction layers move as you scroll down. "Down" = layers drift downward (default). "Up" = layers rise. "Left/Right" = horizontal drift.', 'rcmi-toolkit' ) ),
-						el( RangeControl, {
-							label: __( 'Content layer speed (text + button)', 'rcmi-toolkit' ),
-							value: attrs.contentSpeed,
-							onChange: function ( v ) { setAttributes( { contentSpeed: v } ); },
-							min: 0,
-							max: 1,
-							step: 0.05,
-							help: __( '0 = content stays fixed, higher = content drifts with parallax', 'rcmi-toolkit' )
-						} )
-					) : null,
-					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
-					alignButtons
 				)
 			);
 
@@ -1865,21 +2383,15 @@
 			if ( isParallax ) {
 				previewChildren.push(
 					el( 'div', { className: 'rcmi-parallax-layers' },
-						layerPreview( attrs.bgImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex ),
-						layerPreview( attrs.midImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex ),
-						layerPreview( attrs.fgImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex )
+						previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, attrs.bgPositionX, attrs.bgPositionY, attrs.bgScale, attrs.bgMobilePositionX, attrs.bgMobilePositionY, attrs.bgMobileScale, !! attrs.bgMobileImageUrl ),
+						previewLayer( attrs.midImageUrl, attrs.midMobileImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex, attrs.midPositionX, attrs.midPositionY, attrs.midScale, attrs.midMobilePositionX, attrs.midMobilePositionY, attrs.midMobileScale, !! attrs.midMobileImageUrl ),
+						previewLayer( attrs.fgImageUrl, attrs.fgMobileImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex, attrs.fgPositionX, attrs.fgPositionY, attrs.fgScale, attrs.fgMobilePositionX, attrs.fgMobilePositionY, attrs.fgMobileScale, !! attrs.fgMobileImageUrl )
 					)
 				);
 			} else {
-				// Static mode: single background image.
-				var bgStyle = { background: '#f8f5ee' };
-				if ( attrs.bgImageUrl ) {
-					bgStyle = { backgroundImage: 'url(' + attrs.bgImageUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center' };
-				}
+				// Static mode: single background image with position + scale.
 				previewChildren.push(
-					el( 'div', { className: 'rcmi-parallax-layer-preview', style: Object.assign( { zIndex: attrs.bgZIndex }, bgStyle ) },
-						! attrs.bgImageUrl ? el( 'span', { className: 'rcmi-layer-label' }, __( 'Background', 'rcmi-toolkit' ) ) : null
-					)
+					previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, attrs.bgPositionX, attrs.bgPositionY, attrs.bgScale, attrs.bgMobilePositionX, attrs.bgMobilePositionY, attrs.bgMobileScale, !! attrs.bgMobileImageUrl )
 				);
 			}
 
@@ -1888,14 +2400,17 @@
 				el( 'div', { className: 'rcmi-parallax-scrim', style: { background: scrimGradient, zIndex: attrs.scrimZIndex } } )
 			);
 
-			// Content preview.
+			// Content preview — alignment only changes the horizontal
+			// position of the content block, not the text alignment within
+			// (that's controlled by individual inner blocks).
 			var copyStyle = { zIndex: attrs.contentZIndex };
 			if ( attrs.contentAlign === 'center' ) {
-				copyStyle.textAlign = 'center';
+				copyStyle.maxWidth = '760px';
 				copyStyle.margin = '0 auto';
 			} else if ( attrs.contentAlign === 'right' ) {
-				copyStyle.textAlign = 'right';
+				copyStyle.maxWidth = '570px';
 				copyStyle.marginLeft = 'auto';
+				copyStyle.marginRight = '0';
 			}
 
 			// InnerBlocks content area — editors can add/reorder/remove
