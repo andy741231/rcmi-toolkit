@@ -6,6 +6,7 @@
 	var useState = wp.element.useState;
 	var useRef = wp.element.useRef;
 	var useEffect = wp.element.useEffect;
+	var useSelect = wp.data.useSelect;
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
 	var SelectControl = wp.components.SelectControl;
@@ -1788,6 +1789,11 @@
 	// Two modes: "static" (single background image, like the old hero block)
 	// and "parallax" (three image layers that scroll at different speeds).
 	// Includes editable gradient scrim and content alignment controls.
+	//
+	// The hero preset is exposed by PHP via window.rcmiToolkitHeroPreset and
+	// is applied to newly inserted blocks via setAttributes in edit() (not
+	// as attribute defaults, which would cause WordPress to strip matching
+	// attributes from existing blocks on save).
 	// ============================================================
 	registerBlockType( 'rcmi/parallax', {
 		apiVersion: 3,
@@ -1913,14 +1919,37 @@
 				return wp.data.subscribe( updateDeviceType );
 			}, [] );
 
-			// Track whether the InnerBlocks template has been applied once.
-			// Without this, deleting all inner blocks re-seeds the template
-			// (Gutenberg re-applies the template prop when InnerBlocks is empty
-			// and the block hasn't been saved yet). After the first application,
-			// we stop passing the template so deletions are respected.
-			var templateApplied = useRef( false );
+			// Check whether this block already has inner blocks in the store.
+			// This is reactive (triggers re-render when inner blocks change),
+			// so the template is passed only when the block is empty — seeding
+			// new blocks — and removed once InnerBlocks have been committed,
+			// so deletions are respected. This fixes a bug where the old
+			// templateApplied useRef pattern removed the template before
+			// InnerBlocks had time to process it on first insert.
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
+
+			// Apply the Home hero preset to newly inserted blocks.
+			// The preset is exposed by PHP via window.rcmiToolkitHeroPreset.
+			// We only apply it once, and only when the block appears freshly
+			// inserted (mode is still 'static' and no images have been set).
+			// This does NOT change attribute defaults, so existing blocks keep
+			// their saved attributes when re-saved in the editor.
+			var presetApplied = useRef( false );
 			useEffect( function () {
-				templateApplied.current = true;
+				if ( presetApplied.current ) {
+					return;
+				}
+				presetApplied.current = true;
+				var preset = window.rcmiToolkitHeroPreset;
+				if ( ! preset || ! preset.attributes ) {
+					return;
+				}
+				if ( attrs.mode === 'static' && ! attrs.bgImageId && ! attrs.midImageId && ! attrs.fgImageId ) {
+					setAttributes( preset.attributes );
+				}
 			}, [] );
 
 			// Helper: convert hex + alpha to rgba string.
@@ -2060,7 +2089,7 @@
 									min: -2,
 									max: 2,
 									step: 0.05,
-									help: __( 'Positive = foreground drifts down, negative = foreground rises. 0 = static. Foreground and background always move in opposite directions for depth.', 'rcmi-toolkit' )
+									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign.', 'rcmi-toolkit' )
 								} ),
 								el( RangeControl, {
 									label: __( 'Horizontal position', 'rcmi-toolkit' ),
@@ -2078,7 +2107,7 @@
 									min: 0,
 									max: 200,
 									step: 1,
-									help: __( '0% = top, 50% = center, 100% = bottom', 'rcmi-toolkit' )
+									help: __( '0% = bottom, 50% = center, 100% = top', 'rcmi-toolkit' )
 								} ),
 								el( RangeControl, {
 									label: __( 'Scale (%)', 'rcmi-toolkit' ),
@@ -2109,7 +2138,9 @@
 				var imgSlack = Math.max( 0, scale - 100 ) / 2;
 				var range = Math.max( 100, imgSlack );
 				var posOffsetX = ( posX - 50 ) * range / scale;
-				var posOffsetY = ( posY - 50 ) * range / scale;
+				// Y axis inverted: high posY = up. object-position uses
+				// (100 - posY) and transform offset uses (50 - posY).
+				var posOffsetY = ( 50 - posY ) * range / scale;
 				if ( url ) {
 					return el( 'img', {
 						className: 'rcmi-parallax-layer-preview',
@@ -2122,7 +2153,7 @@
 							maxWidth: 'none',
 							maxHeight: 'none',
 							objectFit: objectFit || 'contain',
-							objectPosition: posX + '% ' + posY + '%',
+							objectPosition: posX + '% ' + ( 100 - posY ) + '%',
 							'--pos-x': posOffsetX + '%',
 							'--pos-y': posOffsetY + '%',
 							transform: 'translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)))'
@@ -2241,7 +2272,7 @@
 							value: attrs.bgPositionY,
 							onChange: function ( v ) { setAttributes( { bgPositionY: v } ); },
 							min: 0, max: 200, step: 1,
-							help: __( '0% = top, 50% = center, 100% = bottom', 'rcmi-toolkit' )
+							help: __( '0% = bottom, 50% = center, 100% = top', 'rcmi-toolkit' )
 						} ),
 						el( RangeControl, {
 							label: __( 'Scale (%)', 'rcmi-toolkit' ),
@@ -2281,7 +2312,7 @@
 						min: -2,
 						max: 2,
 						step: 0.05,
-						help: __( 'Positive = content drifts down, negative = content rises. 0 = fixed. Foreground and background always move in opposite directions for depth.', 'rcmi-toolkit' )
+						help: __( 'Positive = content drifts down on scroll, negative = content rises. 0 = fixed. Direction is solely determined by the sign.', 'rcmi-toolkit' )
 					} ),
 					el( RangeControl, {
 						label: __( 'Mobile parallax intensity', 'rcmi-toolkit' ),
@@ -2418,41 +2449,67 @@
 			// Template seeds the default hero content on new instances only.
 			// After the first render, template is not passed so that deleting
 			// all inner blocks doesn't re-seed the default content.
+			//
+			// Generate unique spectraId values for Spectra blocks so each new
+			// hero gets its own IDs (Spectra uses these for styling/state).
+			var genSpectraId = function () {
+				var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+				var part1 = '', part2 = '';
+				for ( var i = 0; i < 8; i++ ) { part1 += chars.charAt( Math.floor( Math.random() * chars.length ) ); }
+				for ( var j = 0; j < 6; j++ ) { part2 += chars.charAt( Math.floor( Math.random() * chars.length ) ); }
+				return 'spectra-' + part1 + '-' + part2;
+			};
 			var heroTemplate = [
 				[ 'core/heading', {
 					level: 1,
 					placeholder: __( 'Headline…', 'rcmi-toolkit' ),
-					content: 'Advancing Chronic Disease Research.'
+					content: 'Advancing Chronic Disease Research.',
+					spectraAnimationType: 'fade'
 				} ],
-				[ 'core/paragraph', {
-					placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
-					content: 'Accelerating Real‑World Impact.',
-					className: 'eyebrow'
-				} ],
+				// Eyebrow row: red Spectra "minus" icon + eyebrow text in a flex group.
+				// Matches the Home page hero (page 7) — the icon supplies the red
+				// glyph; the paragraph carries the eyebrow copy without a className
+				// so theme .eyebrow CSS isn't relied on for the glyph.
+				[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+					[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+						[ 'spectra/icons', { spectraId: genSpectraId() }, [
+							[ 'spectra/icon', {
+								icon: 'minus',
+								size: '18px',
+								textColor: '#C8102E',
+								responsiveControls: { lg: { size: '18px' } },
+								spectraId: genSpectraId()
+							} ]
+						] ]
+					] ],
+					[ 'core/paragraph', {
+						placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+						content: ' Accelerating Real‑World Impact.'
+					} ]
+				] ],
 				[ 'core/paragraph', {
 					placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
 					content: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
-					className: 'lede'
+					className: 'lede',
+					style: { spacing: { padding: { top: 'var:preset|spacing|20', bottom: 'var:preset|spacing|20' } } }
 				} ],
-				[ 'core/buttons', {}, [
-					[ 'core/button', {
-						text: 'Request Support',
-						url: '#start',
-						className: 'btn btn-primary',
-						style: {
-							color: { background: '#C8102E', text: '#ffffff' },
-							border: { radius: '999px', color: '#C8102E', width: '1px', style: 'solid' },
-							spacing: { padding: { top: '14px', right: '26px', bottom: '14px', left: '26px' } }
-						}
-					} ]
+				[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+					[ 'spectra/buttons', { spectraId: genSpectraId() }, [
+						[ 'spectra/button', {
+							text: 'Learn More',
+							style: { border: { radius: { topLeft: '12px', topRight: '12px', bottomLeft: '12px', bottomRight: '12px' } } },
+							responsiveControls: { lg: { style: { border: { radius: { topLeft: '12px', topRight: '12px', bottomLeft: '12px', bottomRight: '12px' } } } } },
+							spectraId: genSpectraId()
+						} ]
+					] ]
 				] ]
 			];
 			previewChildren.push(
 				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
 						el( InnerBlocks, {
-							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
-							template: templateApplied.current ? undefined : heroTemplate,
+							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group', 'spectra/buttons', 'spectra/button' ],
+							template: hasInnerBlocks ? undefined : heroTemplate,
 							templateLock: false
 						} )
 					)

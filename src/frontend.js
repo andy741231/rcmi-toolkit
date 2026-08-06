@@ -379,8 +379,9 @@
 						var mSlack = Math.max( 0, useScale - 100 ) / 2;
 						var mRange = Math.max( 100, mSlack );
 						usePosX = ( d.mobilePosX - 50 ) * mRange / useScale;
-						usePosY = ( d.mobilePosY - 50 ) * mRange / useScale;
-						useObjectPosition = d.mobilePosX + '% ' + d.mobilePosY + '%';
+						// Y axis inverted: high posY = up (matches editor).
+						usePosY = ( 50 - d.mobilePosY ) * mRange / useScale;
+						useObjectPosition = d.mobilePosX + '% ' + ( 100 - d.mobilePosY ) + '%';
 					} else {
 						useScale = d.scale * scaleMult;
 						var origX = parseFloat( d.posX ) || 0;
@@ -438,18 +439,11 @@
 			items.forEach( function ( item ) { io.observe( item.section ); } );
 		}
 
-		// ---- Per-layer depth multiplier ----
-		// Foreground/content layers and background/middle layers always
-		// move in opposite directions to create the parallax depth
-		// illusion. The sign of each layer's data-speed attribute
-		// determines which way the foreground drifts:
-		//   positive speed → foreground drifts down, background rises
-		//   negative speed → foreground rises, background drifts down
-		function getLayerDirMultiplier( layer ) {
-			var isForeground = layer.classList.contains( 'rcmi-parallax-layer-foreground' )
-				|| layer.classList.contains( 'rcmi-parallax-copy' );
-			return isForeground ? 1 : -1;
-		}
+		// ---- Per-layer direction ----
+		// Direction is solely determined by the sign of each layer's
+		// data-speed attribute. Positive = layer drifts down as you
+		// scroll down, negative = layer rises. No layer-class-based
+		// direction multiplier — same speed = same movement.
 
 		// ---- Mode 1: Scroll ----
 		var ticking = false;
@@ -485,18 +479,17 @@
 				item.layerData.forEach( function ( d ) {
 					var layer = d.el;
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
-					var dirMul = getLayerDirMultiplier( layer );
 
-					// Offset = -distFromCenter × speed × dirMul × travelMultiplier.
+					// Offset = -distFromCenter × speed × travelMultiplier.
 					// The negative sign makes the layer move opposite to the
-					// section's scroll direction (for dirMul=+1, speed>0): as
-					// the section scrolls up (distFromCenter decreases), the
-					// offset increases (layer moves down on screen).
+					// section's scroll direction (for speed>0): as the section
+					// scrolls up (distFromCenter decreases), the offset
+					// increases (layer moves down on screen).
 					// A negative speed flips the direction.
 					// No clamping — layers move freely at full speed. Gaps
 					// may appear at the section edges when the layer slides
 					// out of view; increase scale to add headroom.
-					var offset = -distFromCenter * speed * travelMultiplier * dirMul;
+					var offset = -distFromCenter * speed * travelMultiplier;
 
 					// On mobile, the travelMultiplier (mobile intensity) is
 					// the sole dampener. If edges appear at low mobile scale,
@@ -544,8 +537,7 @@
 				item.layerData.forEach( function ( d ) {
 					var layer = d.el;
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
-					var dirMul = getLayerDirMultiplier( layer );
-					var travelY = rect.height * speed * 0.15 * travelMultiplier * dirMul;
+					var travelY = rect.height * speed * 0.15 * travelMultiplier;
 					layer.style.transform = d.baseTransform
 						+ ' translate3d(0, ' + ( mouseTargetY * travelY ).toFixed( 2 ) + 'px, 0)';
 				} );

@@ -430,6 +430,135 @@ function rcmi_toolkit_category( $categories ) {
 add_filter( 'block_categories_all', 'rcmi_toolkit_category' );
 
 /**
+ * Resolve a media library attachment by its filename (basename of the URL).
+ *
+ * Queries the posts table for an attachment whose guid ends with the given
+ * filename. Returns an array with 'id' and 'url' keys, or empty values when
+ * the image is not found. This lets the hero preset reference images by a
+ * stable filename rather than a database-specific attachment ID.
+ *
+ * @param string $filename Basename of the image file (e.g. "park.png").
+ * @return array { 'id' => int, 'url' => string }
+ */
+function rcmi_resolve_preset_image( $filename ) {
+	$filename = sanitize_file_name( $filename );
+	if ( '' === $filename ) {
+		return array( 'id' => 0, 'url' => '' );
+	}
+
+	// Query attachments by guid LIKE %filename. The guid stores the full URL.
+	$cache_key = 'rcmi_preset_img_' . md5( $filename );
+	$cached = get_transient( $cache_key );
+	if ( false !== $cached && isset( $cached['id'] ) ) {
+		// Verify the attachment still exists.
+		if ( $cached['id'] && get_post_status( $cached['id'] ) ) {
+			$src = wp_get_attachment_image_src( $cached['id'], 'full' );
+			if ( $src ) {
+				return array( 'id' => intval( $cached['id'] ), 'url' => $src[0] );
+			}
+		}
+	}
+
+	global $wpdb;
+	$like = '%' . $wpdb->esc_like( $filename );
+	$post_id = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'attachment' AND guid LIKE %s ORDER BY ID DESC LIMIT 1",
+			$like
+		)
+	);
+
+	if ( $post_id ) {
+		$src = wp_get_attachment_image_src( $post_id, 'full' );
+		if ( $src ) {
+			$result = array( 'id' => intval( $post_id ), 'url' => $src[0] );
+			set_transient( $cache_key, $result, HOUR_IN_SECONDS );
+			return $result;
+		}
+	}
+
+	set_transient( $cache_key, array( 'id' => 0, 'url' => '' ), HOUR_IN_SECONDS );
+	return array( 'id' => 0, 'url' => '' );
+}
+
+/**
+ * Return the full RCMI Hero preset configuration matching the Home page hero.
+ *
+ * Image layers are resolved at call time from the media library by filename.
+ * When an image is not found, its ID/URL are left as 0/'' so the editor shows
+ * a usable placeholder and the frontend renderer omits the layer gracefully.
+ *
+ * @return array Preset attributes for rcmi/parallax, plus an 'imagesAvailable' map.
+ */
+function rcmi_hero_preset() {
+	// Resolve each layer's desktop and mobile image by filename.
+	$bg    = rcmi_resolve_preset_image( 'fulll-background.png' );
+	$mid   = rcmi_resolve_preset_image( 'park.png' );
+	$fg    = rcmi_resolve_preset_image( 'peole-at-table.png' );
+	$bg_mob  = rcmi_resolve_preset_image( 'mobile-crop-1785948049463.png' );
+	$mid_mob = rcmi_resolve_preset_image( 'mobile-crop-1785948040122.png' );
+	$fg_mob  = rcmi_resolve_preset_image( 'mobile-crop-1785947989669.png' );
+
+	$attributes = array(
+		'mode'        => 'parallax',
+		'bgImageId'   => $bg['id'],
+		'bgImageUrl'  => $bg['url'],
+		'bgSpeed'     => 1.1,
+		'midImageId'  => $mid['id'],
+		'midImageUrl' => $mid['url'],
+		'midSpeed'    => 0.95,
+		'fgImageId'   => $fg['id'],
+		'fgImageUrl'  => $fg['url'],
+		'fgSpeed'     => 0.15,
+		'contentSpeed' => 0,
+		'bgZIndex'      => 0,
+		'midZIndex'     => 1,
+		'fgZIndex'      => 4,
+		'scrimZIndex'   => 2,
+		'contentZIndex' => 3,
+		'mobileIntensity' => 1.1,
+		'tabletScaleMultiplier' => 1,
+		'bgPositionY' => 58,
+		'bgScale'     => 190,
+		'midPositionY' => 54,
+		'midScale'    => 190,
+		'fgPositionX' => 63,
+		'fgScale'    => 115,
+		'bgMobileScale'    => 235,
+		'bgMobilePositionY' => 75,
+		'bgMobileImageId'  => $bg_mob['id'],
+		'bgMobileImageUrl' => $bg_mob['url'],
+		'midMobileScale'    => 233,
+		'midMobilePositionY' => 63,
+		'midMobileImageId'  => $mid_mob['id'],
+		'midMobileImageUrl' => $mid_mob['url'],
+		'fgMobileScale'    => 115,
+		'fgMobilePositionX' => 64,
+		'fgMobileImageId'  => $fg_mob['id'],
+		'fgMobileImageUrl' => $fg_mob['url'],
+		'scrimStops'  => array(
+			array( 'color' => '#f8f5ee', 'opacity' => 0.85, 'position' => 0 ),
+			array( 'color' => '#f8f5ee', 'opacity' => 0.5,  'position' => 50 ),
+			array( 'color' => '#f8f5ee', 'opacity' => 0,    'position' => 65 ),
+		),
+	);
+
+	$images_available = array(
+		'background'      => ! empty( $bg['id'] ),
+		'middle'          => ! empty( $mid['id'] ),
+		'foreground'      => ! empty( $fg['id'] ),
+		'backgroundMobile'  => ! empty( $bg_mob['id'] ),
+		'middleMobile'      => ! empty( $mid_mob['id'] ),
+		'foregroundMobile'  => ! empty( $fg_mob['id'] ),
+	);
+
+	return array(
+		'attributes'       => $attributes,
+		'imagesAvailable'  => $images_available,
+	);
+}
+
+/**
  * Enqueue editor assets (block registration JS).
  */
 function rcmi_toolkit_editor_assets() {
@@ -441,6 +570,16 @@ function rcmi_toolkit_editor_assets() {
 		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-server-side-render', 'wp-api-fetch' ),
 		$ver,
 		true
+	);
+
+	// Expose the resolved hero preset to the block editor so newly inserted
+	// rcmi/parallax blocks can receive Home-compatible attributes without
+	// embedding database-specific attachment IDs in the JS source.
+	$preset = rcmi_hero_preset();
+	wp_add_inline_script(
+		'rcmi-toolkit-editor',
+		'window.rcmiToolkitHeroPreset = ' . wp_json_encode( $preset ) . ';',
+		'before'
 	);
 }
 add_action( 'enqueue_block_editor_assets', 'rcmi_toolkit_editor_assets' );
@@ -1291,7 +1430,10 @@ function rcmi_register_server_side_blocks() {
 				$img_slack = max( 0, $scale - 100 ) / 2;
 				$range = max( 100, $img_slack );
 				$pos_offset_x = ( $pos_x - 50 ) * $range / $scale;
-				$pos_offset_y = ( $pos_y - 50 ) * $range / $scale;
+				// Y axis is inverted: high pos_y = up. CSS object-position
+				// uses (100 - pos_y) and the transform offset uses (50 - pos_y)
+				// so that increasing the slider moves the image up.
+				$pos_offset_y = ( 50 - $pos_y ) * $range / $scale;
 
 				// Desktop/tablet: object-fit:contain (full image visible).
 				// Mobile: object-fit:cover (fills screen, may crop).
@@ -1303,21 +1445,21 @@ function rcmi_register_server_side_blocks() {
 				$mobile_slack = max( 0, $mobile_scale - 100 ) / 2;
 				$mobile_range = max( 100, $mobile_slack );
 				$mobile_pos_offset_x = ( $mobile_pos_x - 50 ) * $mobile_range / $mobile_scale;
-				$mobile_pos_offset_y = ( $mobile_pos_y - 50 ) * $mobile_range / $mobile_scale;
+				$mobile_pos_offset_y = ( 50 - $mobile_pos_y ) * $mobile_range / $mobile_scale;
 				$mobile_object_fit = $mobile_image_id ? 'contain' : 'cover';
 
 				$style = 'position:absolute;top:50%;left:50%;'
 					. 'width:' . $scale . '%;height:' . $scale . '%;'
 					. 'max-width:none;max-height:none;'
 					. 'object-fit:contain;'
-					. 'object-position:' . $pos_x . '% ' . $pos_y . '%;'
+					. 'object-position:' . $pos_x . '% ' . ( 100 - $pos_y ) . '%;'
 					. '--pos-x:' . $pos_offset_x . '%;'
 					. '--pos-y:' . $pos_offset_y . '%;'
 					. '--rcmi-mobile-scale:' . $mobile_scale . '%;'
 					. '--rcmi-mobile-pos-x:' . $mobile_pos_offset_x . '%;'
 					. '--rcmi-mobile-pos-y:' . $mobile_pos_offset_y . '%;'
 					. '--rcmi-mobile-object-fit:' . $mobile_object_fit . ';'
-					. '--rcmi-mobile-object-position:' . $mobile_pos_x . '% ' . $mobile_pos_y . '%;'
+					. '--rcmi-mobile-object-position:' . $mobile_pos_x . '% ' . ( 100 - $mobile_pos_y ) . '%;'
 					. 'transform:translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)));'
 					. 'z-index:' . $z_index . ';'
 					. 'will-change:transform;pointer-events:none;';
