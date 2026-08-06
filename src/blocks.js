@@ -836,8 +836,14 @@
 		},
 		edit: function ( props ) {
 			var blockProps = useBlockProps( { className: 'rcmi-quote-editor' } );
-			var templateApplied = useRef( false );
-			useEffect( function () { templateApplied.current = true; }, [] );
+			// Reactive check: only pass the template when the block has no
+			// inner blocks. This prevents the template from being re-applied
+			// on re-render/re-mount (which would seed new blocks and mark
+			// the post as dirty after save).
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
 			var quoteTemplate = [
 				[ 'core/paragraph', {
 					placeholder: __( 'Quote text…', 'rcmi-toolkit' ),
@@ -855,7 +861,7 @@
 					el( 'div', { className: 'quote-body' },
 						el( InnerBlocks, {
 							allowedBlocks: [ 'core/paragraph', 'core/heading', 'core/list', 'core/quote', 'core/image' ],
-							template: templateApplied.current ? undefined : quoteTemplate,
+							template: hasInnerBlocks ? undefined : quoteTemplate,
 							templateLock: false
 						} )
 					),
@@ -906,8 +912,12 @@
 		},
 		edit: function ( props ) {
 			var blockProps = useBlockProps( { className: 'rcmi-cta-editor' } );
-			var templateApplied = useRef( false );
-			useEffect( function () { templateApplied.current = true; }, [] );
+			// Reactive check: only pass the template when the block has no
+			// inner blocks (same fix as quote-block and parallax).
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
 			var ctaTemplate = [
 				[ 'core/columns', {}, [
 					[ 'core/column', { className: 'cta-copy' }, [
@@ -952,7 +962,7 @@
 					el( 'div', { className: 'cta-band' },
 						el( InnerBlocks, {
 							allowedBlocks: [ 'core/columns', 'core/heading', 'core/paragraph', 'core/buttons', 'core/image', 'core/spacer', 'core/separator', 'core/group' ],
-							template: templateApplied.current ? undefined : ctaTemplate,
+							template: hasInnerBlocks ? undefined : ctaTemplate,
 							templateLock: false
 						} )
 					)
