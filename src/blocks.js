@@ -2518,7 +2518,7 @@
 				el( 'div', { className: 'wrap rcmi-parallax-inner', style: { zIndex: attrs.contentZIndex } },
 					el( 'div', { className: 'rcmi-parallax-copy', style: copyStyle },
 						el( InnerBlocks, {
-							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group', 'spectra/buttons', 'spectra/button' ],
+							allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group', 'spectra/buttons', 'spectra/button', 'spectra/container' ],
 							template: hasInnerBlocks ? undefined : heroTemplate,
 							templateLock: false
 						} )
