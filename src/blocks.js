@@ -2097,9 +2097,15 @@
 					// Per-slide gradient scrim (only if global scrim is off)
 					! attrs.globalScrim ? el( 'div', { key: 'slide-grad-' + idx, style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
 						renderGradientPicker( slide.scrimStops, slide.scrimType, slide.scrimAngle, function ( stops, type, angle ) {
-							updateSlide( idx, 'scrimStops', stops );
-							updateSlide( idx, 'scrimType', type );
-							updateSlide( idx, 'scrimAngle', angle );
+							var newSlides = slides.map( function ( s, i ) {
+								if ( i !== idx ) return s;
+								var ns = Object.assign( {}, s );
+								ns.scrimStops = stops;
+								ns.scrimType = type;
+								ns.scrimAngle = angle;
+								return ns;
+							} );
+							setAttributes( { slides: newSlides } );
 						} )
 					) : null,
 					// Content alignment
