@@ -410,6 +410,41 @@ function rcmi_toolkit_add_check_updates_link( $links, $file ) {
 add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'rcmi_toolkit_add_check_updates_link', 10, 2 );
 
 /**
+ * Show the installed GitHub commit beside the plugin version on the
+ * WordPress Plugins screen.
+ *
+ * @param array  $plugin_meta Existing plugin metadata links.
+ * @param string $plugin_file Plugin basename.
+ * @return array
+ */
+function rcmi_toolkit_add_commit_meta( $plugin_meta, $plugin_file ) {
+	if ( plugin_basename( __FILE__ ) !== $plugin_file ) {
+		return $plugin_meta;
+	}
+
+	$installed_sha = rcmi_toolkit_get_installed_sha();
+	if ( empty( $installed_sha ) || RCMI_TOOLKIT_VERSION === $installed_sha ) {
+		return $plugin_meta;
+	}
+
+	$commit_url = sprintf(
+		'https://github.com/%s/%s/commit/%s',
+		RCMI_TOOLKIT_GITHUB_USER,
+		RCMI_TOOLKIT_GITHUB_REPO,
+		$installed_sha
+	);
+	$commit_meta = sprintf(
+		'Commit: <a href="%s" target="_blank" rel="noopener noreferrer">%s</a>',
+		esc_url( $commit_url ),
+		esc_html( substr( $installed_sha, 0, 7 ) )
+	);
+
+	$plugin_meta[] = $commit_meta;
+	return $plugin_meta;
+}
+add_filter( 'plugin_row_meta', 'rcmi_toolkit_add_commit_meta', 10, 2 );
+
+/**
  * Register the custom block category.
  *
  * @param array  $categories Existing block categories.
