@@ -1104,6 +1104,7 @@ function rcmi_register_server_side_blocks() {
 			'globalScrimStops' => array( 'type' => 'array', 'default' => array() ),
 			'globalScrimType' => array( 'type' => 'string', 'default' => 'linear' ),
 			'globalScrimAngle' => array( 'type' => 'number', 'default' => 90 ),
+			'buttonRadius'     => array( 'type' => 'number', 'default' => 999 ),
 		),
 		'render_callback' => function ( $attrs ) {
 			$defaults = rcmi_block_defaults( 'rcmi/impact-strip-block' );
@@ -1267,6 +1268,7 @@ function rcmi_register_server_side_blocks() {
 			'globalScrimStops' => array( 'type' => 'array', 'default' => array() ),
 			'globalScrimType'  => array( 'type' => 'string', 'default' => 'linear' ),
 			'globalScrimAngle' => array( 'type' => 'number', 'default' => 90 ),
+			'buttonRadius'     => array( 'type' => 'number', 'default' => 999 ),
 		),
 		'render_callback' => function ( $attrs, $content ) {
 			$attrs = is_array( $attrs ) ? $attrs : array();
@@ -1351,13 +1353,15 @@ function rcmi_register_server_side_blocks() {
 
 				// Buttons HTML.
 				$buttons_html = '';
+				$btn_radius = intval( $attrs['buttonRadius'] ?? 999 );
 				foreach ( ( $slide['buttons'] ?? array() ) as $btn ) {
 					if ( empty( $btn['text'] ) ) {
 						continue;
 					}
 					$buttons_html .= sprintf(
-						'<a href="%s" class="btn btn-primary">%s</a>',
+						'<a href="%s" class="btn btn-primary" style="border-radius:%dpx">%s</a>',
 						esc_url( $btn['link'] ?? '#' ),
+						$btn_radius,
 						esc_html( $btn['text'] )
 					);
 				}

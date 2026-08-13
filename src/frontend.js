@@ -666,12 +666,17 @@
 
 			function cleanup( oldSlide, newSlide ) {
 				var gsapProps = 'opacity,transform,display,position,top,left,right,zIndex,clipPath,transformOrigin';
+				// Clear the new slide FIRST so it returns to static position
+				// and display:flex (from .is-active CSS) before we remove
+				// the track's minHeight. This prevents a white flash caused
+				// by the track collapsing for a frame between clearing
+				// minHeight and the new slide taking up space in flow.
+				gsap.set( newSlide, { clearProps: gsapProps } );
+				newSlide.classList.add( 'is-active' );
 				if ( oldSlide ) {
 					gsap.set( oldSlide, { clearProps: gsapProps } );
 					oldSlide.classList.remove( 'is-active' );
 				}
-				gsap.set( newSlide, { clearProps: gsapProps } );
-				newSlide.classList.add( 'is-active' );
 				track.classList.remove( 'is-animating' );
 				track.style.minHeight = '';
 				isAnimating = false;

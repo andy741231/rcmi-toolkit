@@ -1077,7 +1077,8 @@
 						el( 'div', { className: 'impact-stats', style: { gridTemplateColumns: 'repeat(' + ( attrs.statCount || 4 ) + ', 1fr)' } },
 							stats,
 							el( 'div', { className: 'impact-stats-cta' },
-								el( 'a', { href: attrs.ctaLink, className: 'btn btn-primary', onClick: function ( e ) { e.preventDefault(); } }, attrs.ctaText + ' \u2192' )
+								el( 'a', { href: attrs.ctaLink, className: 'btn btn-primary',
+													style: { borderRadius: ( attrs.buttonRadius != null ? attrs.buttonRadius : 999 ) + 'px' }, onClick: function ( e ) { e.preventDefault(); } }, attrs.ctaText + ' \u2192' )
 							)
 						)
 					)
@@ -1380,7 +1381,8 @@
 				{ color: '#ffffff', opacity: 0, position: 100 }
 			] },
 			globalScrimType: { type: 'string', default: 'linear' },
-			globalScrimAngle: { type: 'number', default: 90 }
+			globalScrimAngle: { type: 'number', default: 90 },
+			buttonRadius: { type: 'number', default: 999 }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
@@ -1775,6 +1777,7 @@
 										key: 'pb-' + bi,
 										tagName: 'a',
 										className: 'btn btn-primary',
+													style: { borderRadius: ( attrs.buttonRadius != null ? attrs.buttonRadius : 999 ) + 'px' },
 										value: btn.text,
 										onChange: function ( v ) { updateButton( activeTabIndex, bi, 'text', v ); },
 										placeholder: __( 'Button text…', 'rcmi-toolkit' ),
@@ -2014,7 +2017,8 @@
 					],
 					onChange: function ( v ) { setAttributes( { transition: v } ); }
 				} ),
-				el( RangeControl, { label: __( 'Height (vh)', 'rcmi-toolkit' ), value: attrs.height, onChange: function ( v ) { setAttributes( { height: v } ); }, min: 30, max: 100, step: 5, help: __( 'Global height for all slides. Individual slides can override.', 'rcmi-toolkit' ) } )
+				el( RangeControl, { label: __( 'Height (vh)', 'rcmi-toolkit' ), value: attrs.height, onChange: function ( v ) { setAttributes( { height: v } ); }, min: 30, max: 100, step: 5, help: __( 'Global height for all slides.', 'rcmi-toolkit' ) } ),
+				el( RangeControl, { label: __( 'Button radius (px)', 'rcmi-toolkit' ), value: attrs.buttonRadius, onChange: function ( v ) { setAttributes( { buttonRadius: v } ); }, min: 0, max: 999, step: 1, help: __( '0 = square, 999 = fully rounded (pill).', 'rcmi-toolkit' ) } )
 			);
 
 			// Navigation panel.
@@ -2221,6 +2225,7 @@
 											key: 'pb-' + bi,
 											tagName: 'a',
 											className: 'btn btn-primary',
+													style: { borderRadius: ( attrs.buttonRadius != null ? attrs.buttonRadius : 999 ) + 'px' },
 											value: btn.text,
 											onChange: function ( v ) { updateButton( activeIdx, bi, 'text', v ); },
 											placeholder: __( 'Button text…', 'rcmi-toolkit' ),
