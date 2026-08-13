@@ -1895,7 +1895,8 @@
 				{ color: '#f8f5ee', opacity: 0, position: 65 }
 			] },
 			globalScrimType: { type: 'string', default: 'linear' },
-			globalScrimAngle: { type: 'number', default: 90 }
+			globalScrimAngle: { type: 'number', default: 90 },
+			buttonRadius: { type: 'number', default: 999 }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
