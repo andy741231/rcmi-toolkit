@@ -1232,6 +1232,211 @@ function rcmi_register_server_side_blocks() {
 			return '<div class="rcmi-impact-strip-wrapper' . esc_attr( $color_class ) . '" data-transition="' . esc_attr( $transition ) . '"' . ( $color_style ? ' style="' . esc_attr( $color_style ) . '"' : '' ) . '>' . $strip . $panels . '</div>';
 		},
 	) );
+
+	// rcmi/slide-block — full-bleed slider with background images,
+	// gradient scrim, and editable content per slide. Navigation via
+	// arrows and/or dots. Optional auto-play and random first slide.
+	register_block_type( 'rcmi/slide-block', array(
+		'supports' => array(
+			'html' => false,
+			'align' => array( 'full', 'wide' ),
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
+			),
+		),
+		'attributes' => array(
+			'slides'           => array( 'type' => 'array', 'default' => array() ),
+			'autoplay'         => array( 'type' => 'boolean', 'default' => false ),
+			'autoplayInterval' => array( 'type' => 'number', 'default' => 5 ),
+			'pauseOnHover'     => array( 'type' => 'boolean', 'default' => true ),
+			'randomStart'      => array( 'type' => 'boolean', 'default' => false ),
+			'loop'             => array( 'type' => 'boolean', 'default' => true ),
+			'transition'       => array( 'type' => 'string', 'default' => 'fade' ),
+			'showArrows'       => array( 'type' => 'boolean', 'default' => true ),
+			'showDots'         => array( 'type' => 'boolean', 'default' => true ),
+			'navPosition'      => array( 'type' => 'string', 'default' => 'bottom' ),
+			'height'           => array( 'type' => 'number', 'default' => 80 ),
+			'globalScrim'      => array( 'type' => 'boolean', 'default' => false ),
+			'globalScrimStops' => array( 'type' => 'array', 'default' => array() ),
+			'globalScrimType'  => array( 'type' => 'string', 'default' => 'linear' ),
+			'globalScrimAngle' => array( 'type' => 'number', 'default' => 90 ),
+		),
+		'render_callback' => function ( $attrs, $content ) {
+			$attrs = is_array( $attrs ) ? $attrs : array();
+			$slides = $attrs['slides'] ?? array();
+			if ( empty( $slides ) ) {
+				return '';
+			}
+
+			$autoplay         = ! empty( $attrs['autoplay'] );
+			$autoplay_interval = max( 3, intval( $attrs['autoplayInterval'] ?? 5 ) );
+			$pause_on_hover   = ! empty( $attrs['pauseOnHover'] );
+			$random_start     = ! empty( $attrs['randomStart'] );
+			$loop             = ! empty( $attrs['loop'] );
+			$transition       = $attrs['transition'] ?? 'fade';
+			$show_arrows      = ! empty( $attrs['showArrows'] );
+			$show_dots        = ! empty( $attrs['showDots'] );
+			$nav_position     = $attrs['navPosition'] ?? 'bottom';
+			$global_height    = intval( $attrs['height'] ?? 80 );
+			$global_scrim     = ! empty( $attrs['globalScrim'] );
+
+			// Text color support (preset slug or custom hex).
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
+			// Build slide panels.
+			$panels_html = '';
+			$dots_html   = '';
+			$i           = 0;
+			foreach ( $slides as $slide ) {
+				$slide_id   = 'rcmi-slide-' . ( $slide['id'] ?? 's' . $i );
+				$is_active  = ( 0 === $i );
+				$slide_height = $global_height;
+
+				// Background image style.
+				$bg_url = $slide['bgImageUrl'] ?? '';
+				$bg_style = '';
+				if ( $bg_url ) {
+					$bg_scale = intval( $slide['bgScale'] ?? 120 );
+					$bg_pos_x = intval( $slide['bgPositionX'] ?? 50 );
+					$bg_pos_y = intval( $slide['bgPositionY'] ?? 50 );
+					$bg_style = sprintf(
+						'background-image:url(%s);background-size:%d%%;background-position:%d%% %d%%;background-repeat:no-repeat;',
+						esc_url( $bg_url ),
+						$bg_scale,
+						$bg_pos_x,
+						$bg_pos_y
+					);
+				}
+
+				// Scrim gradient.
+				if ( $global_scrim ) {
+					$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$attrs['globalScrimStops'] ?? array(),
+						$attrs['globalScrimType'] ?? 'linear',
+						intval( $attrs['globalScrimAngle'] ?? 90 )
+					) . ';';
+				} else {
+					$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+						$slide['scrimStops'] ?? array(),
+						$slide['scrimType'] ?? 'linear',
+						intval( $slide['scrimAngle'] ?? 90 )
+					) . ';';
+				}
+
+				// Content alignment.
+				$align = $slide['contentAlign'] ?? 'left';
+				$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
+
+				// Copy style for alignment.
+				$copy_style = '';
+				if ( $align === 'center' ) {
+					$copy_style = 'max-width:760px;margin:0 auto;';
+				} elseif ( $align === 'right' ) {
+					$copy_style = 'max-width:570px;margin-left:auto;margin-right:0;';
+				}
+
+				// Buttons HTML.
+				$buttons_html = '';
+				foreach ( ( $slide['buttons'] ?? array() ) as $btn ) {
+					if ( empty( $btn['text'] ) ) {
+						continue;
+					}
+					$buttons_html .= sprintf(
+						'<a href="%s" class="btn btn-primary">%s</a>',
+						esc_url( $btn['link'] ?? '#' ),
+						esc_html( $btn['text'] )
+					);
+				}
+
+				// Mobile background image data attributes.
+				$mobile_bg_attr = '';
+				$bg_mobile_url = $slide['bgMobileImageUrl'] ?? '';
+				if ( $bg_mobile_url ) {
+					$mobile_bg_attr = ' data-mobile-bg="' . esc_url( $bg_mobile_url ) . '"';
+					$mobile_bg_attr .= ' data-mobile-scale="' . intval( $slide['bgMobileScale'] ?? 110 ) . '"';
+					$mobile_bg_attr .= ' data-mobile-pos-x="' . intval( $slide['bgMobilePositionX'] ?? 50 ) . '"';
+					$mobile_bg_attr .= ' data-mobile-pos-y="' . intval( $slide['bgMobilePositionY'] ?? 50 ) . '"';
+				}
+
+				$panels_html .= sprintf(
+					'<section id="%s" class="rcmi-slide%s%s%s" style="height:%dvh;%s"%s><div class="rcmi-slide-scrim" aria-hidden="true" style="%s"></div><div class="wrap rcmi-slide-inner"><div class="rcmi-slide-copy" style="%s"><h2>%s</h2><p class="lede">%s</p>%s</div></div></section>',
+					esc_attr( $slide_id ),
+					$is_active ? ' is-active' : '',
+					esc_attr( ' ' . $align_class ),
+					esc_attr( $color_class ),
+					$slide_height,
+					esc_attr( $bg_style ),
+					$mobile_bg_attr,
+					esc_attr( $scrim_style ),
+					esc_attr( $copy_style ),
+					wp_kses_post( $slide['heading'] ?? '' ),
+					wp_kses_post( $slide['lede'] ?? '' ),
+					$buttons_html ? '<div class="rcmi-slide-actions">' . $buttons_html . '</div>' : ''
+				);
+
+				// Dot indicator.
+				$dots_html .= sprintf(
+					'<button class="rcmi-slide-dot%s" type="button" data-slide="%d" aria-label="%s"></button>',
+					$is_active ? ' is-active' : '',
+					$i,
+					esc_attr( sprintf( __( 'Go to slide %d', 'rcmi-toolkit' ), $i + 1 ) )
+				);
+
+				$i++;
+			}
+
+			// Build arrows.
+			$arrows_html = '';
+			if ( $show_arrows ) {
+				$arrows_html = '<button class="rcmi-slide-arrow rcmi-slide-arrow-prev" type="button" aria-label="' . esc_attr__( 'Previous slide', 'rcmi-toolkit' ) . '">&#8249;</button><button class="rcmi-slide-arrow rcmi-slide-arrow-next" type="button" aria-label="' . esc_attr__( 'Next slide', 'rcmi-toolkit' ) . '">&#8250;</button>';
+			}
+
+			// Build dots container.
+			$dots_container = $show_dots ? '<div class="rcmi-slide-dots rcmi-slide-dots-' . esc_attr( $nav_position ) . '">' . $dots_html . '</div>' : '';
+
+			// Assemble: nav on top, then slides container, then nav on bottom.
+			$top_nav    = ( 'top' === $nav_position ) ? $dots_container : '';
+			$bottom_nav = ( 'bottom' === $nav_position ) ? $dots_container : '';
+
+			// Data attributes for the frontend JS.
+			$wrapper_attrs = sprintf(
+				'data-autoplay="%s" data-interval="%d" data-pause-on-hover="%s" data-random-start="%s" data-loop="%s" data-transition="%s" data-slide-count="%d"',
+				$autoplay ? '1' : '0',
+				$autoplay_interval,
+				$pause_on_hover ? '1' : '0',
+				$random_start ? '1' : '0',
+				$loop ? '1' : '0',
+				esc_attr( $transition ),
+				count( $slides )
+			);
+
+			return sprintf(
+				'<div class="rcmi-slide-block-wrapper%s"%s><div class="rcmi-slide-block" %s>%s<div class="rcmi-slide-track">%s</div>%s%s</div></div>',
+				esc_attr( $color_class ),
+				$color_style ? ' style="' . esc_attr( $color_style ) . '"' : '',
+				$wrapper_attrs,
+				$top_nav,
+				$panels_html,
+				$arrows_html,
+				$bottom_nav
+			);
+		},
+	) );
+
 	// rcmi/parallax — hero block with static or parallax mode.
 	// Replaces the old rcmi/hero block. Mode toggle: 'static' (single bg
 	// image) or 'parallax' (3-layer depth effect). Includes editable
