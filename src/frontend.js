@@ -689,8 +689,9 @@
 					console.log('[slide] cleanup: oldSlide clearProps done', { display: getComputedStyle(oldSlide).display, position: getComputedStyle(oldSlide).position, isActive: oldSlide.classList.contains('is-active') } );
 				}
 				track.classList.remove( 'is-animating' );
-				track.style.minHeight = '';
-				console.log('[slide] cleanup: track minHeight cleared', { trackOffsetH: track.offsetHeight, newOffsetH: newSlide.offsetHeight } );
+				track.style.height = '';
+				track.style.overflow = '';
+				console.log('[slide] cleanup: track height cleared', { trackOffsetH: track.offsetHeight, newOffsetH: newSlide.offsetHeight } );
 				isAnimating = false;
 			}
 
@@ -740,9 +741,10 @@
 				var panelHeight = oldSlide ? oldSlide.getBoundingClientRect().height : 0;
 				track.classList.add( 'is-animating' );
 				if ( panelHeight ) {
-					track.style.minHeight = panelHeight + 'px';
+					track.style.height = panelHeight + 'px';
+					track.style.overflow = 'hidden';
 				}
-				console.log('[slide] set track minHeight =', panelHeight + 'px');
+				console.log('[slide] set track height =', panelHeight + 'px');
 
 				// Pre-set opacity:0 and position:absolute BEFORE adding is-active.
 				// This prevents the new slide from entering the flow for one frame
