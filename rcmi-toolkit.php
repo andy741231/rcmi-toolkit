@@ -358,6 +358,16 @@ function rcmi_toolkit_post_install_rename( $response, $hook_extra, $result ) {
 	// Clear the plugin cache so get_plugins() sees the new files.
 	wp_clean_plugins_cache();
 
+	// Clear PHP's file stat cache so the editor sees updated files.
+	// On IIS with persistent FastCGI processes, PHP caches file metadata
+	// and doesn't notice replaced files until the stat cache expires.
+	clearstatcache( true );
+
+	// Reset opcache if available — forces PHP to re-read all PHP files.
+	if ( function_exists( 'opcache_reset' ) ) {
+		opcache_reset();
+	}
+
 	// Record the commit SHA we just installed so we don't re-offer the
 	// same update. The SHA is fetched from GitHub (cached transient).
 	$commit = rcmi_toolkit_get_github_commit();
