@@ -21,6 +21,89 @@
 	var RichText = wp.blockEditor.RichText;
 	var InnerBlocks = wp.blockEditor.InnerBlocks;
 	var __ = wp.i18n.__;
+	var addFilter = wp.hooks.addFilter;
+
+	addFilter( 'blocks.registerBlockType', 'rcmi-toolkit/blog-hero-height-attributes', function ( settings, name ) {
+		if ( name !== 'core/group' ) {
+			return settings;
+		}
+		settings.attributes = Object.assign( {}, settings.attributes, {
+			rcmiBlogHeroCustomHeight: { type: 'boolean', default: false },
+			rcmiBlogHeroDesktopHeight: { type: 'number', default: 70 },
+			rcmiBlogHeroMobileHeight: { type: 'number', default: 65 }
+		} );
+		return settings;
+	} );
+
+	addFilter( 'editor.BlockEdit', 'rcmi-toolkit/blog-hero-height-control', function ( BlockEdit ) {
+		return function ( props ) {
+			var className = props.attributes.className || '';
+			if ( props.name !== 'core/group' || className.split( /\s+/ ).indexOf( 'rcmi-blog-hero' ) === -1 ) {
+				return el( BlockEdit, props );
+			}
+			return el( Fragment, null,
+				el( BlockEdit, props ),
+				el( InspectorControls, null,
+					el( PanelBody, { title: __( 'Blog Hero Height', 'rcmi-toolkit' ), initialOpen: true },
+						el( ToggleControl, {
+							label: __( 'Use custom heights', 'rcmi-toolkit' ),
+							checked: props.attributes.rcmiBlogHeroCustomHeight,
+							onChange: function ( value ) { props.setAttributes( { rcmiBlogHeroCustomHeight: value } ); }
+						} ),
+						props.attributes.rcmiBlogHeroCustomHeight ? el( Fragment, null,
+							el( RangeControl, {
+								label: __( 'Desktop height (vh)', 'rcmi-toolkit' ),
+								value: props.attributes.rcmiBlogHeroDesktopHeight,
+								onChange: function ( value ) { props.setAttributes( { rcmiBlogHeroDesktopHeight: value } ); },
+								min: 60,
+								max: 100,
+								step: 1
+							} ),
+							el( RangeControl, {
+								label: __( 'Mobile height (vh)', 'rcmi-toolkit' ),
+								value: props.attributes.rcmiBlogHeroMobileHeight,
+								onChange: function ( value ) { props.setAttributes( { rcmiBlogHeroMobileHeight: value } ); },
+								min: 60,
+								max: 100,
+								step: 1,
+								help: __( 'Applies below 768px.', 'rcmi-toolkit' )
+							} )
+						) : null
+					)
+				)
+			);
+		};
+	} );
+
+	addFilter( 'blocks.getSaveContent.extraProps', 'rcmi-toolkit/blog-hero-height-style', function ( extraProps, blockType, attributes ) {
+		var className = attributes.className || '';
+		if ( blockType.name !== 'core/group' || className.split( /\s+/ ).indexOf( 'rcmi-blog-hero' ) === -1 ) {
+			return extraProps;
+		}
+		extraProps.style = Object.assign( {}, extraProps.style );
+		if ( attributes.rcmiBlogHeroCustomHeight ) {
+			extraProps.style[ '--rcmi-blog-hero-desktop-height' ] = attributes.rcmiBlogHeroDesktopHeight + 'vh';
+			extraProps.style[ '--rcmi-blog-hero-mobile-height' ] = attributes.rcmiBlogHeroMobileHeight + 'vh';
+		}
+		return extraProps;
+	} );
+
+	addFilter( 'editor.BlockListBlock', 'rcmi-toolkit/blog-hero-height-preview', function ( BlockListBlock ) {
+		return function ( props ) {
+			var attributes = props.attributes || {};
+			var className = attributes.className || '';
+			if ( props.name !== 'core/group' || className.split( /\s+/ ).indexOf( 'rcmi-blog-hero' ) === -1 ) {
+				return el( BlockListBlock, props );
+			}
+			var wrapperProps = Object.assign( {}, props.wrapperProps );
+			wrapperProps.style = Object.assign( {}, wrapperProps.style );
+			if ( attributes.rcmiBlogHeroCustomHeight ) {
+				wrapperProps.style[ '--rcmi-blog-hero-desktop-height' ] = attributes.rcmiBlogHeroDesktopHeight + 'vh';
+				wrapperProps.style[ '--rcmi-blog-hero-mobile-height' ] = attributes.rcmiBlogHeroMobileHeight + 'vh';
+			}
+			return el( BlockListBlock, Object.assign( {}, props, { wrapperProps: wrapperProps } ) );
+		};
+	} );
 
 	// ============================================================
 	// MobileImagePicker — stable top-level component.

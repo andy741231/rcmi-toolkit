@@ -20,6 +20,17 @@ define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
 define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
 
+function rcmi_toolkit_blog_hero_group_attributes( $args, $block_type ) {
+	if ( 'core/group' !== $block_type ) {
+		return $args;
+	}
+	$args['attributes']['rcmiBlogHeroCustomHeight']  = array( 'type' => 'boolean', 'default' => false );
+	$args['attributes']['rcmiBlogHeroDesktopHeight'] = array( 'type' => 'number', 'default' => 70 );
+	$args['attributes']['rcmiBlogHeroMobileHeight']  = array( 'type' => 'number', 'default' => 65 );
+	return $args;
+}
+add_filter( 'register_block_type_args', 'rcmi_toolkit_blog_hero_group_attributes', 10, 2 );
+
 /**
  * Convert a hex color to an rgba() string with the given alpha.
  *
@@ -602,7 +613,7 @@ function rcmi_toolkit_editor_assets() {
 	wp_enqueue_script(
 		'rcmi-toolkit-editor',
 		RCMI_TOOLKIT_URL . 'src/blocks.js',
-		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-server-side-render', 'wp-api-fetch' ),
+		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-hooks', 'wp-server-side-render', 'wp-api-fetch' ),
 		$ver,
 		true
 	);
