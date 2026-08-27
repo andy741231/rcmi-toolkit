@@ -20,6 +20,10 @@ define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
 define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
 
+function rcmi_toolkit_github_updates_disabled() {
+	return 'production' !== wp_get_environment_type() || is_dir( __DIR__ . '/.git' );
+}
+
 function rcmi_toolkit_blog_hero_group_attributes( $args, $block_type ) {
 	if ( 'core/group' !== $block_type ) {
 		return $args;
@@ -202,6 +206,13 @@ function rcmi_toolkit_get_installed_sha() {
  * @return object
  */
 function rcmi_toolkit_check_for_updates( $transient ) {
+	$plugin_slug = plugin_basename( __FILE__ );
+	if ( rcmi_toolkit_github_updates_disabled() ) {
+		if ( isset( $transient->response[ $plugin_slug ] ) ) {
+			unset( $transient->response[ $plugin_slug ] );
+		}
+		return $transient;
+	}
 	if ( empty( $transient->checked ) ) {
 		return $transient;
 	}
@@ -217,8 +228,6 @@ function rcmi_toolkit_check_for_updates( $transient ) {
 	if ( $commit['sha'] === $installed_sha ) {
 		return $transient;
 	}
-
-	$plugin_slug = plugin_basename( __FILE__ );
 
 	$update = (object) array(
 		'slug'        => dirname( $plugin_slug ),
@@ -295,6 +304,9 @@ add_filter( 'plugins_api', 'rcmi_toolkit_plugins_api_info', 10, 3 );
  * so rename() works on every platform including Windows.
  */
 function rcmi_toolkit_fix_source_folder( $source, $remote_source, $upgrader, $hook_extra ) {
+	if ( isset( $hook_extra['plugin'] ) && false !== strpos( $hook_extra['plugin'], 'rcmi-toolkit' ) && rcmi_toolkit_github_updates_disabled() ) {
+		return new WP_Error( 'rcmi_toolkit_updates_disabled', 'RCMI Toolkit updates are disabled in development and Git working copies.' );
+	}
 	if ( is_wp_error( $source ) || ! isset( $hook_extra['plugin'] ) ) {
 		return $source;
 	}
@@ -388,6 +400,9 @@ add_filter( 'upgrader_post_install', 'rcmi_toolkit_post_install_rename', 10, 3 )
  * triggers an immediate GitHub API call — no 6-hour wait.
  */
 function rcmi_toolkit_maybe_refresh_release_cache() {
+	if ( rcmi_toolkit_github_updates_disabled() ) {
+		return;
+	}
 	if ( isset( $_GET['rcmi_toolkit_check_updates'] ) ) {
 		// Clear the cached commit data so the next call hits GitHub.
 		delete_transient( 'rcmi_toolkit_github_commit' );
@@ -417,7 +432,7 @@ add_action( 'admin_init', 'rcmi_toolkit_maybe_refresh_release_cache' );
  * @return array
  */
 function rcmi_toolkit_add_check_updates_link( $links, $file ) {
-	if ( plugin_basename( __FILE__ ) !== $file ) {
+	if ( rcmi_toolkit_github_updates_disabled() || plugin_basename( __FILE__ ) !== $file ) {
 		return $links;
 	}
 
@@ -476,6 +491,11 @@ function rcmi_toolkit_category( $categories ) {
 		$categories,
 		array(
 			array(
+				'slug'  => 'rcmi-stories',
+				'title' => __( 'Story Sections', 'rcmi-toolkit' ),
+				'icon'  => 'book-alt',
+			),
+			array(
 				'slug'  => 'rcmi-sections',
 				'title' => __( 'RCMI Sections', 'rcmi-toolkit' ),
 				'icon'  => 'layout',
@@ -484,6 +504,57 @@ function rcmi_toolkit_category( $categories ) {
 	);
 }
 add_filter( 'block_categories_all', 'rcmi_toolkit_category' );
+
+function rcmi_toolkit_post_story_blocks( $allowed_block_types, $editor_context ) {
+	if ( empty( $editor_context->post ) || 'post' !== $editor_context->post->post_type ) {
+		return $allowed_block_types;
+	}
+	return array(
+		'rcmi/story-featured-image',
+		'rcmi/story-text',
+		'rcmi/story-image',
+		'rcmi/story-split',
+		'rcmi/story-quote',
+		'rcmi/story-immersive',
+	);
+}
+add_filter( 'allowed_block_types_all', 'rcmi_toolkit_post_story_blocks', 20, 2 );
+
+function rcmi_toolkit_render_story_media( $block_content, $block ) {
+	$name = $block['blockName'] ?? '';
+	if ( 0 !== strpos( $name, 'rcmi/story-' ) ) {
+		return $block_content;
+	}
+	$image_url = $block['attrs']['imageUrl'] ?? '';
+	if ( ! $image_url && in_array( $name, array( 'rcmi/story-featured-image', 'rcmi/story-image', 'rcmi/story-immersive' ), true ) ) {
+		return '';
+	}
+	if ( ! class_exists( 'WP_HTML_Tag_Processor' ) ) {
+		return $block_content;
+	}
+	$processor = new WP_HTML_Tag_Processor( $block_content );
+	if ( ! $image_url && 'rcmi/story-split' === $name && $processor->next_tag( array( 'class_name' => 'rcmi-story-split' ) ) ) {
+		$processor->add_class( 'has-no-media' );
+		return $processor->get_updated_html();
+	}
+	if ( $processor->next_tag( 'IMG' ) ) {
+		$processor->set_attribute( 'decoding', 'async' );
+		$image_id   = (int) ( $block['attrs']['imageId'] ?? 0 );
+		$image_data = $image_id ? wp_get_attachment_image_src( $image_id, 'full' ) : false;
+		if ( $image_data ) {
+			$processor->set_attribute( 'width', (string) $image_data[1] );
+			$processor->set_attribute( 'height', (string) $image_data[2] );
+		}
+		if ( 'rcmi/story-featured-image' === $name ) {
+			$processor->set_attribute( 'loading', 'eager' );
+			$processor->set_attribute( 'fetchpriority', 'high' );
+		} else {
+			$processor->set_attribute( 'loading', 'lazy' );
+		}
+	}
+	return $processor->get_updated_html();
+}
+add_filter( 'render_block', 'rcmi_toolkit_render_story_media', 10, 2 );
 
 /**
  * Resolve a media library attachment by its filename (basename of the URL).
@@ -818,7 +889,69 @@ function rcmi_legacy_cta_content( $attrs ) {
 	return $html;
 }
 
+function rcmi_story_image_attributes() {
+	return array(
+		'imageId'   => array( 'type' => 'number', 'default' => 0 ),
+		'imageUrl'  => array( 'type' => 'string', 'default' => '' ),
+		'imageAlt'  => array( 'type' => 'string', 'default' => '' ),
+		'caption'   => array( 'type' => 'string', 'default' => '' ),
+		'credit'    => array( 'type' => 'string', 'default' => '' ),
+		'positionX' => array( 'type' => 'number', 'default' => 50 ),
+		'positionY' => array( 'type' => 'number', 'default' => 50 ),
+	);
+}
+
 function rcmi_register_server_side_blocks() {
+	$story_supports = array( 'html' => false, 'reusable' => false );
+	register_block_type( 'rcmi/story-featured-image', array(
+		'attributes' => array_merge( rcmi_story_image_attributes(), array( 'aspect' => array( 'type' => 'string', 'default' => 'cinematic' ) ) ),
+		'supports'   => array_merge( $story_supports, array( 'align' => array( 'wide', 'full' ) ) ),
+	) );
+	register_block_type( 'rcmi/story-text', array(
+		'attributes' => array(
+			'eyebrow' => array( 'type' => 'string', 'default' => '' ),
+			'heading' => array( 'type' => 'string', 'default' => '' ),
+			'body'    => array( 'type' => 'string', 'default' => '' ),
+			'width'   => array( 'type' => 'string', 'default' => 'standard' ),
+			'dropCap' => array( 'type' => 'boolean', 'default' => false ),
+		),
+		'supports' => $story_supports,
+	) );
+	register_block_type( 'rcmi/story-image', array(
+		'attributes' => array_merge( rcmi_story_image_attributes(), array( 'size' => array( 'type' => 'string', 'default' => 'wide' ) ) ),
+		'supports'   => array_merge( $story_supports, array( 'align' => array( 'wide', 'full' ) ) ),
+	) );
+	register_block_type( 'rcmi/story-split', array(
+		'attributes' => array_merge( rcmi_story_image_attributes(), array(
+			'eyebrow'   => array( 'type' => 'string', 'default' => '' ),
+			'heading'   => array( 'type' => 'string', 'default' => '' ),
+			'body'      => array( 'type' => 'string', 'default' => '' ),
+			'imageSide' => array( 'type' => 'string', 'default' => 'left' ),
+			'tone'      => array( 'type' => 'string', 'default' => 'light' ),
+		) ),
+		'supports' => array_merge( $story_supports, array( 'align' => array( 'wide', 'full' ) ) ),
+	) );
+	register_block_type( 'rcmi/story-quote', array(
+		'attributes' => array(
+			'quote'    => array( 'type' => 'string', 'default' => '' ),
+			'citation' => array( 'type' => 'string', 'default' => '' ),
+			'context'  => array( 'type' => 'string', 'default' => '' ),
+			'tone'     => array( 'type' => 'string', 'default' => 'slate' ),
+		),
+		'supports' => array_merge( $story_supports, array( 'align' => array( 'wide', 'full' ) ) ),
+	) );
+	register_block_type( 'rcmi/story-immersive', array(
+		'attributes' => array_merge( rcmi_story_image_attributes(), array(
+			'eyebrow'         => array( 'type' => 'string', 'default' => '' ),
+			'heading'         => array( 'type' => 'string', 'default' => '' ),
+			'body'            => array( 'type' => 'string', 'default' => '' ),
+			'height'          => array( 'type' => 'number', 'default' => 80 ),
+			'contentPosition' => array( 'type' => 'string', 'default' => 'bottom-left' ),
+			'scrim'           => array( 'type' => 'number', 'default' => 65 ),
+		) ),
+		'supports' => array_merge( $story_supports, array( 'align' => array( 'full' ) ) ),
+	) );
+
 	// rcmi/quote-block — large pull quote with citation.
 	register_block_type( 'rcmi/quote-block', array(
 		'attributes' => array(

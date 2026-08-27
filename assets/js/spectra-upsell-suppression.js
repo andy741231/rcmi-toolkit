@@ -128,10 +128,13 @@
 				} );
 			} );
 		} );
-		observer.observe( document.body, {
-			childList: true,
-			subtree: true,
-		} );
+		var target = document.body || document.documentElement;
+		if ( target ) {
+			observer.observe( target, {
+				childList: true,
+				subtree: true,
+			} );
+		}
 	}
 
 	// Run on DOM ready.

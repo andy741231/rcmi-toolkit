@@ -18,6 +18,7 @@
 	var TextControl = wp.components.TextControl;
 	var TextareaControl = wp.components.TextareaControl;
 	var MediaUpload = wp.blockEditor.MediaUpload;
+	var MediaUploadCheck = wp.blockEditor.MediaUploadCheck;
 	var RichText = wp.blockEditor.RichText;
 	var InnerBlocks = wp.blockEditor.InnerBlocks;
 	var __ = wp.i18n.__;
@@ -3072,6 +3073,300 @@
 			// InnerBlocks content is serialized between the block delimiters.
 			// The render_callback wraps it with parallax layers + scrim.
 			return el( InnerBlocks.Content );
+		}
+	} );
+
+	function storyMediaPicker( label, imageId, imageUrl, onSelect ) {
+		return el( MediaUploadCheck, null,
+			el( MediaUpload, {
+				onSelect: onSelect,
+				allowedTypes: [ 'image' ],
+				value: imageId,
+				render: function ( obj ) {
+					return el( wp.components.Button, {
+						onClick: obj.open,
+						variant: imageUrl ? 'secondary' : 'primary'
+					}, imageUrl ? __( 'Replace image', 'rcmi-toolkit' ) : label );
+				}
+			} )
+		);
+	}
+
+	function storyImageAttributes() {
+		return {
+			imageId: { type: 'number', default: 0 },
+			imageUrl: { type: 'string', default: '' },
+			imageAlt: { type: 'string', default: '' },
+			caption: { type: 'string', default: '' },
+			credit: { type: 'string', default: '' },
+			positionX: { type: 'number', default: 50 },
+			positionY: { type: 'number', default: 50 }
+		};
+	}
+
+	function storyImageStyle( attrs ) {
+		return { objectPosition: attrs.positionX + '% ' + attrs.positionY + '%' };
+	}
+
+	function storyCaption( attrs ) {
+		if ( ! attrs.caption && ! attrs.credit ) { return null; }
+		return el( 'figcaption', { className: 'rcmi-story-caption' },
+			attrs.caption ? el( 'span', null, attrs.caption ) : null,
+			attrs.credit ? el( 'span', { className: 'rcmi-story-credit' }, attrs.credit ) : null
+		);
+	}
+
+	function storyAltWarning( attrs ) {
+		if ( ! attrs.imageUrl || attrs.imageAlt ) { return null; }
+		return el( wp.components.Notice, { className: 'rcmi-story-alt-warning', status: 'warning', isDismissible: false }, __( 'Add alternative text for this meaningful image, or leave it empty only if the image is decorative.', 'rcmi-toolkit' ) );
+	}
+
+	registerBlockType( 'rcmi/story-featured-image', {
+		apiVersion: 3,
+		title: __( 'Featured Story Image', 'rcmi-toolkit' ),
+		description: __( 'A story image that also becomes the post thumbnail.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'format-image',
+		supports: { html: false, reusable: false, align: [ 'wide', 'full' ] },
+		attributes: Object.assign( storyImageAttributes(), {
+			aspect: { type: 'string', default: 'cinematic' }
+		} ),
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			var featuredId = useSelect( function ( select ) {
+				return select( 'core/editor' ).getEditedPostAttribute( 'featured_media' );
+			}, [] );
+			var featuredMedia = useSelect( function ( select ) {
+				return featuredId ? select( 'core' ).getEntityRecord( 'postType', 'attachment', featuredId ) : null;
+			}, [ featuredId ] );
+			useEffect( function () {
+				if ( featuredMedia && featuredId !== attrs.imageId ) {
+					props.setAttributes( {
+						imageId: featuredId,
+						imageUrl: featuredMedia.source_url || '',
+						imageAlt: featuredMedia.alt_text || ''
+					} );
+				}
+			}, [ featuredId, featuredMedia ] );
+			var onSelect = function ( media ) {
+				props.setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || '' } );
+				wp.data.dispatch( 'core/editor' ).editPost( { featured_media: media.id } );
+			};
+			var blockProps = useBlockProps( { className: 'rcmi-story-featured rcmi-story-aspect-' + attrs.aspect } );
+			return el( Fragment, null,
+				el( InspectorControls, null,
+					el( PanelBody, { title: __( 'Image settings', 'rcmi-toolkit' ), initialOpen: true },
+						el( SelectControl, { label: __( 'Image shape', 'rcmi-toolkit' ), value: attrs.aspect, options: [
+							{ label: __( 'Cinematic (16:9)', 'rcmi-toolkit' ), value: 'cinematic' },
+							{ label: __( 'Editorial (4:3)', 'rcmi-toolkit' ), value: 'editorial' },
+							{ label: __( 'Portrait (3:4)', 'rcmi-toolkit' ), value: 'portrait' }
+						], onChange: function ( value ) { props.setAttributes( { aspect: value } ); } } ),
+						el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
+						el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+						el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
+					)
+				),
+				el( 'figure', blockProps,
+					attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : el( 'div', { className: 'rcmi-story-media-placeholder' }, storyMediaPicker( __( 'Choose featured image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ), el( 'p', null, __( 'This image will also be used on the Stories listing.', 'rcmi-toolkit' ) ) ),
+					attrs.imageUrl ? el( 'div', { className: 'rcmi-story-media-tools' }, storyMediaPicker( __( 'Choose featured image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ) : null,
+					storyAltWarning( attrs ),
+					el( 'figcaption', { className: 'rcmi-story-caption' },
+						el( RichText, { tagName: 'span', value: attrs.caption, placeholder: __( 'Write a caption…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { caption: value } ); } } ),
+						el( RichText, { tagName: 'span', className: 'rcmi-story-credit', value: attrs.credit, placeholder: __( 'Photo credit…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { credit: value } ); } } )
+					)
+				)
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			return el( 'figure', useBlockProps.save( { className: 'rcmi-story-featured rcmi-story-aspect-' + attrs.aspect } ),
+				attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : null,
+				storyCaption( attrs )
+			);
+		}
+	} );
+
+	registerBlockType( 'rcmi/story-text', {
+		apiVersion: 3,
+		title: __( 'Narrative Text', 'rcmi-toolkit' ),
+		description: __( 'A focused long-form text section with optional heading.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'text-page',
+		supports: { html: false, reusable: false },
+		attributes: {
+			eyebrow: { type: 'string', default: '' },
+			heading: { type: 'string', default: '' },
+			body: { type: 'string', default: '' },
+			width: { type: 'string', default: 'standard' },
+			dropCap: { type: 'boolean', default: false }
+		},
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			return el( Fragment, null,
+				el( InspectorControls, null, el( PanelBody, { title: __( 'Text layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, { label: __( 'Reading width', 'rcmi-toolkit' ), value: attrs.width, options: [
+						{ label: __( 'Standard', 'rcmi-toolkit' ), value: 'standard' },
+						{ label: __( 'Narrow', 'rcmi-toolkit' ), value: 'narrow' },
+						{ label: __( 'Wide', 'rcmi-toolkit' ), value: 'wide' }
+					], onChange: function ( value ) { props.setAttributes( { width: value } ); } } ),
+					el( ToggleControl, { label: __( 'Drop cap', 'rcmi-toolkit' ), checked: attrs.dropCap, onChange: function ( value ) { props.setAttributes( { dropCap: value } ); } } )
+				) ),
+				el( 'section', useBlockProps( { className: 'rcmi-story-text rcmi-story-width-' + attrs.width + ( attrs.dropCap ? ' has-drop-cap' : '' ) } ),
+					el( RichText, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow, placeholder: __( 'Optional section label…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { eyebrow: value } ); } } ),
+					el( RichText, { tagName: 'h2', value: attrs.heading, placeholder: __( 'Section heading…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { heading: value } ); } } ),
+					el( RichText, { tagName: 'div', multiline: 'p', className: 'rcmi-story-prose', value: attrs.body, placeholder: __( 'Start writing your story…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { body: value } ); } } )
+				)
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			return el( 'section', useBlockProps.save( { className: 'rcmi-story-text rcmi-story-width-' + attrs.width + ( attrs.dropCap ? ' has-drop-cap' : '' ) } ),
+				attrs.eyebrow ? el( RichText.Content, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow } ) : null,
+				attrs.heading ? el( RichText.Content, { tagName: 'h2', value: attrs.heading } ) : null,
+				el( RichText.Content, { tagName: 'div', className: 'rcmi-story-prose', value: attrs.body } )
+			);
+		}
+	} );
+
+	registerBlockType( 'rcmi/story-image', {
+		apiVersion: 3,
+		title: __( 'Story Image', 'rcmi-toolkit' ),
+		description: __( 'An editorial image with caption and credit.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'cover-image',
+		supports: { html: false, reusable: false, align: [ 'wide', 'full' ] },
+		attributes: Object.assign( storyImageAttributes(), { size: { type: 'string', default: 'wide' } } ),
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			var onSelect = function ( media ) { props.setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || '' } ); };
+			return el( Fragment, null,
+				el( InspectorControls, null, el( PanelBody, { title: __( 'Image settings', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, { label: __( 'Display size', 'rcmi-toolkit' ), value: attrs.size, options: [
+						{ label: __( 'Reading column', 'rcmi-toolkit' ), value: 'standard' },
+						{ label: __( 'Wide', 'rcmi-toolkit' ), value: 'wide' },
+						{ label: __( 'Full width', 'rcmi-toolkit' ), value: 'full' }
+					], onChange: function ( value ) { props.setAttributes( { size: value } ); } } ),
+					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
+					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
+				) ),
+				el( 'figure', useBlockProps( { className: 'rcmi-story-image rcmi-story-image-' + attrs.size } ),
+					attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : el( 'div', { className: 'rcmi-story-media-placeholder' }, storyMediaPicker( __( 'Choose story image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ),
+					attrs.imageUrl ? el( 'div', { className: 'rcmi-story-media-tools' }, storyMediaPicker( __( 'Choose story image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ) : null,
+					storyAltWarning( attrs ),
+					el( 'figcaption', { className: 'rcmi-story-caption' },
+						el( RichText, { tagName: 'span', value: attrs.caption, placeholder: __( 'Write a caption…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { caption: value } ); } } ),
+						el( RichText, { tagName: 'span', className: 'rcmi-story-credit', value: attrs.credit, placeholder: __( 'Photo credit…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { credit: value } ); } } )
+					)
+				)
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			return el( 'figure', useBlockProps.save( { className: 'rcmi-story-image rcmi-story-image-' + attrs.size } ), attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : null, storyCaption( attrs ) );
+		}
+	} );
+
+	registerBlockType( 'rcmi/story-split', {
+		apiVersion: 3,
+		title: __( 'Image + Text', 'rcmi-toolkit' ),
+		description: __( 'A responsive split section with an image and narrative.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'columns',
+		supports: { html: false, reusable: false, align: [ 'wide', 'full' ] },
+		attributes: Object.assign( storyImageAttributes(), {
+			eyebrow: { type: 'string', default: '' }, heading: { type: 'string', default: '' }, body: { type: 'string', default: '' }, imageSide: { type: 'string', default: 'left' }, tone: { type: 'string', default: 'light' }
+		} ),
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			var onSelect = function ( media ) { props.setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || '' } ); };
+			var image = el( 'div', { className: 'rcmi-story-split-media' }, attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : el( 'div', { className: 'rcmi-story-media-placeholder' }, storyMediaPicker( __( 'Choose image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ), attrs.imageUrl ? el( 'div', { className: 'rcmi-story-media-tools' }, storyMediaPicker( __( 'Choose image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ) : null, storyAltWarning( attrs ) );
+			var copy = el( 'div', { className: 'rcmi-story-split-copy' },
+				el( RichText, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow, placeholder: __( 'Section label…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { eyebrow: value } ); } } ),
+				el( RichText, { tagName: 'h2', value: attrs.heading, placeholder: __( 'Section heading…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { heading: value } ); } } ),
+				el( RichText, { tagName: 'div', multiline: 'p', className: 'rcmi-story-prose', value: attrs.body, placeholder: __( 'Write your narrative…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { body: value } ); } } )
+			);
+			return el( Fragment, null,
+				el( InspectorControls, null, el( PanelBody, { title: __( 'Section layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, { label: __( 'Image position', 'rcmi-toolkit' ), value: attrs.imageSide, options: [ { label: __( 'Left', 'rcmi-toolkit' ), value: 'left' }, { label: __( 'Right', 'rcmi-toolkit' ), value: 'right' } ], onChange: function ( value ) { props.setAttributes( { imageSide: value } ); } } ),
+					el( SelectControl, { label: __( 'Color treatment', 'rcmi-toolkit' ), value: attrs.tone, options: [ { label: __( 'Light', 'rcmi-toolkit' ), value: 'light' }, { label: __( 'Dark', 'rcmi-toolkit' ), value: 'dark' }, { label: __( 'Brand red', 'rcmi-toolkit' ), value: 'red' } ], onChange: function ( value ) { props.setAttributes( { tone: value } ); } } ),
+					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
+				) ),
+				el( 'section', useBlockProps( { className: 'rcmi-story-split is-image-' + attrs.imageSide + ' is-tone-' + attrs.tone } ), attrs.imageSide === 'left' ? image : copy, attrs.imageSide === 'left' ? copy : image )
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			var image = el( 'div', { className: 'rcmi-story-split-media' }, attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : null );
+			var copy = el( 'div', { className: 'rcmi-story-split-copy' }, attrs.eyebrow ? el( RichText.Content, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow } ) : null, attrs.heading ? el( RichText.Content, { tagName: 'h2', value: attrs.heading } ) : null, el( RichText.Content, { tagName: 'div', className: 'rcmi-story-prose', value: attrs.body } ) );
+			return el( 'section', useBlockProps.save( { className: 'rcmi-story-split is-image-' + attrs.imageSide + ' is-tone-' + attrs.tone } ), attrs.imageSide === 'left' ? image : copy, attrs.imageSide === 'left' ? copy : image );
+		}
+	} );
+
+	registerBlockType( 'rcmi/story-quote', {
+		apiVersion: 3,
+		title: __( 'Story Pull Quote', 'rcmi-toolkit' ),
+		description: __( 'A bold editorial quote that creates rhythm in a story.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'format-quote',
+		supports: { html: false, reusable: false, align: [ 'wide', 'full' ] },
+		attributes: { quote: { type: 'string', default: '' }, citation: { type: 'string', default: '' }, context: { type: 'string', default: '' }, tone: { type: 'string', default: 'slate' } },
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			return el( Fragment, null,
+				el( InspectorControls, null, el( PanelBody, { title: __( 'Quote style', 'rcmi-toolkit' ), initialOpen: true }, el( SelectControl, { label: __( 'Color treatment', 'rcmi-toolkit' ), value: attrs.tone, options: [ { label: __( 'Slate', 'rcmi-toolkit' ), value: 'slate' }, { label: __( 'Red', 'rcmi-toolkit' ), value: 'red' }, { label: __( 'Light', 'rcmi-toolkit' ), value: 'light' } ], onChange: function ( value ) { props.setAttributes( { tone: value } ); } } ) ) ),
+				el( 'figure', useBlockProps( { className: 'rcmi-story-quote is-tone-' + attrs.tone } ),
+					el( RichText, { tagName: 'blockquote', value: attrs.quote, placeholder: __( 'A memorable line from the story…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { quote: value } ); } } ),
+					el( 'figcaption', null, el( RichText, { tagName: 'strong', value: attrs.citation, placeholder: __( 'Name or source…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { citation: value } ); } } ), el( RichText, { tagName: 'span', value: attrs.context, placeholder: __( 'Role or context…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { context: value } ); } } ) )
+				)
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			return el( 'figure', useBlockProps.save( { className: 'rcmi-story-quote is-tone-' + attrs.tone } ), el( RichText.Content, { tagName: 'blockquote', value: attrs.quote } ), ( attrs.citation || attrs.context ) ? el( 'figcaption', null, attrs.citation ? el( RichText.Content, { tagName: 'strong', value: attrs.citation } ) : null, attrs.context ? el( RichText.Content, { tagName: 'span', value: attrs.context } ) : null ) : null );
+		}
+	} );
+
+	registerBlockType( 'rcmi/story-immersive', {
+		apiVersion: 3,
+		title: __( 'Immersive Image', 'rcmi-toolkit' ),
+		description: __( 'A full-width image with cinematic text overlay.', 'rcmi-toolkit' ),
+		category: 'rcmi-stories',
+		icon: 'cover-image',
+		supports: { html: false, reusable: false, align: [ 'full' ] },
+		attributes: Object.assign( storyImageAttributes(), {
+			eyebrow: { type: 'string', default: '' }, heading: { type: 'string', default: '' }, body: { type: 'string', default: '' }, height: { type: 'number', default: 80 }, contentPosition: { type: 'string', default: 'bottom-left' }, scrim: { type: 'number', default: 65 }
+		} ),
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			var onSelect = function ( media ) { props.setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || '' } ); };
+			return el( Fragment, null,
+				el( InspectorControls, null, el( PanelBody, { title: __( 'Immersive layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( RangeControl, { label: __( 'Section height (vh)', 'rcmi-toolkit' ), value: attrs.height, min: 50, max: 100, onChange: function ( value ) { props.setAttributes( { height: value } ); } } ),
+					el( SelectControl, { label: __( 'Text position', 'rcmi-toolkit' ), value: attrs.contentPosition, options: [ { label: __( 'Bottom left', 'rcmi-toolkit' ), value: 'bottom-left' }, { label: __( 'Center', 'rcmi-toolkit' ), value: 'center' }, { label: __( 'Top left', 'rcmi-toolkit' ), value: 'top-left' } ], onChange: function ( value ) { props.setAttributes( { contentPosition: value } ); } } ),
+					el( RangeControl, { label: __( 'Overlay strength', 'rcmi-toolkit' ), value: attrs.scrim, min: 20, max: 90, onChange: function ( value ) { props.setAttributes( { scrim: value } ); } } ),
+					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
+				) ),
+				el( 'section', useBlockProps( { className: 'rcmi-story-immersive is-position-' + attrs.contentPosition, style: { minHeight: attrs.height + 'vh', '--rcmi-story-scrim': attrs.scrim / 100 } } ),
+					attrs.imageUrl ? el( 'img', { className: 'rcmi-story-immersive-media', src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : el( 'div', { className: 'rcmi-story-media-placeholder' }, storyMediaPicker( __( 'Choose immersive image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ),
+					el( 'div', { className: 'rcmi-story-immersive-scrim', 'aria-hidden': 'true' } ),
+					el( 'div', { className: 'rcmi-story-immersive-copy' },
+						el( RichText, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow, placeholder: __( 'Section label…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { eyebrow: value } ); } } ),
+						el( RichText, { tagName: 'h2', value: attrs.heading, placeholder: __( 'A powerful moment…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { heading: value } ); } } ),
+						el( RichText, { tagName: 'p', value: attrs.body, placeholder: __( 'Add context for this scene…', 'rcmi-toolkit' ), onChange: function ( value ) { props.setAttributes( { body: value } ); } } )
+					),
+					attrs.imageUrl ? el( 'div', { className: 'rcmi-story-media-tools' }, storyMediaPicker( __( 'Choose immersive image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ) : null,
+					storyAltWarning( attrs )
+				)
+			);
+		},
+		save: function ( props ) {
+			var attrs = props.attributes;
+			return el( 'section', useBlockProps.save( { className: 'rcmi-story-immersive is-position-' + attrs.contentPosition, style: { minHeight: attrs.height + 'vh', '--rcmi-story-scrim': attrs.scrim / 100 } } ),
+				attrs.imageUrl ? el( 'img', { className: 'rcmi-story-immersive-media', src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : null,
+				el( 'div', { className: 'rcmi-story-immersive-scrim', 'aria-hidden': 'true' } ),
+				el( 'div', { className: 'rcmi-story-immersive-copy' }, attrs.eyebrow ? el( RichText.Content, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow } ) : null, attrs.heading ? el( RichText.Content, { tagName: 'h2', value: attrs.heading } ) : null, attrs.body ? el( RichText.Content, { tagName: 'p', value: attrs.body } ) : null )
+			);
 		}
 	} );
 
