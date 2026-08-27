@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: RCMI Toolkit
- * Description: Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, and Spectra integration.
- * Version: 1.0.1
+ * Description: Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, Spectra integration, and lightweight cookieless analytics.
+ * Version: 1.1.0
  * Author: UH RCMI Web Team
  * License: GPL-2.0-or-later
  * Text Domain: rcmi-toolkit
@@ -14,11 +14,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RCMI_TOOLKIT_VERSION', '1.0.1' );
+define( 'RCMI_TOOLKIT_VERSION', '1.1.0' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
 define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
+
+// Lightweight, cookieless, first-party analytics. See includes/class-rcmi-analytics.php.
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics.php';
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics-admin.php';
 
 function rcmi_toolkit_github_updates_disabled() {
 	return 'production' !== wp_get_environment_type() || is_dir( __DIR__ . '/.git' );
@@ -1388,9 +1392,114 @@ function rcmi_register_server_side_blocks() {
 		},
 	) );
 
-	// rcmi/slide-block — full-bleed slider with background images,
-	// gradient scrim, and editable content per slide. Navigation via
-	// arrows and/or dots. Optional auto-play and random first slide.
+	// rcmi/slide — child block for a single slide inside rcmi/slide-block.
+	// Has its own background image, gradient scrim, content alignment,
+	// and free-form InnerBlocks content. Server-side rendered (dynamic).
+	register_block_type( 'rcmi/slide', array(
+		'supports' => array(
+			'html' => false,
+			'color' => array(
+				'text'       => true,
+				'background' => false,
+				'gradient'   => false,
+				'link'       => false,
+			),
+			'typography' => array(
+				'fontFamily' => true,
+				'textAlign'  => true,
+			),
+		),
+		'attributes' => array(
+			'bgImageId'         => array( 'type' => 'number', 'default' => 0 ),
+			'bgImageUrl'        => array( 'type' => 'string', 'default' => '' ),
+			'bgPositionX'       => array( 'type' => 'number', 'default' => 50 ),
+			'bgPositionY'       => array( 'type' => 'number', 'default' => 50 ),
+			'bgScale'           => array( 'type' => 'number', 'default' => 120 ),
+			'bgMobileImageId'   => array( 'type' => 'number', 'default' => 0 ),
+			'bgMobileImageUrl'  => array( 'type' => 'string', 'default' => '' ),
+			'bgMobileScale'     => array( 'type' => 'number', 'default' => 110 ),
+			'bgMobilePositionX' => array( 'type' => 'number', 'default' => 50 ),
+			'bgMobilePositionY' => array( 'type' => 'number', 'default' => 50 ),
+			'scrimStops'        => array( 'type' => 'array', 'default' => array() ),
+			'scrimType'         => array( 'type' => 'string', 'default' => 'linear' ),
+			'scrimAngle'        => array( 'type' => 'number', 'default' => 90 ),
+			'contentAlign'      => array( 'type' => 'string', 'default' => 'left' ),
+		),
+		'render_callback' => function ( $attrs, $content ) {
+			$attrs = is_array( $attrs ) ? $attrs : array();
+			$content = trim( $content ?? '' );
+
+			// Text color support.
+			$color_class = '';
+			$color_style = '';
+			if ( ! empty( $attrs['textColor'] ) ) {
+				$color_class = ' has-text-color has-' . sanitize_title( $attrs['textColor'] ) . '-color';
+			} elseif ( ! empty( $attrs['style']['color']['text'] ) ) {
+				$color_class = ' has-text-color';
+				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
+			}
+
+			// Background image style.
+			$bg_url = $attrs['bgImageUrl'] ?? '';
+			$bg_style = '';
+			if ( $bg_url ) {
+				$bg_scale = intval( $attrs['bgScale'] ?? 120 );
+				$bg_pos_x = intval( $attrs['bgPositionX'] ?? 50 );
+				$bg_pos_y = intval( $attrs['bgPositionY'] ?? 50 );
+				$bg_style = sprintf(
+					'background-image:url(%s);background-size:%d%%;background-position:%d%% %d%%;background-repeat:no-repeat;',
+					esc_url( $bg_url ),
+					$bg_scale,
+					$bg_pos_x,
+					$bg_pos_y
+				);
+			}
+
+			// Scrim gradient.
+			$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
+				$attrs['scrimStops'] ?? array(),
+				$attrs['scrimType'] ?? 'linear',
+				intval( $attrs['scrimAngle'] ?? 90 )
+			) . ';';
+
+			// Content alignment.
+			$align = $attrs['contentAlign'] ?? 'left';
+			$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
+
+			$copy_style = '';
+			if ( $align === 'center' ) {
+				$copy_style = 'max-width:760px;margin:0 auto;';
+			} elseif ( $align === 'right' ) {
+				$copy_style = 'max-width:570px;margin-left:auto;margin-right:0;';
+			}
+
+			// Mobile background image data attributes.
+			$mobile_bg_attr = '';
+			$bg_mobile_url = $attrs['bgMobileImageUrl'] ?? '';
+			if ( $bg_mobile_url ) {
+				$mobile_bg_attr = ' data-mobile-bg="' . esc_url( $bg_mobile_url ) . '"';
+				$mobile_bg_attr .= ' data-mobile-scale="' . intval( $attrs['bgMobileScale'] ?? 110 ) . '"';
+				$mobile_bg_attr .= ' data-mobile-pos-x="' . intval( $attrs['bgMobilePositionX'] ?? 50 ) . '"';
+				$mobile_bg_attr .= ' data-mobile-pos-y="' . intval( $attrs['bgMobilePositionY'] ?? 50 ) . '"';
+			}
+
+			return sprintf(
+				'<section class="rcmi-slide%s%s" style="%s"%s><div class="rcmi-slide-scrim" aria-hidden="true" style="%s"></div><div class="wrap rcmi-slide-inner"><div class="rcmi-slide-copy" style="%s">%s</div></div></section>',
+				esc_attr( ' ' . $align_class ),
+				esc_attr( $color_class ),
+				esc_attr( $bg_style ),
+				$mobile_bg_attr,
+				esc_attr( $scrim_style ),
+				esc_attr( $copy_style ),
+				$content // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP
+			);
+		},
+	) );
+
+	// rcmi/slide-block — parent slider container. Uses InnerBlocks to
+	// contain rcmi/slide children. Server-side rendered (dynamic).
+	// The rendered child blocks arrive as $content; the parent wraps
+	// them in the slider track + navigation.
 	register_block_type( 'rcmi/slide-block', array(
 		'supports' => array(
 			'html' => false,
@@ -1407,7 +1516,6 @@ function rcmi_register_server_side_blocks() {
 			),
 		),
 		'attributes' => array(
-			'slides'           => array( 'type' => 'array', 'default' => array() ),
 			'autoplay'         => array( 'type' => 'boolean', 'default' => false ),
 			'autoplayInterval' => array( 'type' => 'number', 'default' => 5 ),
 			'pauseOnHover'     => array( 'type' => 'boolean', 'default' => true ),
@@ -1426,22 +1534,23 @@ function rcmi_register_server_side_blocks() {
 		),
 		'render_callback' => function ( $attrs, $content ) {
 			$attrs = is_array( $attrs ) ? $attrs : array();
-			$slides = $attrs['slides'] ?? array();
-			if ( empty( $slides ) ) {
+			$content = trim( $content ?? '' );
+
+			if ( empty( $content ) ) {
 				return '';
 			}
 
-			$autoplay         = ! empty( $attrs['autoplay'] );
+			$autoplay          = ! empty( $attrs['autoplay'] );
 			$autoplay_interval = max( 3, intval( $attrs['autoplayInterval'] ?? 5 ) );
-			$pause_on_hover   = ! empty( $attrs['pauseOnHover'] );
-			$random_start     = ! empty( $attrs['randomStart'] );
-			$loop             = ! empty( $attrs['loop'] );
-			$transition       = $attrs['transition'] ?? 'fade';
-			$show_arrows      = ! empty( $attrs['showArrows'] );
-			$show_dots        = ! empty( $attrs['showDots'] );
-			$nav_position     = $attrs['navPosition'] ?? 'bottom';
-			$global_height    = intval( $attrs['height'] ?? 80 );
-			$global_scrim     = ! empty( $attrs['globalScrim'] );
+			$pause_on_hover    = ! empty( $attrs['pauseOnHover'] );
+			$random_start      = ! empty( $attrs['randomStart'] );
+			$loop              = ! empty( $attrs['loop'] );
+			$transition        = $attrs['transition'] ?? 'fade';
+			$show_arrows       = ! empty( $attrs['showArrows'] );
+			$show_dots         = ! empty( $attrs['showDots'] );
+			$nav_position      = $attrs['navPosition'] ?? 'bottom';
+			$global_height     = intval( $attrs['height'] ?? 80 );
+			$global_scrim      = ! empty( $attrs['globalScrim'] );
 
 			// Text color support (preset slug or custom hex).
 			$color_class = '';
@@ -1453,108 +1562,61 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
-			// Build slide panels.
-			$panels_html = '';
-			$dots_html   = '';
-			$i           = 0;
-			foreach ( $slides as $slide ) {
-				$slide_id   = 'rcmi-slide-' . ( $slide['id'] ?? 's' . $i );
-				$is_active  = ( 0 === $i );
-				$slide_height = $global_height;
+			// Apply global height to all slide sections.
+			// Replace height in style attributes of <section class="rcmi-slide..."> elements.
+			$content = preg_replace(
+				'/(<section class="rcmi-slide[^"]*" style="[^"]*?)(height:[^;]+;)/',
+				'$1height:' . $global_height . 'vh;',
+				$content
+			);
 
-				// Background image style.
-				$bg_url = $slide['bgImageUrl'] ?? '';
-				$bg_style = '';
-				if ( $bg_url ) {
-					$bg_scale = intval( $slide['bgScale'] ?? 120 );
-					$bg_pos_x = intval( $slide['bgPositionX'] ?? 50 );
-					$bg_pos_y = intval( $slide['bgPositionY'] ?? 50 );
-					$bg_style = sprintf(
-						'background-image:url(%s);background-size:%d%%;background-position:%d%% %d%%;background-repeat:no-repeat;',
-						esc_url( $bg_url ),
-						$bg_scale,
-						$bg_pos_x,
-						$bg_pos_y
+			// Apply global scrim if enabled — replace all per-slide scrims.
+			if ( $global_scrim ) {
+				$global_scrim_css = 'background: ' . rcmi_toolkit_build_gradient(
+					$attrs['globalScrimStops'] ?? array(),
+					$attrs['globalScrimType'] ?? 'linear',
+					intval( $attrs['globalScrimAngle'] ?? 90 )
+				) . ';';
+				$content = preg_replace(
+					'/(<div class="rcmi-slide-scrim"[^>]*style=")background:[^"]*?(")/',
+					'$1' . esc_attr( $global_scrim_css ) . '$2',
+					$content
+				);
+			}
+
+			// Apply button radius to all buttons.
+			$btn_radius = intval( $attrs['buttonRadius'] ?? 999 );
+			if ( $btn_radius !== 999 ) {
+				$content = preg_replace(
+					'/(border-radius:)\d+px/',
+					'$1' . $btn_radius . 'px',
+					$content
+				);
+			}
+
+			// Mark the first slide as active.
+			$content = preg_replace(
+				'/(<section class="rcmi-slide)/',
+				'$1 is-active',
+				$content,
+				1
+			);
+
+			// Count slides for dots and data attribute.
+			$slide_count = preg_match_all( '/<section class="rcmi-slide/', $content );
+
+			// Build dots.
+			$dots_html = '';
+			if ( $show_dots ) {
+				for ( $i = 0; $i < $slide_count; $i++ ) {
+					$dots_html .= sprintf(
+						'<button class="rcmi-slide-dot%s" type="button" data-slide="%d" aria-label="%s"></button>',
+						0 === $i ? ' is-active' : '',
+						$i,
+						esc_attr( sprintf( __( 'Go to slide %d', 'rcmi-toolkit' ), $i + 1 ) )
 					);
 				}
-
-				// Scrim gradient.
-				if ( $global_scrim ) {
-					$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-						$attrs['globalScrimStops'] ?? array(),
-						$attrs['globalScrimType'] ?? 'linear',
-						intval( $attrs['globalScrimAngle'] ?? 90 )
-					) . ';';
-				} else {
-					$scrim_style = 'background: ' . rcmi_toolkit_build_gradient(
-						$slide['scrimStops'] ?? array(),
-						$slide['scrimType'] ?? 'linear',
-						intval( $slide['scrimAngle'] ?? 90 )
-					) . ';';
-				}
-
-				// Content alignment.
-				$align = $slide['contentAlign'] ?? 'left';
-				$align_class = 'rcmi-align-' . ( in_array( $align, array( 'left', 'center', 'right' ), true ) ? $align : 'left' );
-
-				// Copy style for alignment.
-				$copy_style = '';
-				if ( $align === 'center' ) {
-					$copy_style = 'max-width:760px;margin:0 auto;';
-				} elseif ( $align === 'right' ) {
-					$copy_style = 'max-width:570px;margin-left:auto;margin-right:0;';
-				}
-
-				// Buttons HTML.
-				$buttons_html = '';
-				$btn_radius = intval( $attrs['buttonRadius'] ?? 999 );
-				foreach ( ( $slide['buttons'] ?? array() ) as $btn ) {
-					if ( empty( $btn['text'] ) ) {
-						continue;
-					}
-					$buttons_html .= sprintf(
-						'<a href="%s" class="btn btn-primary" style="border-radius:%dpx">%s</a>',
-						esc_url( $btn['link'] ?? '#' ),
-						$btn_radius,
-						esc_html( $btn['text'] )
-					);
-				}
-
-				// Mobile background image data attributes.
-				$mobile_bg_attr = '';
-				$bg_mobile_url = $slide['bgMobileImageUrl'] ?? '';
-				if ( $bg_mobile_url ) {
-					$mobile_bg_attr = ' data-mobile-bg="' . esc_url( $bg_mobile_url ) . '"';
-					$mobile_bg_attr .= ' data-mobile-scale="' . intval( $slide['bgMobileScale'] ?? 110 ) . '"';
-					$mobile_bg_attr .= ' data-mobile-pos-x="' . intval( $slide['bgMobilePositionX'] ?? 50 ) . '"';
-					$mobile_bg_attr .= ' data-mobile-pos-y="' . intval( $slide['bgMobilePositionY'] ?? 50 ) . '"';
-				}
-
-				$panels_html .= sprintf(
-					'<section id="%s" class="rcmi-slide%s%s%s" style="height:%dvh;%s"%s><div class="rcmi-slide-scrim" aria-hidden="true" style="%s"></div><div class="wrap rcmi-slide-inner"><div class="rcmi-slide-copy" style="%s"><h2>%s</h2><p class="lede">%s</p>%s</div></div></section>',
-					esc_attr( $slide_id ),
-					$is_active ? ' is-active' : '',
-					esc_attr( ' ' . $align_class ),
-					esc_attr( $color_class ),
-					$slide_height,
-					esc_attr( $bg_style ),
-					$mobile_bg_attr,
-					esc_attr( $scrim_style ),
-					esc_attr( $copy_style ),
-					wp_kses_post( $slide['heading'] ?? '' ),
-					wp_kses_post( $slide['lede'] ?? '' ),
-					$buttons_html ? '<div class="rcmi-slide-actions">' . $buttons_html . '</div>' : ''
-				);
-
-				// Dot indicator.
-				$dots_html .= sprintf(
-					'<button class="rcmi-slide-dot%s" type="button" data-slide="%d" aria-label="%s"></button>',
-					$is_active ? ' is-active' : '',
-					$i,
-					esc_attr( sprintf( __( 'Go to slide %d', 'rcmi-toolkit' ), $i + 1 ) )
-				);
-
-				$i++;
+				$dots_html = '<div class="rcmi-slide-dots rcmi-slide-dots-' . esc_attr( $nav_position ) . '">' . $dots_html . '</div>';
 			}
 
 			// Build arrows.
@@ -1563,12 +1625,9 @@ function rcmi_register_server_side_blocks() {
 				$arrows_html = '<button class="rcmi-slide-arrow rcmi-slide-arrow-prev" type="button" aria-label="' . esc_attr__( 'Previous slide', 'rcmi-toolkit' ) . '">&#8249;</button><button class="rcmi-slide-arrow rcmi-slide-arrow-next" type="button" aria-label="' . esc_attr__( 'Next slide', 'rcmi-toolkit' ) . '">&#8250;</button>';
 			}
 
-			// Build dots container.
-			$dots_container = $show_dots ? '<div class="rcmi-slide-dots rcmi-slide-dots-' . esc_attr( $nav_position ) . '">' . $dots_html . '</div>' : '';
-
-			// Assemble: nav on top, then slides container, then nav on bottom.
-			$top_nav    = ( 'top' === $nav_position ) ? $dots_container : '';
-			$bottom_nav = ( 'bottom' === $nav_position ) ? $dots_container : '';
+			// Assemble nav.
+			$top_nav    = ( 'top' === $nav_position ) ? $dots_html : '';
+			$bottom_nav = ( 'bottom' === $nav_position ) ? $dots_html : '';
 
 			// Data attributes for the frontend JS.
 			$wrapper_attrs = sprintf(
@@ -1579,7 +1638,7 @@ function rcmi_register_server_side_blocks() {
 				$random_start ? '1' : '0',
 				$loop ? '1' : '0',
 				esc_attr( $transition ),
-				count( $slides )
+				$slide_count
 			);
 
 			return sprintf(
@@ -1588,7 +1647,7 @@ function rcmi_register_server_side_blocks() {
 				$color_style ? ' style="' . esc_attr( $color_style ) . '"' : '',
 				$wrapper_attrs,
 				$top_nav,
-				$panels_html,
+				$content, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- rendered child blocks
 				$arrows_html,
 				$bottom_nav
 			);

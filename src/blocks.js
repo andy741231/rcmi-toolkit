@@ -1882,11 +1882,236 @@
 	} );
 
 	// ============================================================
-	// Block: rcmi/slide-block
+	// Block: rcmi/slide (child of rcmi/slide-block)
+	// A single slide with background image, gradient scrim, content
+	// alignment, and free-form InnerBlocks content (same flexibility
+	// as the RCMI Hero block). Used inside rcmi/slide-block.
+	// ============================================================
+	registerBlockType( 'rcmi/slide', {
+		apiVersion: 3,
+		title: __( 'RCMI Slide', 'rcmi-toolkit' ),
+		description: __( 'A single slide with background image, gradient scrim, and editable content. Place inside the RCMI Slide Block.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'images-alt',
+		parent: [ 'rcmi/slide-block' ],
+		supports: {
+			html: false,
+			color: {
+				text: true,
+				background: false,
+				gradient: false,
+				link: false,
+			},
+			typography: {
+				fontFamily: true,
+				textAlign: true,
+			},
+		},
+		attributes: {
+			bgImageId:         { type: 'number', default: 0 },
+			bgImageUrl:        { type: 'string', default: '' },
+			bgPositionX:       { type: 'number', default: 50 },
+			bgPositionY:       { type: 'number', default: 50 },
+			bgScale:           { type: 'number', default: 120 },
+			bgMobileImageId:   { type: 'number', default: 0 },
+			bgMobileImageUrl:  { type: 'string', default: '' },
+			bgMobileScale:     { type: 'number', default: 110 },
+			bgMobilePositionX: { type: 'number', default: 50 },
+			bgMobilePositionY: { type: 'number', default: 50 },
+			scrimStops:        { type: 'array', default: [
+				{ color: '#f8f5ee', opacity: 0.85, position: 0 },
+				{ color: '#f8f5ee', opacity: 0.34, position: 40 },
+				{ color: '#f8f5ee', opacity: 0, position: 65 }
+			] },
+			scrimType:         { type: 'string', default: 'linear' },
+			scrimAngle:        { type: 'number', default: 90 },
+			contentAlign:      { type: 'string', default: 'left' },
+		},
+		edit: function ( props ) {
+			var attrs = props.attributes, setAttributes = props.setAttributes;
+			var blockProps = useBlockProps( { className: 'rcmi-slide-editor' } );
+
+			var scrimGradient = buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle );
+
+			// Background style
+			var bgStyle = {};
+			if ( attrs.bgImageUrl ) {
+				bgStyle.backgroundImage = 'url(' + attrs.bgImageUrl + ')';
+				bgStyle.backgroundSize = ( attrs.bgScale || 120 ) + '%';
+				bgStyle.backgroundPosition = ( attrs.bgPositionX || 50 ) + '% ' + ( attrs.bgPositionY || 50 ) + '%';
+				bgStyle.backgroundRepeat = 'no-repeat';
+			}
+
+			// Content alignment style
+			var copyStyle = {};
+			if ( attrs.contentAlign === 'center' ) {
+				copyStyle.maxWidth = '760px';
+				copyStyle.margin = '0 auto';
+			} else if ( attrs.contentAlign === 'right' ) {
+				copyStyle.maxWidth = '570px';
+				copyStyle.marginLeft = 'auto';
+				copyStyle.marginRight = '0';
+			}
+
+			// Text color support
+			var colorClass = '';
+			if ( attrs.textColor ) {
+				colorClass = ' has-text-color has-' + attrs.textColor + '-color';
+			}
+
+			// Generate unique spectraId values for Spectra blocks in template
+			var genSpectraId = function () {
+				var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+				var part1 = '', part2 = '';
+				for ( var i = 0; i < 8; i++ ) { part1 += chars.charAt( Math.floor( Math.random() * chars.length ) ); }
+				for ( var j = 0; j < 6; j++ ) { part2 += chars.charAt( Math.floor( Math.random() * chars.length ) ); }
+				return 'spectra-' + part1 + '-' + part2;
+			};
+
+			// Check whether this block already has inner blocks
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
+
+			// Default template — mirrors the RCMI Hero block
+			var slideTemplate = [
+				[ 'core/heading', {
+					level: 2,
+					placeholder: __( 'Heading…', 'rcmi-toolkit' ),
+					content: 'Advancing Chronic Disease Research.'
+				} ],
+				[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+					[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+						[ 'spectra/icons', { spectraId: genSpectraId() }, [
+							[ 'spectra/icon', {
+								icon: 'minus',
+								size: '18px',
+								textColor: '#C8102E',
+								responsiveControls: { lg: { size: '18px' } },
+								spectraId: genSpectraId()
+							} ]
+						] ]
+					] ],
+					[ 'core/paragraph', {
+						placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+						content: ' Accelerating Real‑World Impact.'
+					} ]
+				] ],
+				[ 'core/paragraph', {
+					placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
+					content: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
+					className: 'lede'
+				} ],
+				[ 'core/group', { layout: { type: 'flex', flexWrap: 'nowrap' } }, [
+					[ 'spectra/buttons', { spectraId: genSpectraId() }, [
+						[ 'spectra/button', {
+							text: 'Learn More',
+							style: { border: { radius: { topLeft: '12px', topRight: '12px', bottomLeft: '12px', bottomRight: '12px' } } },
+							spectraId: genSpectraId()
+						} ]
+					] ]
+				] ]
+			];
+
+			// Content alignment buttons
+			var alignButtons = el( 'div', { style: { display: 'flex', gap: '4px', marginTop: '4px' } },
+				[ 'left', 'center', 'right' ].map( function ( a ) {
+					return el( wp.components.Button, {
+						key: 'align-' + a,
+						onClick: function () { setAttributes( { contentAlign: a } ); },
+						variant: attrs.contentAlign === a ? 'primary' : 'secondary',
+						isPressed: attrs.contentAlign === a
+					}, a.charAt( 0 ).toUpperCase() + a.slice( 1 ) );
+				} )
+			);
+
+			// Inspector controls
+			var inspector = el( InspectorControls, null,
+				// Background image
+				el( PanelBody, { title: __( 'Background Image', 'rcmi-toolkit' ), initialOpen: true },
+					el( MediaUpload, {
+						onSelect: function ( media ) { setAttributes( { bgImageId: media.id, bgImageUrl: media.url } ); },
+						allowedTypes: 'image',
+						value: attrs.bgImageId,
+						render: function ( obj ) {
+							return el( wp.components.Button, { onClick: obj.open, variant: 'secondary', className: 'rcmi-image-picker-btn' },
+								attrs.bgImageUrl ? __( 'Replace Background Image', 'rcmi-toolkit' ) : __( 'Choose Background Image', 'rcmi-toolkit' )
+							);
+						}
+					} ),
+					attrs.bgImageUrl ? el( 'div', { className: 'rcmi-image-preview' },
+						el( 'img', { src: attrs.bgImageUrl, alt: __( 'Slide background', 'rcmi-toolkit' ) } ),
+						el( wp.components.Button, { onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true }, __( 'Remove image', 'rcmi-toolkit' ) )
+					) : null,
+					el( RangeControl, { label: __( 'Background Position X (%)', 'rcmi-toolkit' ), value: attrs.bgPositionX, onChange: function ( v ) { setAttributes( { bgPositionX: v } ); }, min: 0, max: 100, step: 1 } ),
+					el( RangeControl, { label: __( 'Background Position Y (%)', 'rcmi-toolkit' ), value: attrs.bgPositionY, onChange: function ( v ) { setAttributes( { bgPositionY: v } ); }, min: 0, max: 100, step: 1 } ),
+					el( RangeControl, { label: __( 'Background Scale (%)', 'rcmi-toolkit' ), value: attrs.bgScale, onChange: function ( v ) { setAttributes( { bgScale: v } ); }, min: 100, max: 300, step: 5 } )
+				),
+				// Mobile background image
+				el( PanelBody, { title: __( 'Mobile Background', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { style: { fontSize: '12px', color: '#666', margin: '0 0 8px' } }, __( 'Optional image for screens <768px.', 'rcmi-toolkit' ) ),
+					el( MediaUpload, {
+						onSelect: function ( media ) { setAttributes( { bgMobileImageId: media.id, bgMobileImageUrl: media.url } ); },
+						allowedTypes: 'image',
+						value: attrs.bgMobileImageId,
+						render: function ( obj ) {
+							return el( wp.components.Button, { onClick: obj.open, variant: 'secondary', isSmall: true },
+								attrs.bgMobileImageUrl ? __( 'Replace Mobile Image', 'rcmi-toolkit' ) : __( 'Choose Mobile Image', 'rcmi-toolkit' )
+							);
+						}
+					} ),
+					attrs.bgMobileImageUrl ? el( wp.components.Button, { onClick: function () { setAttributes( { bgMobileImageId: 0, bgMobileImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove mobile image', 'rcmi-toolkit' ) ) : null,
+					attrs.bgMobileImageUrl ? el( Fragment, null,
+						el( RangeControl, { label: __( 'Mobile Scale (%)', 'rcmi-toolkit' ), value: attrs.bgMobileScale, onChange: function ( v ) { setAttributes( { bgMobileScale: v } ); }, min: 25, max: 300, step: 5 } ),
+						el( RangeControl, { label: __( 'Mobile Position X', 'rcmi-toolkit' ), value: attrs.bgMobilePositionX, onChange: function ( v ) { setAttributes( { bgMobilePositionX: v } ); }, min: 0, max: 100 } ),
+						el( RangeControl, { label: __( 'Mobile Position Y', 'rcmi-toolkit' ), value: attrs.bgMobilePositionY, onChange: function ( v ) { setAttributes( { bgMobilePositionY: v } ); }, min: 0, max: 100 } )
+					) : null
+				),
+				// Gradient scrim
+				el( PanelBody, { title: __( 'Gradient Scrim', 'rcmi-toolkit' ), initialOpen: false },
+					renderGradientPicker( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle, function ( stops, type, angle ) {
+						setAttributes( { scrimStops: stops, scrimType: type, scrimAngle: angle } );
+					} )
+				),
+				// Content alignment
+				el( PanelBody, { title: __( 'Content Alignment', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'label', { style: { display: 'block', fontWeight: '600', marginBottom: '4px' } }, __( 'Content alignment', 'rcmi-toolkit' ) ),
+					alignButtons
+				)
+			);
+
+			return el( Fragment, null,
+				inspector,
+				el( 'div', blockProps,
+					el( 'section', { className: 'rcmi-slide' + colorClass, style: Object.assign( { minHeight: '320px', position: 'relative', display: 'flex', alignItems: 'center' }, bgStyle ) },
+						el( 'div', { className: 'rcmi-slide-scrim', style: { background: scrimGradient } } ),
+						el( 'div', { className: 'wrap rcmi-slide-inner' },
+							el( 'div', { className: 'rcmi-slide-copy', style: copyStyle },
+								el( InnerBlocks, {
+									allowedBlocks: [ 'core/heading', 'core/paragraph', 'core/buttons', 'core/list', 'core/image', 'core/spacer', 'core/separator', 'core/group', 'spectra/buttons', 'spectra/button', 'spectra/container' ],
+									template: hasInnerBlocks ? undefined : slideTemplate,
+									renderAppender: InnerBlocks.ButtonBlockAppender
+								} )
+							)
+						)
+					)
+				)
+			);
+		},
+		save: function () {
+			// InnerBlocks content is serialized between the block delimiters.
+			// The render_callback wraps it with the slide layout.
+			return el( InnerBlocks.Content );
+		}
+	} );
+
+	// ============================================================
+	// Block: rcmi/slide-block (parent slider container)
 	// Full-bleed slider with static background images, gradient scrim,
-	// and free-form content per slide. Navigation via arrows and/or dots.
-	// Optional auto-play, random first slide, and GSAP transitions.
-	// No parallax, no tab labels — just slides with prev/next + dots.
+	// and free-form content per slide (via InnerBlocks). Navigation
+	// via arrows and/or dots. Optional auto-play, random first slide,
+	// and GSAP transitions. Each slide is an rcmi/slide child block.
 	// ============================================================
 	registerBlockType( 'rcmi/slide-block', {
 		apiVersion: 3,
@@ -1909,178 +2134,43 @@
 			},
 		},
 		attributes: {
-			slides: {
-				type: 'array',
-				default: [
-					{
-						id: 'slide-1',
-						bgImageId: 0,
-						bgImageUrl: '',
-						bgPositionX: 50,
-						bgPositionY: 50,
-						bgScale: 120,
-						bgMobileImageId: 0,
-						bgMobileImageUrl: '',
-						bgMobileScale: 110,
-						bgMobilePositionX: 50,
-						bgMobilePositionY: 50,
-						scrimStops: [
-							{ color: '#f8f5ee', opacity: 0.85, position: 0 },
-							{ color: '#f8f5ee', opacity: 0.34, position: 40 },
-							{ color: '#f8f5ee', opacity: 0, position: 65 }
-						],
-						scrimType: 'linear',
-						scrimAngle: 90,
-						contentAlign: 'left',
-						heading: 'Advancing Chronic<br>Disease Research.',
-						lede: 'Building research capacity, developing investigators, and partnering with communities to improve chronic disease outcomes across Houston and beyond.',
-						buttons: [ { text: 'Request Support', link: '#start' } ]
-					},
-					{
-						id: 'slide-2',
-						bgImageId: 0,
-						bgImageUrl: '',
-						bgPositionX: 50,
-						bgPositionY: 50,
-						bgScale: 120,
-						bgMobileImageId: 0,
-						bgMobileImageUrl: '',
-						bgMobileScale: 110,
-						bgMobilePositionX: 50,
-						bgMobilePositionY: 50,
-						scrimStops: [
-							{ color: '#f8f5ee', opacity: 0.85, position: 0 },
-							{ color: '#f8f5ee', opacity: 0.34, position: 40 },
-							{ color: '#f8f5ee', opacity: 0, position: 65 }
-						],
-						scrimType: 'linear',
-						scrimAngle: 90,
-						contentAlign: 'left',
-						heading: 'Growing the next<br>generation of leaders.',
-						lede: 'We invest early and often in the people who will carry chronic disease research forward — through funding, mentorship, and structured training pathways.',
-						buttons: [ { text: 'Learn More', link: '#' } ]
-					}
-				]
-			},
-			autoplay: { type: 'boolean', default: false },
+			autoplay:         { type: 'boolean', default: false },
 			autoplayInterval: { type: 'number', default: 5 },
-			pauseOnHover: { type: 'boolean', default: true },
-			randomStart: { type: 'boolean', default: false },
-			loop: { type: 'boolean', default: true },
-			transition: { type: 'string', default: 'fade' },
-			showArrows: { type: 'boolean', default: true },
-			showDots: { type: 'boolean', default: true },
-			navPosition: { type: 'string', default: 'bottom' },
-			height: { type: 'number', default: 80 },
-			globalScrim: { type: 'boolean', default: false },
+			pauseOnHover:     { type: 'boolean', default: true },
+			randomStart:      { type: 'boolean', default: false },
+			loop:             { type: 'boolean', default: true },
+			transition:       { type: 'string', default: 'fade' },
+			showArrows:       { type: 'boolean', default: true },
+			showDots:         { type: 'boolean', default: true },
+			navPosition:      { type: 'string', default: 'bottom' },
+			height:           { type: 'number', default: 80 },
+			globalScrim:      { type: 'boolean', default: false },
 			globalScrimStops: { type: 'array', default: [
 				{ color: '#f8f5ee', opacity: 0.85, position: 0 },
 				{ color: '#f8f5ee', opacity: 0.34, position: 40 },
 				{ color: '#f8f5ee', opacity: 0, position: 65 }
 			] },
-			globalScrimType: { type: 'string', default: 'linear' },
+			globalScrimType:  { type: 'string', default: 'linear' },
 			globalScrimAngle: { type: 'number', default: 90 },
-			buttonRadius: { type: 'number', default: 999 }
+			buttonRadius:     { type: 'number', default: 999 }
 		},
 		edit: function ( props ) {
 			var attrs = props.attributes, setAttributes = props.setAttributes;
-			var activeSlide = useState( 0 );
-			var activeIdx = activeSlide[0];
-			var setActiveIdx = activeSlide[1];
 			var blockProps = useBlockProps( { className: 'rcmi-slide-block-editor' } );
-			var slides = attrs.slides || [];
 
-			var updateSlide = function ( idx, key, val ) {
-				var newSlides = slides.map( function ( s, i ) {
-					if ( i !== idx ) return s;
-					var ns = Object.assign( {}, s );
-					ns[ key ] = val;
-					return ns;
-				} );
-				setAttributes( { slides: newSlides } );
-			};
+			// Check whether this block already has inner blocks
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
 
-			var addSlide = function () {
-				var newId = 'slide-' + Date.now();
-				var newSlide = {
-					id: newId,
-					bgImageId: 0, bgImageUrl: '',
-					bgPositionX: 50, bgPositionY: 50, bgScale: 120,
-					bgMobileImageId: 0, bgMobileImageUrl: '',
-					bgMobileScale: 110, bgMobilePositionX: 50, bgMobilePositionY: 50,
-					scrimStops: [
-						{ color: '#f8f5ee', opacity: 0.85, position: 0 },
-						{ color: '#f8f5ee', opacity: 0.34, position: 40 },
-						{ color: '#f8f5ee', opacity: 0, position: 65 }
-					],
-					scrimType: 'linear', scrimAngle: 90,
-					contentAlign: 'left',
-					heading: '', lede: '',
-					buttons: [ { text: '', link: '#' } ]
-				};
-				setAttributes( { slides: slides.concat( [ newSlide ] ) } );
-				setActiveIdx( slides.length );
-			};
+			// Default template: two rcmi/slide children
+			var sliderTemplate = [
+				[ 'rcmi/slide' ],
+				[ 'rcmi/slide' ]
+			];
 
-			var removeSlide = function ( idx ) {
-				if ( slides.length <= 1 ) return;
-				var newSlides = slides.filter( function ( _, i ) { return i !== idx; } );
-				setAttributes( { slides: newSlides } );
-				if ( activeIdx >= newSlides.length ) {
-					setActiveIdx( newSlides.length - 1 );
-				}
-			};
-
-			var moveSlide = function ( idx, dir ) {
-				var newIdx = idx + dir;
-				if ( newIdx < 0 || newIdx >= slides.length ) return;
-				var newSlides = slides.slice();
-				var tmp = newSlides[ newIdx ];
-				newSlides[ newIdx ] = newSlides[ idx ];
-				newSlides[ idx ] = tmp;
-				setAttributes( { slides: newSlides } );
-				if ( activeIdx === idx ) setActiveIdx( newIdx );
-				else if ( activeIdx === newIdx ) setActiveIdx( idx );
-			};
-
-			var addButton = function ( sIdx ) {
-				var newSlides = slides.map( function ( s, i ) {
-					if ( i !== sIdx ) return s;
-					var ns = Object.assign( {}, s );
-					ns.buttons = ( ns.buttons || [] ).concat( [ { text: '', link: '#' } ] );
-					return ns;
-				} );
-				setAttributes( { slides: newSlides } );
-			};
-
-			var removeButton = function ( sIdx, bIdx ) {
-				var newSlides = slides.map( function ( s, i ) {
-					if ( i !== sIdx ) return s;
-					var ns = Object.assign( {}, s );
-					ns.buttons = ( ns.buttons || [] ).filter( function ( _, bi ) { return bi !== bIdx; } );
-					return ns;
-				} );
-				setAttributes( { slides: newSlides } );
-			};
-
-			var updateButton = function ( sIdx, bIdx, key, val ) {
-				var newSlides = slides.map( function ( s, i ) {
-					if ( i !== sIdx ) return s;
-					var ns = Object.assign( {}, s );
-					ns.buttons = ( ns.buttons || [] ).map( function ( b, bi ) {
-						if ( bi !== bIdx ) return b;
-						var nb = Object.assign( {}, b );
-						nb[ key ] = val;
-						return nb;
-					} );
-					return ns;
-				} );
-				setAttributes( { slides: newSlides } );
-			};
-
-			// ---- Inspector panels ----
-
-			// Settings panel: autoplay, transition, navigation, etc.
+			// Settings panel
 			var settingsPanel = el( PanelBody, { title: __( 'Slider Settings', 'rcmi-toolkit' ), initialOpen: true },
 				el( ToggleControl, { label: __( 'Auto-play', 'rcmi-toolkit' ), checked: !! attrs.autoplay, onChange: function ( v ) { setAttributes( { autoplay: v } ); } } ),
 				attrs.autoplay ? el( Fragment, null,
@@ -2106,7 +2196,7 @@
 				el( RangeControl, { label: __( 'Button radius (px)', 'rcmi-toolkit' ), value: attrs.buttonRadius, onChange: function ( v ) { setAttributes( { buttonRadius: v } ); }, min: 0, max: 999, step: 1, help: __( '0 = square, 999 = fully rounded (pill).', 'rcmi-toolkit' ) } )
 			);
 
-			// Navigation panel.
+			// Navigation panel
 			var navPanel = el( PanelBody, { title: __( 'Navigation', 'rcmi-toolkit' ), initialOpen: false },
 				el( ToggleControl, { label: __( 'Show arrow buttons', 'rcmi-toolkit' ), checked: !! attrs.showArrows, onChange: function ( v ) { setAttributes( { showArrows: v } ); } } ),
 				el( ToggleControl, { label: __( 'Show dot indicators', 'rcmi-toolkit' ), checked: !! attrs.showDots, onChange: function ( v ) { setAttributes( { showDots: v } ); } } ),
@@ -2121,7 +2211,7 @@
 				} )
 			);
 
-			// Global gradient panel.
+			// Global gradient panel
 			var globalScrimPanel = el( PanelBody, { title: __( 'Global Background Gradient', 'rcmi-toolkit' ), initialOpen: false },
 				el( 'p', { style: { color: '#666', fontSize: '12px', marginTop: 0 } }, __( 'When enabled, this gradient overrides the per-slide gradient for all slides.', 'rcmi-toolkit' ) ),
 				el( ToggleControl, { label: __( 'Enable global gradient', 'rcmi-toolkit' ), checked: !! attrs.globalScrim, onChange: function ( v ) { setAttributes( { globalScrim: v } ); } } ),
@@ -2132,203 +2222,23 @@
 				) : null
 			);
 
-			// Slides management panel: add/remove/reorder.
-			var slidesPanel = el( PanelBody, { title: __( 'Slides', 'rcmi-toolkit' ), initialOpen: false },
-				slides.map( function ( slide, idx ) {
-					return el( 'div', { key: 'slide-mgmt-' + idx, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' } },
-						el( 'span', { style: { fontSize: '13px' } }, __( 'Slide ' + ( idx + 1 ) ) ),
-						el( 'div', null,
-							idx > 0 ? el( wp.components.Button, { onClick: function () { moveSlide( idx, -1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-up-alt2' } ) : null,
-							idx < slides.length - 1 ? el( wp.components.Button, { onClick: function () { moveSlide( idx, 1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-down-alt2' } ) : null,
-							slides.length > 1 ? el( wp.components.Button, { onClick: function () { removeSlide( idx ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove', 'rcmi-toolkit' ) ) : null
-						)
-					);
-				} ),
-				el( wp.components.Button, { onClick: function () { addSlide(); }, variant: 'secondary', isSmall: true, style: { marginTop: '10px' } }, __( '+ Add Slide', 'rcmi-toolkit' ) )
-			);
-
-			// Per-slide inspector panels.
-			var slidePanels = slides.map( function ( slide, idx ) {
-				var slideHeight = attrs.height;
-				return el( PanelBody, { title: __( 'Slide ' + ( idx + 1 ), 'rcmi-toolkit' ), initialOpen: false, key: 'slide-panel-' + idx },
-					// Background image
-					el( MediaUpload, {
-						onSelect: function ( media ) { updateSlide( idx, 'bgImageId', media.id ); updateSlide( idx, 'bgImageUrl', media.url ); },
-						allowedTypes: 'image',
-						value: slide.bgImageId,
-						render: function ( obj ) {
-							return el( wp.components.Button, { onClick: obj.open, variant: 'secondary', className: 'rcmi-image-picker-btn' },
-								slide.bgImageUrl ? __( 'Replace Background Image', 'rcmi-toolkit' ) : __( 'Choose Background Image', 'rcmi-toolkit' )
-							);
-						}
-					} ),
-					slide.bgImageUrl ? el( 'div', { className: 'rcmi-image-preview' },
-						el( 'img', { src: slide.bgImageUrl, alt: __( 'Slide background', 'rcmi-toolkit' ) } ),
-						el( wp.components.Button, { onClick: function () { updateSlide( idx, 'bgImageId', 0 ); updateSlide( idx, 'bgImageUrl', '' ); }, variant: 'tertiary', isDestructive: true }, __( 'Remove image', 'rcmi-toolkit' ) )
-					) : null,
-					// Background position & scale
-					el( RangeControl, { label: __( 'Background Position X (%)', 'rcmi-toolkit' ), value: slide.bgPositionX, onChange: function ( v ) { updateSlide( idx, 'bgPositionX', v ); }, min: 0, max: 100, step: 1 } ),
-					el( RangeControl, { label: __( 'Background Position Y (%)', 'rcmi-toolkit' ), value: slide.bgPositionY, onChange: function ( v ) { updateSlide( idx, 'bgPositionY', v ); }, min: 0, max: 100, step: 1 } ),
-					el( RangeControl, { label: __( 'Background Scale (%)', 'rcmi-toolkit' ), value: slide.bgScale, onChange: function ( v ) { updateSlide( idx, 'bgScale', v ); }, min: 100, max: 300, step: 5 } ),
-					// Mobile background image
-					el( 'p', { style: { fontSize: '12px', color: '#666', margin: '10px 0 4px' } }, __( 'Mobile Background (optional, for screens <768px)', 'rcmi-toolkit' ) ),
-					el( MediaUpload, {
-						onSelect: function ( media ) { updateSlide( idx, 'bgMobileImageId', media.id ); updateSlide( idx, 'bgMobileImageUrl', media.url ); },
-						allowedTypes: 'image',
-						value: slide.bgMobileImageId,
-						render: function ( obj ) {
-							return el( wp.components.Button, { onClick: obj.open, variant: 'secondary', isSmall: true },
-								slide.bgMobileImageUrl ? __( 'Replace Mobile Image', 'rcmi-toolkit' ) : __( 'Choose Mobile Image', 'rcmi-toolkit' )
-							);
-						}
-					} ),
-					slide.bgMobileImageUrl ? el( wp.components.Button, { onClick: function () { updateSlide( idx, 'bgMobileImageId', 0 ); updateSlide( idx, 'bgMobileImageUrl', '' ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove mobile image', 'rcmi-toolkit' ) ) : null,
-					// Per-slide gradient scrim (only if global scrim is off)
-					! attrs.globalScrim ? el( 'div', { key: 'slide-grad-' + idx, style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
-						renderGradientPicker( slide.scrimStops, slide.scrimType, slide.scrimAngle, function ( stops, type, angle ) {
-							var newSlides = slides.map( function ( s, i ) {
-								if ( i !== idx ) return s;
-								var ns = Object.assign( {}, s );
-								ns.scrimStops = stops;
-								ns.scrimType = type;
-								ns.scrimAngle = angle;
-								return ns;
-							} );
-							setAttributes( { slides: newSlides } );
-						} )
-					) : null,
-					// Content alignment
-					el( SelectControl, {
-						label: __( 'Content alignment', 'rcmi-toolkit' ),
-						value: slide.contentAlign,
-						options: [
-							{ value: 'left', label: __( 'Left', 'rcmi-toolkit' ) },
-							{ value: 'center', label: __( 'Center', 'rcmi-toolkit' ) },
-							{ value: 'right', label: __( 'Right', 'rcmi-toolkit' ) }
-						],
-						onChange: function ( v ) { updateSlide( idx, 'contentAlign', v ); }
-					} ),
-					// Buttons section
-					el( 'div', { style: { borderTop: '1px solid #e0e0e0', paddingTop: '12px', marginTop: '12px' } },
-						el( 'strong', null, __( 'Buttons', 'rcmi-toolkit' ) ),
-						( slide.buttons || [] ).map( function ( btn, bi ) {
-							return el( 'div', { key: 'btn-' + bi, style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
-								el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
-									el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, __( 'Button ' + ( bi + 1 ) ) ),
-									el( wp.components.Button, { onClick: function () { removeButton( idx, bi ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove', 'rcmi-toolkit' ) )
-								),
-								el( TextControl, { label: __( 'Text', 'rcmi-toolkit' ), value: btn.text, onChange: function ( v ) { updateButton( idx, bi, 'text', v ); } } ),
-								el( TextControl, { label: __( 'Link', 'rcmi-toolkit' ), value: btn.link, onChange: function ( v ) { updateButton( idx, bi, 'link', v ); } } )
-							);
-						} ),
-						el( wp.components.Button, { onClick: function () { addButton( idx ); }, variant: 'secondary', isSmall: true }, __( '+ Add Button', 'rcmi-toolkit' ) )
-					)
-				);
-			} );
-
-			// ---- Editor preview ----
-			var activeData = slides[ activeIdx ] || slides[ 0 ] || {};
-			var slideHeight = attrs.height + 'vh';
-			var scrimGradient = buildGradientCSS(
-				attrs.globalScrim ? attrs.globalScrimStops : activeData.scrimStops,
-				attrs.globalScrim ? attrs.globalScrimType : activeData.scrimType,
-				attrs.globalScrim ? attrs.globalScrimAngle : activeData.scrimAngle
-			);
-
-			// Text color support
-			var colorClass = '';
-			if ( attrs.textColor ) {
-				colorClass = ' has-text-color has-' + attrs.textColor + '-color';
-			}
-
-			var copyStyle = {};
-			if ( activeData.contentAlign === 'center' ) {
-				copyStyle.maxWidth = '760px';
-				copyStyle.margin = '0 auto';
-			} else if ( activeData.contentAlign === 'right' ) {
-				copyStyle.maxWidth = '570px';
-				copyStyle.marginLeft = 'auto';
-				copyStyle.marginRight = '0';
-			}
-
-			// Build background style for the active slide
-			var bgStyle = {};
-			if ( activeData.bgImageUrl ) {
-				bgStyle.backgroundImage = 'url(' + activeData.bgImageUrl + ')';
-				bgStyle.backgroundSize = ( activeData.bgScale || 120 ) + '%';
-				bgStyle.backgroundPosition = ( activeData.bgPositionX || 50 ) + '% ' + ( activeData.bgPositionY || 50 ) + '%';
-				bgStyle.backgroundRepeat = 'no-repeat';
-			}
-
-			// Build nav dots for editor
-			var navDots = el( 'div', { className: 'rcmi-slide-dots rcmi-slide-dots-editor' },
-				slides.map( function ( _, idx ) {
-					return el( 'button', {
-						key: 'dot-' + idx,
-						className: 'rcmi-slide-dot' + ( idx === activeIdx ? ' is-active' : '' ),
-						type: 'button',
-						onClick: function () { setActiveIdx( idx ); },
-						'aria-label': __( 'Go to slide ' + ( idx + 1 ) )
-					} );
-				} )
-			);
-
-			// Build nav arrows for editor
-			var navArrows = attrs.showArrows ? el( Fragment, null,
-				el( 'button', { className: 'rcmi-slide-arrow rcmi-slide-arrow-prev', type: 'button', onClick: function () { setActiveIdx( activeIdx > 0 ? activeIdx - 1 : slides.length - 1 ); }, 'aria-label': __( 'Previous slide' ) }, '\u2039' ),
-				el( 'button', { className: 'rcmi-slide-arrow rcmi-slide-arrow-next', type: 'button', onClick: function () { setActiveIdx( activeIdx < slides.length - 1 ? activeIdx + 1 : 0 ); }, 'aria-label': __( 'Next slide' ) }, '\u203a' )
-			) : null;
-
-			var navElements = attrs.navPosition === 'top' ? [ navDots, navArrows ] : [ navArrows, navDots ];
-
 			return el( Fragment, null,
-				el( InspectorControls, null, [ settingsPanel, navPanel, globalScrimPanel, slidesPanel ].concat( slidePanels ) ),
+				el( InspectorControls, null, [ settingsPanel, navPanel, globalScrimPanel ] ),
 				el( 'div', blockProps,
-					attrs.navPosition === 'top' && attrs.showDots ? navDots : null,
-					el( 'section', { className: 'rcmi-slide is-active' + colorClass, style: Object.assign( { height: slideHeight }, bgStyle ) },
-						el( 'div', { className: 'rcmi-slide-scrim', style: { background: scrimGradient } } ),
-						el( 'div', { className: 'wrap rcmi-slide-inner' },
-							el( 'div', { className: 'rcmi-slide-copy', style: copyStyle },
-								el( RichText, {
-									tagName: 'h2',
-									value: activeData.heading,
-									onChange: function ( v ) { updateSlide( activeIdx, 'heading', v ); },
-									placeholder: __( 'Heading…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-								} ),
-								el( RichText, {
-									tagName: 'p',
-									className: 'lede',
-									value: activeData.lede,
-									onChange: function ( v ) { updateSlide( activeIdx, 'lede', v ); },
-									placeholder: __( 'Lede text…', 'rcmi-toolkit' ),
-									allowedFormats: [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ]
-								} ),
-								( activeData.buttons || [] ).length > 0 ? el( 'div', { className: 'rcmi-slide-actions' },
-									( activeData.buttons || [] ).map( function ( btn, bi ) {
-										return el( RichText, {
-											key: 'pb-' + bi,
-											tagName: 'a',
-											className: 'btn btn-primary',
-													style: { borderRadius: ( attrs.buttonRadius != null ? attrs.buttonRadius : 999 ) + 'px' },
-											value: btn.text,
-											onChange: function ( v ) { updateButton( activeIdx, bi, 'text', v ); },
-											placeholder: __( 'Button text…', 'rcmi-toolkit' ),
-											allowedFormats: []
-										} );
-									} )
-								) : null
-							)
-						),
-						navArrows
-					),
-					attrs.navPosition === 'bottom' && attrs.showDots ? navDots : null
+					el( 'div', { className: 'rcmi-slide-block-editor-label' }, __( 'Slide Block — add slides below', 'rcmi-toolkit' ) ),
+					el( InnerBlocks, {
+						allowedBlocks: [ 'rcmi/slide' ],
+						template: hasInnerBlocks ? undefined : sliderTemplate,
+						renderAppender: InnerBlocks.ButtonBlockAppender
+					} )
 				)
 			);
 		},
 		save: function () {
-			// Server-side rendered (dynamic block).
-			return null;
+			// InnerBlocks content (rcmi/slide children) is serialized
+			// between the block delimiters. The render_callback wraps it
+			// with the slider track + navigation.
+			return el( InnerBlocks.Content );
 		}
 	} );
 

@@ -153,7 +153,7 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 			}
 
 			// Skip anything that isn't a real front-end HTML page load.
-			if ( is_admin() || wp_doing_ajax() || wp_is_xmlrpc_request() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			if ( is_admin() || wp_doing_ajax() || ( defined( 'XMLRPC_REQUEST' ) && XMLRPC_REQUEST ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 				return;
 			}
 			if ( is_robots() || is_trackback() || is_feed() || is_comment_feed() || is_preview() || is_search() ) {
@@ -416,11 +416,12 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 			if ( strpos( $ua, 'windows' ) !== false ) {
 				return 'Windows';
 			}
-			if ( strpos( $ua, 'mac os' ) !== false || strpos( $ua, 'macintosh' ) !== false ) {
-				return 'macOS';
-			}
+			// iOS must be checked before macOS — iPhone/iPad UAs also contain "Mac OS X".
 			if ( strpos( $ua, 'iphone' ) !== false || strpos( $ua, 'ipad' ) !== false || strpos( $ua, 'ios' ) !== false ) {
 				return 'iOS';
+			}
+			if ( strpos( $ua, 'mac os' ) !== false || strpos( $ua, 'macintosh' ) !== false ) {
+				return 'macOS';
 			}
 			if ( strpos( $ua, 'android' ) !== false ) {
 				return 'Android';
