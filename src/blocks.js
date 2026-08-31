@@ -3185,10 +3185,11 @@
 		icon: 'columns',
 		supports: { html: false, reusable: false, align: [ 'wide', 'full' ] },
 		attributes: Object.assign( storyImageAttributes(), {
-			eyebrow: { type: 'string', default: '' }, heading: { type: 'string', default: '' }, body: { type: 'string', default: '' }, imageSide: { type: 'string', default: 'left' }, tone: { type: 'string', default: 'light' }
+			eyebrow: { type: 'string', default: '' }, heading: { type: 'string', default: '' }, body: { type: 'string', default: '' }, imageSide: { type: 'string', default: 'left' }, layout: { type: 'string', default: 'standard' }, tone: { type: 'string', default: 'light' }
 		} ),
 		edit: function ( props ) {
 			var attrs = props.attributes;
+			var layoutClass = attrs.layout && attrs.layout !== 'standard' ? ' is-layout-' + attrs.layout : '';
 			var onSelect = function ( media ) { props.setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || '' } ); };
 			var image = el( 'div', { className: 'rcmi-story-split-media' }, attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : el( 'div', { className: 'rcmi-story-media-placeholder' }, storyMediaPicker( __( 'Choose image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ), attrs.imageUrl ? el( 'div', { className: 'rcmi-story-media-tools' }, storyMediaPicker( __( 'Choose image', 'rcmi-toolkit' ), attrs.imageId, attrs.imageUrl, onSelect ) ) : null, storyAltWarning( attrs ) );
 			var copy = el( 'div', { className: 'rcmi-story-split-copy' },
@@ -3198,20 +3199,22 @@
 			);
 			return el( Fragment, null,
 				el( InspectorControls, null, el( PanelBody, { title: __( 'Section layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, { label: __( 'Layout style', 'rcmi-toolkit' ), value: attrs.layout, options: [ { label: __( 'Standard split', 'rcmi-toolkit' ), value: 'standard' }, { label: __( 'One-third image', 'rcmi-toolkit' ), value: 'third' }, { label: __( 'Floating image', 'rcmi-toolkit' ), value: 'float' } ], onChange: function ( value ) { props.setAttributes( { layout: value } ); } } ),
 					el( SelectControl, { label: __( 'Image position', 'rcmi-toolkit' ), value: attrs.imageSide, options: [ { label: __( 'Left', 'rcmi-toolkit' ), value: 'left' }, { label: __( 'Right', 'rcmi-toolkit' ), value: 'right' } ], onChange: function ( value ) { props.setAttributes( { imageSide: value } ); } } ),
 					el( SelectControl, { label: __( 'Color treatment', 'rcmi-toolkit' ), value: attrs.tone, options: [ { label: __( 'Light', 'rcmi-toolkit' ), value: 'light' }, { label: __( 'Dark', 'rcmi-toolkit' ), value: 'dark' }, { label: __( 'Brand red', 'rcmi-toolkit' ), value: 'red' } ], onChange: function ( value ) { props.setAttributes( { tone: value } ); } } ),
 					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
 					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
-				el( 'section', useBlockProps( { className: 'rcmi-story-split is-image-' + attrs.imageSide + ' is-tone-' + attrs.tone } ), attrs.imageSide === 'left' ? image : copy, attrs.imageSide === 'left' ? copy : image )
+				el( 'section', useBlockProps( { className: 'rcmi-story-split is-image-' + attrs.imageSide + layoutClass + ' is-tone-' + attrs.tone } ), attrs.layout !== 'standard' || attrs.imageSide === 'left' ? image : copy, attrs.layout !== 'standard' || attrs.imageSide === 'left' ? copy : image )
 			);
 		},
 		save: function ( props ) {
 			var attrs = props.attributes;
+			var layoutClass = attrs.layout && attrs.layout !== 'standard' ? ' is-layout-' + attrs.layout : '';
 			var image = el( 'div', { className: 'rcmi-story-split-media' }, attrs.imageUrl ? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt, style: storyImageStyle( attrs ) } ) : null );
 			var copy = el( 'div', { className: 'rcmi-story-split-copy' }, attrs.eyebrow ? el( RichText.Content, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow } ) : null, attrs.heading ? el( RichText.Content, { tagName: 'h2', value: attrs.heading } ) : null, el( RichText.Content, { tagName: 'div', className: 'rcmi-story-prose', value: attrs.body } ) );
-			return el( 'section', useBlockProps.save( { className: 'rcmi-story-split is-image-' + attrs.imageSide + ' is-tone-' + attrs.tone } ), attrs.imageSide === 'left' ? image : copy, attrs.imageSide === 'left' ? copy : image );
+			return el( 'section', useBlockProps.save( { className: 'rcmi-story-split is-image-' + attrs.imageSide + layoutClass + ' is-tone-' + attrs.tone } ), attrs.layout !== 'standard' || attrs.imageSide === 'left' ? image : copy, attrs.layout !== 'standard' || attrs.imageSide === 'left' ? copy : image );
 		}
 	} );
 
