@@ -3200,6 +3200,8 @@
 				el( InspectorControls, null, el( PanelBody, { title: __( 'Section layout', 'rcmi-toolkit' ), initialOpen: true },
 					el( SelectControl, { label: __( 'Image position', 'rcmi-toolkit' ), value: attrs.imageSide, options: [ { label: __( 'Left', 'rcmi-toolkit' ), value: 'left' }, { label: __( 'Right', 'rcmi-toolkit' ), value: 'right' } ], onChange: function ( value ) { props.setAttributes( { imageSide: value } ); } } ),
 					el( SelectControl, { label: __( 'Color treatment', 'rcmi-toolkit' ), value: attrs.tone, options: [ { label: __( 'Light', 'rcmi-toolkit' ), value: 'light' }, { label: __( 'Dark', 'rcmi-toolkit' ), value: 'dark' }, { label: __( 'Brand red', 'rcmi-toolkit' ), value: 'red' } ], onChange: function ( value ) { props.setAttributes( { tone: value } ); } } ),
+					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
+					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
 				el( 'section', useBlockProps( { className: 'rcmi-story-split is-image-' + attrs.imageSide + ' is-tone-' + attrs.tone } ), attrs.imageSide === 'left' ? image : copy, attrs.imageSide === 'left' ? copy : image )
@@ -3255,6 +3257,8 @@
 					el( RangeControl, { label: __( 'Section height (vh)', 'rcmi-toolkit' ), value: attrs.height, min: 50, max: 100, onChange: function ( value ) { props.setAttributes( { height: value } ); } } ),
 					el( SelectControl, { label: __( 'Text position', 'rcmi-toolkit' ), value: attrs.contentPosition, options: [ { label: __( 'Bottom left', 'rcmi-toolkit' ), value: 'bottom-left' }, { label: __( 'Center', 'rcmi-toolkit' ), value: 'center' }, { label: __( 'Top left', 'rcmi-toolkit' ), value: 'top-left' } ], onChange: function ( value ) { props.setAttributes( { contentPosition: value } ); } } ),
 					el( RangeControl, { label: __( 'Overlay strength', 'rcmi-toolkit' ), value: attrs.scrim, min: 20, max: 90, onChange: function ( value ) { props.setAttributes( { scrim: value } ); } } ),
+					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
+					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
 				el( 'section', useBlockProps( { className: 'rcmi-story-immersive is-position-' + attrs.contentPosition, style: { minHeight: attrs.height + 'vh', '--rcmi-story-scrim': attrs.scrim / 100 } } ),
