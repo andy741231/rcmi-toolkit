@@ -2224,7 +2224,7 @@
 
 			return el( Fragment, null,
 				el( InspectorControls, null, [ settingsPanel, navPanel, globalScrimPanel ] ),
-				el( 'div', blockProps,
+				el( 'div', Object.assign( {}, blockProps, { style: Object.assign( {}, blockProps.style || {}, { '--rcmi-slide-height': attrs.height + 'vh' } ) } ),
 					el( 'div', { className: 'rcmi-slide-block-editor-label' }, __( 'Slide Block — add slides below', 'rcmi-toolkit' ) ),
 					el( InnerBlocks, {
 						allowedBlocks: [ 'rcmi/slide' ],

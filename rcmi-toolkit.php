@@ -1441,12 +1441,12 @@ function rcmi_register_server_side_blocks() {
 
 			// Background image style.
 			$bg_url = $attrs['bgImageUrl'] ?? '';
-			$bg_style = '';
+			$bg_style = 'height:80vh;'; // Default height; parent slide-block overrides via regex.
 			if ( $bg_url ) {
 				$bg_scale = intval( $attrs['bgScale'] ?? 120 );
 				$bg_pos_x = intval( $attrs['bgPositionX'] ?? 50 );
 				$bg_pos_y = intval( $attrs['bgPositionY'] ?? 50 );
-				$bg_style = sprintf(
+				$bg_style .= sprintf(
 					'background-image:url(%s);background-size:%d%%;background-position:%d%% %d%%;background-repeat:no-repeat;',
 					esc_url( $bg_url ),
 					$bg_scale,
