@@ -403,6 +403,7 @@ function rcmi_backup_create( $type = 'db', $label = '' ) {
 		$base    = trailingslashit( $uploads['basedir'] );
 		$count   = 0;
 		$bytes   = 0;
+		$free    = disk_free_space( $dir );
 		$iter    = new RecursiveIteratorIterator(
 			new RecursiveDirectoryIterator( $base, FilesystemIterator::SKIP_DOTS ),
 			RecursiveIteratorIterator::LEAVES_ONLY
@@ -423,6 +424,14 @@ function rcmi_backup_create( $type = 'db', $label = '' ) {
 			$zip->setCompressionName( $entry, rcmi_backup_zip_method( $rel ) );
 			$count++;
 			$bytes += $file->getSize();
+			// Raw bytes are a safe upper bound for the archive — bail before
+			// close() writes a partial zip the disk can't hold.
+			if ( false !== $free && $bytes > $free ) {
+				$zip->close();
+				@unlink( $path );
+				@unlink( $tmp_sql );
+				return new WP_Error( 'rcmi_backup_space', 'Not enough free disk space for this backup.' );
+			}
 		}
 		$manifest['files'] = array( 'count' => $count, 'bytes' => $bytes );
 	}

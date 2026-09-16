@@ -52,25 +52,59 @@ add_action( 'admin_post_rcmi_backup_download', function () {
 	// Stream the file — backups are never exposed via a public URL.
 	// Chunked + flushed so IIS/FastCGI keeps seeing output (activityTimeout)
 	// and PHP's default max_execution_time doesn't cap long transfers.
+	// Range support lets browsers resume interrupted multi-GB downloads.
 	@set_time_limit( 0 );
 	while ( ob_get_level() > 0 ) {
 		ob_end_clean();
 	}
+	$size      = filesize( $path );
+	$rangeable = ( false !== $size && ( PHP_INT_SIZE >= 8 || $size < 2147483647 ) );
+	$start     = 0;
+	$end       = $rangeable ? $size - 1 : PHP_INT_MAX;
+	$partial   = false;
+	if ( $rangeable && ! empty( $_SERVER['HTTP_RANGE'] )
+		&& preg_match( '/bytes=(\d*)-(\d*)/', $_SERVER['HTTP_RANGE'], $m ) ) {
+		if ( '' === $m[1] ) {
+			$start = max( 0, $size - (int) $m[2] );
+		} else {
+			$start = (int) $m[1];
+			if ( '' !== $m[2] ) {
+				$end = min( (int) $m[2], $size - 1 );
+			}
+		}
+		if ( $start > $end || $start >= $size ) {
+			status_header( 416 );
+			header( 'Content-Range: bytes */' . sprintf( '%.0f', $size ) );
+			exit;
+		}
+		$partial = true;
+	}
 	nocache_headers();
 	header( 'Content-Type: application/zip' );
 	header( 'Content-Disposition: attachment; filename="' . basename( $path ) . '"' );
-	header( 'Content-Length: ' . filesize( $path ) );
+	if ( $rangeable ) {
+		header( 'Accept-Ranges: bytes' );
+		header( 'Content-Length: ' . sprintf( '%.0f', $end - $start + 1 ) );
+		if ( $partial ) {
+			status_header( 206 );
+			header( 'Content-Range: bytes ' . sprintf( '%.0f-%.0f/%.0f', $start, $end, $size ) );
+		}
+	}
 	$in = fopen( $path, 'rb' );
 	if ( ! $in ) {
 		wp_die( 'Could not read backup file.' );
 	}
-	$out = fopen( 'php://output', 'wb' );
-	while ( ! feof( $in ) ) {
-		$chunk = fread( $in, 1024 * 1024 );
+	if ( $start > 0 ) {
+		fseek( $in, $start );
+	}
+	$out       = fopen( 'php://output', 'wb' );
+	$remaining = $end - $start + 1;
+	while ( $remaining > 0 && ! feof( $in ) ) {
+		$chunk = fread( $in, min( 1048576, $remaining ) );
 		if ( false === $chunk ) {
 			break;
 		}
-		fwrite( $out, $chunk );
+		$remaining -= fwrite( $out, $chunk );
 		fflush( $out );
 		flush();
 	}
