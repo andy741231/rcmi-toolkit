@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RCMI Toolkit
  * Description: Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, Spectra integration, and lightweight cookieless analytics.
- * Version: 1.1.0
+ * Version: 1.3.0
  * Author: UH RCMI Web Team
  * License: GPL-2.0-or-later
  * Text Domain: rcmi-toolkit
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RCMI_TOOLKIT_VERSION', '1.1.0' );
+define( 'RCMI_TOOLKIT_VERSION', '1.3.0' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
@@ -23,6 +23,212 @@ define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
 // Lightweight, cookieless, first-party analytics. See includes/class-rcmi-analytics.php.
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics.php';
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics-admin.php';
+register_activation_hook( __FILE__, array( 'RCMI_Analytics', 'activate' ) );
+register_deactivation_hook( __FILE__, array( 'RCMI_Analytics', 'deactivate' ) );
+
+// ============================================================================
+// Admin menu — top-level "RCMI Toolkit" hub
+// ============================================================================
+
+/**
+ * Register the top-level "RCMI" menu. Feature pages (Analytics, the theme's
+ * SEO page, and any future tools) attach as submenus under this slug.
+ */
+function rcmi_toolkit_admin_menu() {
+	add_menu_page(
+		'RCMI',
+		'RCMI',
+		'manage_options',
+		'rcmi-toolkit',
+		'rcmi_toolkit_render_admin_overview',
+		'dashicons-admin-tools',
+		26
+	);
+	// Rename the auto-generated first submenu item to "Overview".
+	add_submenu_page(
+		'rcmi-toolkit',
+		'RCMI',
+		'Overview',
+		'manage_options',
+		'rcmi-toolkit',
+		'rcmi_toolkit_render_admin_overview'
+	);
+}
+// Priority 5: the parent must exist before feature submenus register at 10.
+add_action( 'admin_menu', 'rcmi_toolkit_admin_menu', 5 );
+
+/**
+ * Small inline stylesheet for the RCMI hub page.
+ */
+function rcmi_toolkit_admin_assets( $hook ) {
+	global $pagenow;
+	// Match on the page query arg — hook suffixes are derived from the menu
+	// title, which can change.
+	if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) || 'rcmi-toolkit' !== $_GET['page'] ) {
+		return;
+	}
+	wp_register_style( 'rcmi-toolkit-admin', false, array(), RCMI_TOOLKIT_VERSION );
+	wp_enqueue_style( 'rcmi-toolkit-admin' );
+	wp_add_inline_style(
+		'rcmi-toolkit-admin',
+		'.rcmi-toolkit-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:16px}'
+		. '.rcmi-toolkit-card{background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:16px 20px}'
+		. '.rcmi-toolkit-card h2{margin:0 0 8px;font-size:15px}'
+		. '.rcmi-toolkit-card p{margin:0 0 12px;color:#646970}'
+		. '.rcmi-toolkit-components{margin-top:8px}'
+		. '.rcmi-toolkit-details{margin-top:28px}'
+		. '.rcmi-toolkit-details>summary{cursor:pointer;font-size:1.3em;font-weight:600;margin:0 0 4px}'
+		. '.rcmi-toolkit-status{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600}'
+		. '.rcmi-toolkit-status.is-active{background:#e5f5ec;color:#007a66}'
+		. '.rcmi-toolkit-status.is-inactive{background:#fcf0f1;color:#b32d2e}'
+		. '.rcmi-toolkit-status.is-missing{background:#f0f0f1;color:#646970}'
+	);
+}
+add_action( 'admin_enqueue_scripts', 'rcmi_toolkit_admin_assets' );
+
+/**
+ * Render a status badge for a stack component.
+ *
+ * @param string $status 'active', 'inactive', or 'missing'.
+ */
+function rcmi_toolkit_status_badge( $status ) {
+	$labels = array(
+		'active'   => 'Active',
+		'inactive' => 'Inactive',
+		'missing'  => 'Not installed',
+	);
+	$label  = isset( $labels[ $status ] ) ? $labels[ $status ] : $status;
+	$class  = 'active' === $status ? 'is-active' : ( 'inactive' === $status ? 'is-inactive' : 'is-missing' );
+	return '<span class="rcmi-toolkit-status ' . esc_attr( $class ) . '">' . esc_html( $label ) . '</span>';
+}
+
+/**
+ * Render the RCMI hub page: stack component status + links to each tool.
+ * Notices flag companion pieces that are missing or inactive, so an admin
+ * installing one half of the stack learns that it needs the other.
+ */
+function rcmi_toolkit_render_admin_overview() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Insufficient permissions.' );
+	}
+
+	// Stack component detection.
+	$theme        = wp_get_theme( 'rcmi' );
+	$theme_active = in_array( 'rcmi', array( get_template(), get_stylesheet() ), true );
+	$tickets_file = WP_PLUGIN_DIR . '/rcmi-tickets/rcmi-tickets.php';
+	$spectra_file = WP_PLUGIN_DIR . '/spectra-blocks/spectra-blocks.php';
+	$tickets_on   = function_exists( 'is_plugin_active' ) && is_plugin_active( 'rcmi-tickets/rcmi-tickets.php' );
+	$spectra_on   = function_exists( 'is_plugin_active' ) && is_plugin_active( 'spectra-blocks/spectra-blocks.php' );
+
+	echo '<div class="wrap rcmi-toolkit-wrap">';
+	echo '<h1>RCMI</h1>';
+	echo '<p>The RCMI site is built from a custom theme plus companion plugins, listed below. Toolkit version ' . esc_html( RCMI_TOOLKIT_VERSION ) . '.</p>';
+
+	// Missing / inactive companion notices.
+	if ( ! $theme->exists() ) {
+		echo '<div class="notice notice-error"><p><strong>RCMI theme not found.</strong> The RCMI Toolkit plugin needs the <code>rcmi</code> theme — blocks, patterns, and the SEO page depend on it. Install and activate it under Appearance → Themes.</p></div>';
+	} elseif ( ! $theme_active ) {
+		echo '<div class="notice notice-error"><p><strong>RCMI theme is installed but not active.</strong> The RCMI Toolkit plugin needs the <code>rcmi</code> theme — activate it under Appearance → Themes.</p></div>';
+	}
+	if ( ! file_exists( $tickets_file ) ) {
+		echo '<div class="notice notice-warning"><p><strong>RCMI Tickets plugin not found.</strong> The ticket system needs the <code>rcmi-tickets</code> plugin.</p></div>';
+	} elseif ( ! $tickets_on ) {
+		echo '<div class="notice notice-warning"><p><strong>RCMI Tickets is installed but not active.</strong> The ticket app and its admin menu need the plugin activated.</p></div>';
+	}
+	if ( ! file_exists( $spectra_file ) ) {
+		echo '<div class="notice notice-warning"><p><strong>Spectra plugin not found.</strong> RCMI pages use Spectra for basic editor blocks — install and activate <code>spectra-blocks</code>.</p></div>';
+	} elseif ( ! $spectra_on ) {
+		echo '<div class="notice notice-warning"><p><strong>Spectra is installed but not active.</strong> Basic editor blocks used by RCMI pages are unavailable until it is activated.</p></div>';
+	}
+	if ( $theme_active && $tickets_on && $spectra_on ) {
+		echo '<div class="notice notice-success inline"><p>All RCMI components are installed and active.</p></div>';
+	}
+
+	// Tools: links to each feature page.
+	echo '<h2>Tools</h2>';
+	echo '<div class="rcmi-toolkit-cards">';
+
+	echo '<div class="rcmi-toolkit-card">';
+	echo '<h2>Analytics</h2>';
+	echo '<p>Cookieless, first-party page views plus CTA and download tracking, with a Chart.js dashboard and PDF export.</p>';
+	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=rcmi-analytics' ) ) . '">Open Analytics</a></p>';
+	echo '</div>';
+
+	// The SEO settings page lives in the rcmi theme (inc/seo.php) but joins
+	// this menu when it is registered — show the card only when it exists.
+	if ( function_exists( 'rcmi_seo_get_settings' ) ) {
+		echo '<div class="rcmi-toolkit-card">';
+		echo '<h2>SEO</h2>';
+		echo '<p>Site-wide search and social metadata: titles, descriptions, Open Graph images, and schema markup.</p>';
+		echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=rcmi-seo' ) ) . '">Open SEO settings</a></p>';
+		echo '</div>';
+	}
+
+	if ( $tickets_on ) {
+		echo '<div class="rcmi-toolkit-card">';
+		echo '<h2>Tickets</h2>';
+		echo '<p>Ticket system for support and collaboration requests.</p>';
+		echo '<p><a class="button" href="' . esc_url( admin_url( 'admin.php?page=rcmi-tickets' ) ) . '">Open Tickets</a></p>';
+		echo '</div>';
+	}
+
+	echo '<div class="rcmi-toolkit-card">';
+	echo '<h2>Blocks</h2>';
+	echo '<p>Hero, parallax, impact strip, role selector, impact stats, card grid, quote, and CTA band blocks — available in the editor under the "RCMI" category.</p>';
+	echo '</div>';
+
+	echo '</div>'; // .rcmi-toolkit-cards
+
+	// Component inventory table — reference info, kept at the bottom and
+	// collapsed by default; notices above already flag anything missing.
+	echo '<details class="rcmi-toolkit-details">';
+	echo '<summary>Components</summary>';
+	echo '<table class="widefat striped rcmi-toolkit-components"><thead><tr>';
+	echo '<th>Component</th><th>Type</th><th>Provides</th><th>Status</th><th>Version</th>';
+	echo '</tr></thead><tbody>';
+
+	$rows = array(
+		array(
+			'RCMI',
+			'Theme',
+			'Templates, block patterns, brand styles, SEO metadata',
+			$theme_active ? 'active' : ( $theme->exists() ? 'inactive' : 'missing' ),
+			$theme->exists() ? $theme->get( 'Version' ) : '—',
+		),
+		array(
+			'RCMI Toolkit',
+			'Plugin (this one)',
+			'Gutenberg blocks, analytics dashboard, Spectra upsell suppression, GitHub auto-updates',
+			'active',
+			RCMI_TOOLKIT_VERSION,
+		),
+		array(
+			'RCMI Tickets',
+			'Plugin',
+			'Ticket system — [rcmi_tickets] app and the Tickets admin menu',
+			$tickets_on ? 'active' : ( file_exists( $tickets_file ) ? 'inactive' : 'missing' ),
+			$tickets_on && defined( 'RCMI_TICKETS_VERSION' ) ? RCMI_TICKETS_VERSION : '—',
+		),
+		array(
+			'Spectra',
+			'Plugin (dependency)',
+			'Basic editor blocks used throughout RCMI pages',
+			$spectra_on ? 'active' : ( file_exists( $spectra_file ) ? 'inactive' : 'missing' ),
+			$spectra_on && defined( 'SPECTRA_VER' ) ? SPECTRA_VER : '—',
+		),
+	);
+	foreach ( $rows as $row ) {
+		echo '<tr><td><strong>' . esc_html( $row[0] ) . '</strong></td>';
+		echo '<td>' . esc_html( $row[1] ) . '</td>';
+		echo '<td>' . esc_html( $row[2] ) . '</td>';
+		echo '<td>' . rcmi_toolkit_status_badge( $row[3] ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput -- badge is escaped inside.
+		echo '<td>' . esc_html( (string) $row[4] ) . '</td></tr>';
+	}
+	echo '</tbody></table>';
+	echo '</details>';
+
+	echo '</div>'; // .rcmi-toolkit-wrap
+}
 
 function rcmi_toolkit_github_updates_disabled() {
 	return 'production' !== wp_get_environment_type() || is_dir( __DIR__ . '/.git' );
