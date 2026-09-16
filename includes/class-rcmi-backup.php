@@ -298,6 +298,25 @@ function rcmi_backup_dump_db( $path ) {
 	return true;
 }
 
+/**
+ * Versions of every component whose data lands in the backup — used by
+ * the manifest and by the restore confirm screen to surface skew.
+ */
+function rcmi_backup_component_versions() {
+	$tickets_file = WP_PLUGIN_DIR . '/rcmi-tickets/rcmi-tickets.php';
+	$tickets_ver  = '';
+	if ( file_exists( $tickets_file ) ) {
+		$header      = get_file_data( $tickets_file, array( 'Version' => 'Version' ) );
+		$tickets_ver = $header['Version'] ?? '';
+	}
+	return array(
+		'theme'          => wp_get_theme()->get( 'Version' ),
+		'tickets_plugin' => $tickets_ver,
+		'tickets_db'     => get_option( 'rcmi_tickets_db_version' ),
+		'analytics_db'   => get_option( 'rcmi_toolkit_analytics_db_version' ),
+	);
+}
+
 // ── create ──────────────────────────────────────────────────────────
 
 /**
@@ -354,6 +373,10 @@ function rcmi_backup_create( $type = 'db', $label = '' ) {
 		'php_version'   => PHP_VERSION,
 		'db_server'     => $GLOBALS['wpdb']->get_var( 'SELECT VERSION()' ),
 		'toolkit'       => defined( 'RCMI_TOOLKIT_VERSION' ) ? RCMI_TOOLKIT_VERSION : '',
+		// Component versions at backup time — the confirm screen compares
+		// these to the running code so a schema/version skew is visible
+		// before anything is overwritten.
+		'components'    => rcmi_backup_component_versions(),
 		'files'         => array(),
 	);
 

@@ -188,6 +188,30 @@ function rcmi_backup_admin_page() {
 					<li>Contents: <strong><?php echo esc_html( 'full' === ( $confirm_m['type'] ?? '' ) ? 'database + uploads' : 'database only' ); ?></strong></li>
 					<li>WP <?php echo esc_html( $confirm_m['wp_version'] ?? '?' ); ?> · PHP <?php echo esc_html( $confirm_m['php_version'] ?? '?' ); ?></li>
 				</ul>
+				<?php
+				// Warn when the backup was made with different component
+				// versions than the code about to run on top of it.
+				$now_v  = rcmi_backup_component_versions();
+				$diffs  = array();
+				$labels = array(
+					'theme'          => 'Theme',
+					'tickets_plugin' => 'Tickets plugin',
+					'tickets_db'     => 'Tickets DB schema',
+					'analytics_db'   => 'Analytics DB schema',
+				);
+				foreach ( $labels as $k => $label ) {
+					$then = $confirm_m['components'][ $k ] ?? null;
+					$now  = $now_v[ $k ] ?? null;
+					if ( null !== $then && '' !== $then && (string) $then !== (string) $now ) {
+						$diffs[] = "$label: backup v$then → current v$now";
+					}
+				}
+				if ( $diffs ) : ?>
+					<div class="notice notice-warning inline" style="border-left-color:#dba617;">
+						<p><strong>Version differences detected.</strong> After restoring, each component's schema upgrader will reconcile an older DB automatically — but <em>newer</em> backups on older code are not downgraded. Keep code updated before restoring.</p>
+						<ul><?php foreach ( $diffs as $d ) : ?><li><?php echo esc_html( $d ); ?></li><?php endforeach; ?></ul>
+					</div>
+				<?php endif; ?>
 				<p><strong>This overwrites the current database</strong> (all content, settings, tickets, analytics)<?php echo 'full' === ( $confirm_m['type'] ?? '' ) ? ' and replaces files in uploads' : ''; ?>. The site briefly enters maintenance mode during the restore.</p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php wp_nonce_field( 'rcmi_backup_restore' ); ?>
