@@ -118,6 +118,51 @@
 
 	var chart = new window.Chart( canvas.getContext( '2d' ), makeChartConfig( true ) );
 
+	var piePalette = [ '#C8102E', '#007A66', '#00B388', '#264653', '#E76F51', '#F4A261', '#54585A', '#6BA4B8', '#8E5EA2', '#D9B310' ];
+	var pieConfig = [
+		{ id: 'rcmi-pie-browsers', key: 'browsers' },
+		{ id: 'rcmi-pie-devices', key: 'devices' },
+		{ id: 'rcmi-pie-os', key: 'os' }
+	];
+	if ( report.pie ) {
+		pieConfig.forEach( function ( cfg ) {
+			var el = document.getElementById( cfg.id );
+			var data = report.pie[ cfg.key ];
+			if ( ! el || ! data || ! data.length ) {
+				return;
+			}
+			var total = data.reduce( function ( n, r ) { return n + r.value; }, 0 );
+			new window.Chart( el.getContext( '2d' ), {
+				type: 'doughnut',
+				data: {
+					labels: data.map( function ( r ) { return r.label; } ),
+					datasets: [ {
+						data: data.map( function ( r ) { return r.value; } ),
+						backgroundColor: data.map( function ( r, i ) { return piePalette[ i % piePalette.length ]; } ),
+						borderWidth: 1
+					} ]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					animation: false,
+					plugins: {
+						legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+						tooltip: {
+							callbacks: {
+								label: function ( item ) {
+									var v = item.parsed;
+									var pct = total ? Math.round( ( v / total ) * 1000 ) / 10 : 0;
+									return ' ' + item.label + ': ' + v + ' (' + pct + '%)';
+								}
+							}
+						}
+					}
+				}
+			} );
+		} );
+	}
+
 	if ( ! window.jspdf || ! window.jspdf.jsPDF ) {
 		setStatus( 'PDF export unavailable.' );
 		return;

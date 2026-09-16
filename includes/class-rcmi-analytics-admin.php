@@ -515,9 +515,9 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 
 			echo '<h2>Technology</h2>';
 			echo '<div class="rcmi-analytics-grid">';
-			self::render_bar_list( 'Browsers', $browsers );
-			self::render_bar_list( 'Devices', $devices );
-			self::render_bar_list( 'Operating systems', $oses );
+			self::render_tech_card( 'Browsers', $browsers, 'rcmi-pie-browsers' );
+			self::render_tech_card( 'Devices', $devices, 'rcmi-pie-devices' );
+			self::render_tech_card( 'Operating systems', $oses, 'rcmi-pie-os' );
 			echo '</div>';
 
 			// Report JSON for the chart + PDF export — derived only from the
@@ -554,6 +554,11 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 					'fullLabels'  => array_column( $points, 'date_label' ),
 					'views'       => array_map( 'intval', array_column( $points, 'views' ) ),
 					'visitorDays' => array_map( 'intval', array_column( $points, 'vd' ) ),
+				),
+				'pie'         => array(
+					'browsers' => self::pie_dataset( $browsers ),
+					'devices'  => self::pie_dataset( $devices ),
+					'os'       => self::pie_dataset( $oses ),
 				),
 				'sections'    => array(
 					array( 'title' => 'Top CTAs', 'rows' => self::report_rows( $top_ctas, 'target_url' ) ),
@@ -607,6 +612,17 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 					'label'  => '' === (string) ( $row->label ?? '' ) ? '(blank)' : (string) $row->label,
 					'detail' => $detail_key ? (string) ( $row->{$detail_key} ?? '' ) : '',
 					'count'  => number_format_i18n( (int) ( $row->c ?? 0 ) ),
+				);
+			}
+			return $out;
+		}
+
+		private static function pie_dataset( $rows ) {
+			$out = array();
+			foreach ( (array) $rows as $row ) {
+				$out[] = array(
+					'label' => '' === (string) ( $row->label ?? '' ) ? '(blank)' : (string) $row->label,
+					'value' => (int) ( $row->c ?? 0 ),
 				);
 			}
 			return $out;
@@ -838,6 +854,30 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			echo '</div>';
 		}
 
+		private static function render_tech_card( $title, $rows, $canvas_id ) {
+			echo '<div class="rcmi-analytics-toplist rcmi-tech-card">';
+			echo '<h3>' . esc_html( $title ) . '</h3>';
+			if ( empty( $rows ) ) {
+				echo '<p class="rcmi-analytics-empty">No data.</p>';
+				echo '</div>';
+				return;
+			}
+			echo '<div class="rcmi-pie-panel"><canvas id="' . esc_attr( $canvas_id ) . '" role="img" aria-label="' . esc_attr( $title ) . ' share"></canvas></div>';
+			$max = (int) $rows[0]->c;
+			echo '<ol class="rcmi-analytics-ol">';
+			foreach ( $rows as $row ) {
+				$label = '' === (string) $row->label ? '(blank)' : (string) $row->label;
+				$width = $max > 0 ? (int) round( ( $row->c / $max ) * 100 ) : 0;
+				echo '<li>';
+				echo '<span class="rcmi-analytics-ol-label">' . esc_html( $label ) . '</span>';
+				echo '<span class="rcmi-analytics-ol-bar"><span style="width:' . $width . '%"></span></span>';
+				echo '<span class="rcmi-analytics-ol-count">' . esc_html( number_format_i18n( (int) $row->c ) ) . '</span>';
+				echo '</li>';
+			}
+			echo '</ol>';
+			echo '</div>';
+		}
+
 		/**
 		 * Render an interaction top list: label primary, target secondary,
 		 * visible count/bar. Rows must expose ->label, ->target_url, ->c.
@@ -913,6 +953,7 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 	border: 1px solid #e0e0e0; border-radius: 6px; margin: 12px 0;
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
+.rcmi-pie-panel { height: 170px; position: relative; margin: 4px 0 12px; }
 .rcmi-chart-data { margin: 0 0 24px; }
 .rcmi-chart-data table { max-width: 560px; }
 .rcmi-analytics-grid {
