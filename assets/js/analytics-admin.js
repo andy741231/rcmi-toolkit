@@ -38,6 +38,15 @@
 		syncCustomDates();
 	}
 
+	var rolePicker = document.querySelector( '.rcmi-analytics-roles' );
+	if ( rolePicker ) {
+		var roleCount = rolePicker.querySelector( '.rcmi-role-count' );
+		rolePicker.addEventListener( 'change', function () {
+			var n = rolePicker.querySelectorAll( 'input[name="roles[]"]:checked' ).length;
+			roleCount.textContent = n ? String( n ) : 'All';
+		} );
+	}
+
 	if ( ! dataEl || ! canvas || ! exportBtn ) {
 		setStatus( 'Report data unavailable.' );
 		return;

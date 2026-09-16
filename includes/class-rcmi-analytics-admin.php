@@ -402,25 +402,39 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			echo '<label for="rcmi-analytics-to">To</label>';
 			echo '<input type="date" id="rcmi-analytics-to" name="to" value="' . esc_attr( $end ) . '" max="' . esc_attr( $today_str ) . '">';
 			echo '</div>';
-			echo '<fieldset class="rcmi-analytics-filter-field rcmi-analytics-who">';
-			echo '<legend>Traffic</legend>';
-			foreach ( array( 'humans' => 'Humans', 'bots' => 'Bots', 'guests' => 'Guests', 'logged_in' => 'Logged-in' ) as $value => $label ) {
+			echo '<button type="submit" class="button">Apply</button>';
+			echo '<button type="button" id="rcmi-analytics-export-pdf" class="button button-secondary" disabled>Export PDF</button>';
+			echo '<span id="rcmi-analytics-export-status" class="rcmi-analytics-export-status" role="status" aria-live="polite"></span>';
+
+			echo '<div class="rcmi-analytics-audience">';
+			echo '<span class="rcmi-analytics-audience-label">Audience</span>';
+			echo '<fieldset class="rcmi-analytics-who">';
+			echo '<legend>Type</legend>';
+			foreach ( array( 'humans' => 'Humans', 'bots' => 'Bots' ) as $value => $label ) {
 				echo '<label><input type="checkbox" name="include[]" value="' . esc_attr( $value ) . '"' . checked( in_array( $value, $include, true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
 			}
 			echo '</fieldset>';
-			echo '<fieldset class="rcmi-analytics-filter-field rcmi-analytics-who">';
-			echo '<legend>Roles</legend>';
+			echo '<span class="rcmi-analytics-audience-sep" aria-hidden="true"></span>';
+			echo '<fieldset class="rcmi-analytics-who">';
+			echo '<legend>Session</legend>';
+			foreach ( array( 'guests' => 'Guests', 'logged_in' => 'Logged-in' ) as $value => $label ) {
+				echo '<label><input type="checkbox" name="include[]" value="' . esc_attr( $value ) . '"' . checked( in_array( $value, $include, true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
+			}
+			echo '</fieldset>';
+			echo '<span class="rcmi-analytics-audience-sep" aria-hidden="true"></span>';
+			echo '<details class="rcmi-analytics-roles"' . ( $roles_sel ? ' open' : '' ) . '>';
+			echo '<summary>Roles <span class="rcmi-role-count">' . esc_html( $roles_sel ? (string) count( $roles_sel ) : 'All' ) . '</span></summary>';
+			echo '<div class="rcmi-role-list">';
 			foreach ( wp_roles()->get_names() as $slug => $name ) {
 				echo '<label><input type="checkbox" name="roles[]" value="' . esc_attr( $slug ) . '"' . checked( in_array( $slug, $roles_sel, true ), true, false ) . '> ' . esc_html( translate_user_role( $name ) ) . '</label>';
 			}
-			echo '</fieldset>';
+			echo '</div>';
+			echo '</details>';
 			$asettings = RCMI_Analytics::get_settings();
 			if ( empty( $asettings['track_logged_in'] ) ) {
 				echo '<p class="description rcmi-analytics-role-hint">Logged-in filtering needs the "Track logged-in users" setting enabled.</p>';
 			}
-			echo '<button type="submit" class="button">Apply</button>';
-			echo '<button type="button" id="rcmi-analytics-export-pdf" class="button button-secondary" disabled>Export PDF</button>';
-			echo '<span id="rcmi-analytics-export-status" class="rcmi-analytics-export-status" role="status" aria-live="polite"></span>';
+			echo '</div>';
 			echo '</form>';
 
 			// Sanity: if the table doesn't exist yet, bail with a hint.
@@ -1013,9 +1027,20 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 	display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0;
 }
 .rcmi-analytics-filter-field { display: flex; align-items: center; gap: 8px; }
+.rcmi-analytics-audience {
+	flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap;
+	gap: 6px 16px; padding: 10px 14px;
+	background: #f6f7f7; border: 1px solid #e0e0e0; border-radius: 6px;
+}
+.rcmi-analytics-audience-label { font-weight: 600; font-size: 13px; color: #1d2327; }
+.rcmi-analytics-audience-sep { width: 1px; height: 18px; background: #dcdcde; }
 fieldset.rcmi-analytics-who { border: 0; margin: 0; padding: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
-fieldset.rcmi-analytics-who legend { font-weight: 600; font-size: 13px; float: left; margin-right: 4px; padding: 0; }
+fieldset.rcmi-analytics-who legend { font-weight: 600; font-size: 12px; color: #646970; float: left; margin-right: 2px; padding: 0; }
 fieldset.rcmi-analytics-who label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
+.rcmi-analytics-roles summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.rcmi-analytics-roles summary .rcmi-role-count { font-weight: 400; color: #646970; }
+.rcmi-analytics-roles .rcmi-role-list { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0 2px 18px; }
+.rcmi-analytics-roles .rcmi-role-list label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
 .rcmi-analytics-role-hint { flex-basis: 100%; margin: 2px 0 0; }
 .rcmi-analytics-dates.is-hidden { display: none; }
 .rcmi-analytics-dates input[type="date"] { min-width: 9.5rem; }
@@ -1074,6 +1099,8 @@ fieldset.rcmi-analytics-who label { display: inline-flex; align-items: center; g
 	.rcmi-analytics-filters { display: grid; grid-template-columns: 1fr 1fr; align-items: end; }
 	.rcmi-analytics-filter-field { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
 	.rcmi-analytics-filters .button { grid-column: 1 / -1; justify-self: start; }
+	.rcmi-analytics-audience { grid-column: 1 / -1; align-items: flex-start; flex-direction: column; gap: 8px; }
+	.rcmi-analytics-audience-sep { display: none; }
 	.rcmi-chart-panel { height: 260px; padding-right: 16px; padding-left: 16px; }
 	.rcmi-analytics-ol li { grid-template-columns: 1fr 60px 44px; }
 }
