@@ -409,13 +409,6 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			echo '<div class="rcmi-analytics-audience">';
 			echo '<span class="rcmi-analytics-audience-label">Audience</span>';
 			echo '<fieldset class="rcmi-analytics-who">';
-			echo '<legend>Type</legend>';
-			foreach ( array( 'humans' => 'Humans', 'bots' => 'Bots' ) as $value => $label ) {
-				echo '<label><input type="checkbox" name="include[]" value="' . esc_attr( $value ) . '"' . checked( in_array( $value, $include, true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
-			}
-			echo '</fieldset>';
-			echo '<span class="rcmi-analytics-audience-sep" aria-hidden="true"></span>';
-			echo '<fieldset class="rcmi-analytics-who">';
 			echo '<legend>Session</legend>';
 			foreach ( array( 'guests' => 'Guests', 'logged_in' => 'Logged-in' ) as $value => $label ) {
 				echo '<label><input type="checkbox" name="include[]" value="' . esc_attr( $value ) . '"' . checked( in_array( $value, $include, true ), true, false ) . '> ' . esc_html( $label ) . '</label>';

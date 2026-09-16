@@ -207,6 +207,33 @@
 		return d.getFullYear() + '-' + ( m < 10 ? '0' + m : m ) + '-' + ( day < 10 ? '0' + day : day );
 	}
 
+	function pdfPieImage( data ) {
+		var pieCanvas = document.createElement( 'canvas' );
+		pieCanvas.width = 480;
+		pieCanvas.height = 480;
+		var pieChart = new window.Chart( pieCanvas.getContext( '2d' ), {
+			type: 'doughnut',
+			data: {
+				labels: data.map( function ( r ) { return r.label; } ),
+				datasets: [ {
+					data: data.map( function ( r ) { return r.value; } ),
+					backgroundColor: data.map( function ( r, i ) { return piePalette[ i % piePalette.length ]; } ),
+					borderColor: '#ffffff',
+					borderWidth: 2
+				} ]
+			},
+			options: {
+				responsive: false,
+				animation: false,
+				plugins: { legend: { display: false }, tooltip: { enabled: false } }
+			}
+		} );
+		pieChart.update( 'none' );
+		var image = pieChart.toBase64Image();
+		pieChart.destroy();
+		return image;
+	}
+
 	function generatePdf() {
 		try {
 			var doc = new window.jspdf.jsPDF( { unit: 'pt', format: 'letter', orientation: 'portrait' } );
@@ -214,8 +241,10 @@
 			var pageH = doc.internal.pageSize.getHeight();
 			var margin = 48;
 			var contentW = pageW - margin * 2;
-			var y = margin + 8;
+			var y = margin + 4;
 			var i, j;
+			var RED = [ 200, 16, 46 ], TEAL = [ 0, 122, 102 ], DARK = [ 29, 35, 39 ],
+				GRAY = [ 100, 105, 112 ], LIGHT = [ 246, 247, 247 ], LINE = [ 224, 224, 224 ];
 
 			function ensureSpace( needed ) {
 				if ( y + needed > pageH - margin ) {
@@ -224,124 +253,220 @@
 				}
 			}
 
-			// Brand rule + title + report meta.
-			doc.setFillColor( 200, 16, 46 );
+			function hairline( yy ) {
+				doc.setDrawColor( LINE[ 0 ], LINE[ 1 ], LINE[ 2 ] );
+				doc.setLineWidth( 0.6 );
+				doc.line( margin, yy, pageW - margin, yy );
+			}
+
+			function sectionHeading( text ) {
+				doc.setFillColor( RED[ 0 ], RED[ 1 ], RED[ 2 ] );
+				doc.rect( margin, y - 9, 3, 11, 'F' );
+				doc.setFont( 'helvetica', 'bold' );
+				doc.setFontSize( 12 );
+				doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
+				doc.text( safeText( text ), margin + 9, y );
+				y += 16;
+			}
+
+			// Header: brand rule, title, meta box.
+			doc.setFillColor( RED[ 0 ], RED[ 1 ], RED[ 2 ] );
 			doc.rect( 0, 0, pageW, 6, 'F' );
 			doc.setFont( 'helvetica', 'bold' );
 			doc.setFontSize( 18 );
-			doc.setTextColor( 29, 35, 39 );
+			doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
 			doc.text( safeText( report.title ), margin, y );
-			y += 18;
-			doc.setFont( 'helvetica', 'normal' );
-			doc.setFontSize( 10 );
-			doc.setTextColor( 85, 85, 85 );
-			doc.text(
-				safeText( 'Range: ' + report.range + ' (' + report.rangeLabel + ')  ·  Traffic: ' + report.traffic ),
-				margin,
-				y
-			);
 			y += 14;
-			doc.text(
-				safeText( 'Timezone: ' + report.timezone + '  ·  Generated: ' + report.generatedAt ),
-				margin,
-				y
-			);
-			y += 24;
 
-			function drawKpiCards( items ) {
-				var cols = 2;
-				var gap = 12;
-				var cardW = ( contentW - gap ) / cols;
-				var cardH = 72;
+			doc.setFillColor( LIGHT[ 0 ], LIGHT[ 1 ], LIGHT[ 2 ] );
+			doc.setDrawColor( LINE[ 0 ], LINE[ 1 ], LINE[ 2 ] );
+			doc.roundedRect( margin, y, contentW, 34, 3, 3, 'FD' );
+			doc.setFont( 'helvetica', 'normal' );
+			doc.setFontSize( 9 );
+			doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+			doc.text( safeText( report.range + '  ·  ' + report.rangeLabel + '  ·  ' + report.traffic ), margin + 10, y + 14 );
+			doc.text( safeText( 'Timezone: ' + report.timezone + '   Generated: ' + report.generatedAt ), margin + 10, y + 26 );
+			y += 34 + 20;
+
+			function drawKpiGroup( title, items, accent, cols ) {
+				if ( ! items || ! items.length ) {
+					return;
+				}
+				ensureSpace( 22 );
+				doc.setFont( 'helvetica', 'bold' );
+				doc.setFontSize( 9 );
+				doc.setCharSpace( 0.6 );
+				doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+				doc.text( safeText( title ).toUpperCase(), margin, y );
+				doc.setCharSpace( 0 );
+				y += 8;
+				var gap = 10;
+				var cardW = ( contentW - ( cols - 1 ) * gap ) / cols;
+				var cardH = 62;
 				var rows = Math.ceil( items.length / cols );
 				ensureSpace( rows * ( cardH + gap ) );
 				for ( i = 0; i < items.length; i++ ) {
 					var x = margin + ( i % cols ) * ( cardW + gap );
 					var yy = y + Math.floor( i / cols ) * ( cardH + gap );
-					doc.setDrawColor( 224, 224, 224 );
-					doc.setFillColor( 250, 250, 250 );
-					doc.rect( x, yy, cardW, cardH, 'FD' );
+					doc.setDrawColor( LINE[ 0 ], LINE[ 1 ], LINE[ 2 ] );
+					doc.setFillColor( LIGHT[ 0 ], LIGHT[ 1 ], LIGHT[ 2 ] );
+					doc.roundedRect( x, yy, cardW, cardH, 3, 3, 'FD' );
+					doc.setFillColor( accent[ 0 ], accent[ 1 ], accent[ 2 ] );
+					doc.rect( x, yy, 3, cardH, 'F' );
 					doc.setFont( 'helvetica', 'normal' );
-					doc.setFontSize( 9 );
-					doc.setTextColor( 85, 85, 85 );
-					doc.text( safeText( items[ i ].label ).toUpperCase(), x + 10, yy + 16 );
+					doc.setFontSize( 7 );
+					doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+					var labelLines = doc.splitTextToSize( safeText( items[ i ].label ).toUpperCase(), cardW - 18 ).slice( 0, 2 );
+					doc.text( labelLines, x + 11, yy + 14 );
 					doc.setFont( 'helvetica', 'bold' );
-					doc.setFontSize( 18 );
-					doc.setTextColor( 29, 35, 39 );
-					doc.text( safeText( items[ i ].value ), x + 10, yy + 38 );
-					var detailLines = doc.splitTextToSize( safeText( items[ i ].detail ), cardW - 20 ).slice( 0, 2 );
+					doc.setFontSize( 16 );
+					doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
+					doc.text( safeText( items[ i ].value ), x + 11, yy + 14 + labelLines.length * 8 + 12 );
+					var detailLines = doc.splitTextToSize( safeText( items[ i ].detail ), cardW - 18 ).slice( 0, 2 );
 					doc.setFont( 'helvetica', 'normal' );
-					doc.setFontSize( 9 );
-					doc.setTextColor( 0, 122, 102 );
+					doc.setFontSize( 8 );
+					doc.setTextColor( TEAL[ 0 ], TEAL[ 1 ], TEAL[ 2 ] );
 					for ( j = 0; j < detailLines.length; j++ ) {
-						doc.text( detailLines[ j ], x + 10, yy + cardH - 8 - ( detailLines.length - 1 - j ) * 10 );
+						doc.text( detailLines[ j ], x + 11, yy + cardH - 7 - ( detailLines.length - 1 - j ) * 9 );
 					}
 				}
-				y += rows * ( cardH + gap );
+				y += rows * ( cardH + gap ) + 6;
 			}
 
-			drawKpiCards( report.metrics || [] );
-			drawKpiCards( report.interactions || [] );
+			drawKpiGroup( 'Traffic', report.metrics, RED, 4 );
+			drawKpiGroup( 'Interactions', report.interactions, TEAL, 2 );
 
 			// Trend chart image (fixed 1200×420 render, aspect preserved).
 			var imgH = contentW * 420 / 1200;
-			ensureSpace( imgH + 30 );
-			doc.setFont( 'helvetica', 'bold' );
-			doc.setFontSize( 12 );
-			doc.setTextColor( 29, 35, 39 );
-			doc.text( safeText( 'Traffic trend · ' + report.range ), margin, y );
-			y += 10;
+			ensureSpace( imgH + 34 );
+			sectionHeading( 'Traffic trend · ' + report.range );
 			doc.addImage( pdfChartImage(), 'PNG', margin, y, contentW, imgH );
-			y += imgH + 20;
+			y += imgH + 24;
 
-			// Report sections.
+			// Report sections as ruled tables; the technology trio renders as
+			// doughnuts below instead when pie data is present.
+			var techTitles = { 'Browsers': 1, 'Devices': 1, 'Operating systems': 1 };
 			var sections = report.sections || [];
 			for ( i = 0; i < sections.length; i++ ) {
 				var section = sections[ i ];
-				ensureSpace( 34 );
-				doc.setFont( 'helvetica', 'bold' );
-				doc.setFontSize( 12 );
-				doc.setTextColor( 29, 35, 39 );
-				doc.text( safeText( section.title ), margin, y );
-				y += 16;
+				if ( report.pie && techTitles[ section.title ] ) {
+					continue;
+				}
+				ensureSpace( 52 );
+				sectionHeading( section.title );
 				var rows = section.rows || [];
 				if ( ! rows.length ) {
 					doc.setFont( 'helvetica', 'normal' );
 					doc.setFontSize( 10 );
-					doc.setTextColor( 119, 119, 119 );
+					doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
 					doc.text( 'No data.', margin, y );
-					y += 18;
+					y += 20;
 					continue;
 				}
+				doc.setFont( 'helvetica', 'normal' );
+				doc.setFontSize( 7 );
+				doc.setCharSpace( 0.5 );
+				doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+				doc.text( 'ITEM', margin + 2, y );
+				doc.text( 'COUNT', pageW - margin - 2, y, { align: 'right' } );
+				doc.setCharSpace( 0 );
+				y += 5;
+				hairline( y );
+				y += 10;
 				for ( j = 0; j < rows.length; j++ ) {
-					var labelLines = doc.splitTextToSize( safeText( rows[ j ].label ), contentW - 70 );
+					var labelLines = doc.splitTextToSize( safeText( rows[ j ].label ), contentW - 84 );
 					var detailText = safeText( rows[ j ].detail );
-					var detailLines = detailText ? doc.splitTextToSize( detailText, contentW - 70 ) : [];
-					ensureSpace( labelLines.length * 12 + detailLines.length * 11 + 6 );
+					var detailLines = detailText ? doc.splitTextToSize( detailText, contentW - 96 ) : [];
+					var rowH = labelLines.length * 12 + detailLines.length * 10 + 12;
+					ensureSpace( rowH );
 					doc.setFont( 'helvetica', 'normal' );
 					doc.setFontSize( 10 );
-					doc.setTextColor( 29, 35, 39 );
-					doc.text( labelLines, margin, y );
-					doc.text( safeText( rows[ j ].count ), pageW - margin, y, { align: 'right' } );
+					doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
+					doc.text( labelLines, margin + 2, y );
+					doc.setFont( 'helvetica', 'bold' );
+					doc.text( safeText( rows[ j ].count ), pageW - margin - 2, y, { align: 'right' } );
 					y += labelLines.length * 12;
 					if ( detailLines.length ) {
-						doc.setFontSize( 9 );
-						doc.setTextColor( 100, 105, 112 );
-						doc.text( detailLines, margin, y );
-						y += detailLines.length * 11;
+						doc.setFont( 'helvetica', 'normal' );
+						doc.setFontSize( 8 );
+						doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+						doc.text( detailLines, margin + 12, y );
+						y += detailLines.length * 10;
 					}
-					y += 6;
+					y += 5;
+					doc.setDrawColor( 238, 238, 238 );
+					doc.setLineWidth( 0.4 );
+					doc.line( margin + 2, y, pageW - margin - 2, y );
+					y += 7;
 				}
 				y += 12;
+			}
+
+			if ( report.pie ) {
+				var pieDefs = [
+					{ key: 'browsers', label: 'Browsers' },
+					{ key: 'devices', label: 'Devices' },
+					{ key: 'os', label: 'Operating systems' }
+				];
+				var colGap = 16;
+				var colW = ( contentW - colGap * 2 ) / 3;
+				var pieW = colW * 0.78;
+				var colHeights = pieDefs.map( function ( def ) {
+					var data = report.pie[ def.key ] || [];
+					var h = 16 + pieW + 10;
+					data.forEach( function ( r ) {
+						h += doc.splitTextToSize( safeText( r.label ), colW - 16 ).length * 10 + 2;
+					} );
+					return h;
+				} );
+				var blockH = Math.max.apply( null, colHeights.concat( [ 60 ] ) );
+				ensureSpace( blockH + 20 );
+				sectionHeading( 'Technology' );
+				for ( i = 0; i < pieDefs.length; i++ ) {
+					var x = margin + i * ( colW + colGap );
+					var data = report.pie[ pieDefs[ i ].key ] || [];
+					var yy = y;
+					doc.setFont( 'helvetica', 'bold' );
+					doc.setFontSize( 9 );
+					doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
+					doc.text( pieDefs[ i ].label, x + colW / 2, yy, { align: 'center' } );
+					yy += 8;
+					if ( ! data.length ) {
+						doc.setFont( 'helvetica', 'normal' );
+						doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+						doc.text( 'No data.', x + colW / 2, yy + 20, { align: 'center' } );
+						continue;
+					}
+					doc.addImage( pdfPieImage( data ), 'PNG', x + ( colW - pieW ) / 2, yy, pieW, pieW );
+					yy += pieW + 10;
+					var total = data.reduce( function ( n, r ) { return n + r.value; }, 0 );
+					for ( j = 0; j < data.length; j++ ) {
+						var pct = total ? Math.round( ( data[ j ].value / total ) * 1000 ) / 10 : 0;
+						var line = safeText( data[ j ].label ) + ' — ' + data[ j ].value + ' (' + pct + '%)';
+						var lines = doc.splitTextToSize( line, colW - 16 );
+						doc.setFillColor.apply( doc, piePalette[ j % piePalette.length ].match( /\w\w/g ).map( function ( h ) { return parseInt( h, 16 ); } ) );
+						doc.circle( x + 3, yy - 2.6, 2.4, 'F' );
+						doc.setFont( 'helvetica', 'normal' );
+						doc.setFontSize( 8 );
+						doc.setTextColor( DARK[ 0 ], DARK[ 1 ], DARK[ 2 ] );
+						doc.text( lines, x + 12, yy );
+						yy += lines.length * 10 + 2;
+					}
+				}
+				y += blockH + 8;
 			}
 
 			// Footer on every page.
 			var pageCount = doc.internal.getNumberOfPages();
 			for ( i = 1; i <= pageCount; i++ ) {
 				doc.setPage( i );
+				doc.setDrawColor( LINE[ 0 ], LINE[ 1 ], LINE[ 2 ] );
+				doc.setLineWidth( 0.6 );
+				doc.line( margin, pageH - 32, pageW - margin, pageH - 32 );
 				doc.setFont( 'helvetica', 'normal' );
-				doc.setFontSize( 9 );
-				doc.setTextColor( 119, 119, 119 );
+				doc.setFontSize( 8 );
+				doc.setTextColor( GRAY[ 0 ], GRAY[ 1 ], GRAY[ 2 ] );
+				doc.text( safeText( report.title ), margin, pageH - 20 );
 				doc.text( 'Page ' + i + ' of ' + pageCount, pageW - margin, pageH - 20, { align: 'right' } );
 			}
 
