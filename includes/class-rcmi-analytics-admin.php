@@ -54,7 +54,7 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				return;
 			}
 			$args = array( 'page' => self::PAGE_SLUG );
-			foreach ( array( 'tab', 'range', 'traffic', 'updated' ) as $key ) {
+			foreach ( array( 'tab', 'range', 'traffic', 'from', 'to', 'updated' ) as $key ) {
 				if ( isset( $_GET[ $key ] ) ) {
 					$args[ $key ] = sanitize_key( wp_unslash( $_GET[ $key ] ) );
 				}
@@ -253,8 +253,9 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			$table = RCMI_TOOLKIT_ANALYTICS_TABLE;
 
 			// Filters — whitelisted values only; never interpolate raw input into SQL.
-			$range = isset( $_GET['range'] ) ? (int) $_GET['range'] : 30;
-			if ( ! in_array( $range, array( 7, 30, 90 ), true ) ) {
+			$range_param = isset( $_GET['range'] ) ? sanitize_key( wp_unslash( $_GET['range'] ) ) : '30';
+			$range       = 'custom' === $range_param ? 'custom' : (int) $range_param;
+			if ( ! in_array( $range, array( 7, 30, 90, 'custom' ), true ) ) {
 				$range = 30;
 			}
 			$traffic = isset( $_GET['traffic'] ) ? sanitize_key( wp_unslash( $_GET['traffic'] ) ) : 'human';
@@ -267,7 +268,45 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				$traffic = 'human';
 			}
 			$traffic_where = $traffic_map[ $traffic ];
-			$range_labels  = array( 7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days' );
+			$range_labels  = array( 7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days', 'custom' => 'Custom range' );
+
+			// Date windows in the site timezone. An N-day range is today plus
+			// the previous N-1 dates; the comparison period is the immediately
+			// preceding equal-length range.
+			$today_str = current_datetime()->format( 'Y-m-d' );
+			if ( 'custom' === $range ) {
+				$from_raw = isset( $_GET['from'] ) ? sanitize_text_field( wp_unslash( $_GET['from'] ) ) : '';
+				$to_raw   = isset( $_GET['to'] ) ? sanitize_text_field( wp_unslash( $_GET['to'] ) ) : '';
+				$start_dt = DateTimeImmutable::createFromFormat( '!Y-m-d', $from_raw, wp_timezone() );
+				$end_dt   = DateTimeImmutable::createFromFormat( '!Y-m-d', $to_raw, wp_timezone() );
+				if ( ! $start_dt || ! $end_dt || $start_dt->format( 'Y-m-d' ) !== $from_raw || $end_dt->format( 'Y-m-d' ) !== $to_raw ) {
+					$range = 30;
+				}
+			}
+			if ( 'custom' === $range ) {
+				$today_dt = new DateTimeImmutable( $today_str, wp_timezone() );
+				if ( $end_dt > $today_dt ) {
+					$end_dt = $today_dt;
+				}
+				if ( $start_dt > $end_dt ) {
+					$swap     = $start_dt;
+					$start_dt = $end_dt;
+					$end_dt   = $swap;
+				}
+				$min_start = $end_dt->sub( new DateInterval( 'P3649D' ) );
+				if ( $start_dt < $min_start ) {
+					$start_dt = $min_start;
+				}
+				$start = $start_dt->format( 'Y-m-d' );
+				$end   = $end_dt->format( 'Y-m-d' );
+				$days  = (int) $end_dt->diff( $start_dt )->format( '%a' ) + 1;
+			} else {
+				$end   = $today_str;
+				$start = ( new DateTimeImmutable( $today_str, wp_timezone() ) )->sub( new DateInterval( 'P' . ( $range - 1 ) . 'D' ) )->format( 'Y-m-d' );
+				$days  = $range;
+			}
+			$prev_end   = ( new DateTimeImmutable( $start, wp_timezone() ) )->sub( new DateInterval( 'P1D' ) )->format( 'Y-m-d' );
+			$prev_start = ( new DateTimeImmutable( $prev_end, wp_timezone() ) )->sub( new DateInterval( 'P' . ( $days - 1 ) . 'D' ) )->format( 'Y-m-d' );
 
 			// Filter form (GET so the view is shareable/bookmarkable).
 			echo '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="rcmi-analytics-filters">';
@@ -280,6 +319,12 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				echo '<option value="' . esc_attr( $value ) . '"' . selected( $range, $value, false ) . '>' . esc_html( $label ) . '</option>';
 			}
 			echo '</select>';
+			echo '</div>';
+			echo '<div class="rcmi-analytics-filter-field rcmi-analytics-dates" id="rcmi-analytics-dates">';
+			echo '<label for="rcmi-analytics-from">From</label>';
+			echo '<input type="date" id="rcmi-analytics-from" name="from" value="' . esc_attr( $start ) . '" max="' . esc_attr( $today_str ) . '">';
+			echo '<label for="rcmi-analytics-to">To</label>';
+			echo '<input type="date" id="rcmi-analytics-to" name="to" value="' . esc_attr( $end ) . '" max="' . esc_attr( $today_str ) . '">';
 			echo '</div>';
 			echo '<div class="rcmi-analytics-filter-field">';
 			echo '<label for="rcmi-analytics-traffic">Traffic</label>';
@@ -300,15 +345,6 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				echo '<p>No analytics table yet. Visit any front-end page to trigger table creation, or run <code>wp option delete rcmi_toolkit_analytics_db_version</code> then reload this page.</p>';
 				return;
 			}
-
-			// Date windows in the site timezone. An N-day range is today plus
-			// the previous N-1 dates; the comparison period is the immediately
-			// preceding equal-length range.
-			$now        = current_datetime();
-			$end        = $now->format( 'Y-m-d' );
-			$start      = $now->sub( new DateInterval( 'P' . ( $range - 1 ) . 'D' ) )->format( 'Y-m-d' );
-			$prev_end   = $now->sub( new DateInterval( 'P' . $range . 'D' ) )->format( 'Y-m-d' );
-			$prev_start = $now->sub( new DateInterval( 'P' . ( 2 * $range - 1 ) . 'D' ) )->format( 'Y-m-d' );
 
 			$current = $wpdb->get_row(
 				$wpdb->prepare(
@@ -339,8 +375,8 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 					 WHERE event_date BETWEEN %s AND %s
 					   AND event_type = 'page_view'
 					   AND {$traffic_where}",
-					$end,
-					$end
+					$today_str,
+					$today_str
 				)
 			);
 			$interactions = $wpdb->get_row(
@@ -416,7 +452,7 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 					$end
 				)
 			);
-			$points = self::build_chart_points( $daily, $start, $end, $range );
+			$points = self::build_chart_points( $daily, $start, $end, $days );
 			self::render_chart( $points, $human_range );
 
 			// Interactions.
@@ -645,17 +681,17 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 
 		/**
 		 * Prepare ordered chart points from the fetched daily rows: zero-filled
-		 * site-local dates (weekly buckets for the 90-day range) plus a visible
+		 * site-local dates (weekly buckets for ranges over 60 days) plus a visible
 		 * tick cadence. Every point carries these keys:
 		 * date_label, label, views, vd, show_label.
 		 *
 		 * @param array  $daily Daily rows (day, views, visitor_days).
 		 * @param string $start Range start (Y-m-d, site-local).
 		 * @param string $end   Range end (Y-m-d, site-local).
-		 * @param int    $range 7, 30, or 90.
+		 * @param int    $days Number of days in the range.
 		 * @return array
 		 */
-		private static function build_chart_points( $daily, $start, $end, $range ) {
+		private static function build_chart_points( $daily, $start, $end, $days ) {
 			// Index fetched rows by date.
 			$by_day = array();
 			foreach ( (array) $daily as $row ) {
@@ -683,9 +719,9 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				);
 			}
 
-			// For the 90-day range, aggregate into consecutive 7-day buckets
+			// For ranges over 60 days, aggregate into consecutive 7-day buckets
 			// anchored at the range start.
-			if ( 90 === $range ) {
+			if ( $days > 60 ) {
 				$bucketed = array();
 				foreach ( array_chunk( $points, 7 ) as $chunk ) {
 					$views = 0;
@@ -853,6 +889,8 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 	display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0;
 }
 .rcmi-analytics-filter-field { display: flex; align-items: center; gap: 8px; }
+.rcmi-analytics-dates.is-hidden { display: none; }
+.rcmi-analytics-dates input[type="date"] { min-width: 9.5rem; }
 .rcmi-analytics-filters label { font-weight: 600; font-size: 13px; }
 .rcmi-analytics-cards {
 	display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

@@ -12,6 +12,32 @@
 		}
 	}
 
+	var rangeSelect = document.getElementById( 'rcmi-analytics-range' );
+	var datesWrap   = document.getElementById( 'rcmi-analytics-dates' );
+	var fromInput   = document.getElementById( 'rcmi-analytics-from' );
+	var toInput     = document.getElementById( 'rcmi-analytics-to' );
+
+	function syncCustomDates() {
+		if ( datesWrap ) {
+			datesWrap.classList.toggle( 'is-hidden', ! rangeSelect || 'custom' !== rangeSelect.value );
+		}
+	}
+
+	if ( rangeSelect && datesWrap ) {
+		rangeSelect.addEventListener( 'change', syncCustomDates );
+		[ fromInput, toInput ].forEach( function ( input ) {
+			if ( input ) {
+				input.addEventListener( 'change', function () {
+					if ( input.value ) {
+						rangeSelect.value = 'custom';
+					}
+					syncCustomDates();
+				} );
+			}
+		} );
+		syncCustomDates();
+	}
+
 	if ( ! dataEl || ! canvas || ! exportBtn ) {
 		setStatus( 'Report data unavailable.' );
 		return;
