@@ -893,6 +893,96 @@
 	// Block: rcmi/quote-block
 	// Large pull quote with quotation marks and citation.
 	// ============================================================
+	// ============================================================
+	// Block: rcmi/section
+	// Generic RCMI container — full-bleed section with a 1280px wrap
+	// inside, matching the width/gutters every other RCMI block uses.
+	// ============================================================
+	registerBlockType( 'rcmi/section', {
+		apiVersion: 3,
+		title: __( 'RCMI Section', 'rcmi-toolkit' ),
+		description: __( 'A page section that centers content at the standard RCMI width with the site\u2019s gutters and section spacing.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'grid-view',
+		supports: {
+			html: false,
+			anchor: true,
+			align: [ 'wide', 'full' ],
+		},
+		attributes: {
+			bg:           { type: 'string', default: 'none' },
+			paddingY:     { type: 'string', default: 'normal' },
+			contentWidth: { type: 'string', default: 'wide' },
+		},
+		edit: function ( props ) {
+			var attrs = props.attributes;
+			var setAttributes = props.setAttributes;
+			var sectionClasses = [ 'rcmi-section' ];
+			if ( attrs.bg !== 'none' ) sectionClasses.push( 'bg-' + attrs.bg );
+			if ( attrs.paddingY === 'tight' ) sectionClasses.push( '-tight' );
+			if ( attrs.paddingY === 'none' ) sectionClasses.push( '-flat' );
+			var wrapClasses = [ 'wrap' ];
+			if ( attrs.contentWidth === 'narrow' ) wrapClasses.push( '-narrow' );
+			if ( attrs.contentWidth === 'full' ) wrapClasses.push( '-full' );
+			var blockProps = useBlockProps( { className: sectionClasses.join( ' ' ) + ' rcmi-section-editor' } );
+			// Only seed the placeholder template when the block has no inner
+			// blocks yet — same remount-safety pattern as quote-block/cta-band.
+			var hasInnerBlocks = useSelect( function ( select ) {
+				var block = select( 'core/block-editor' ).getBlock( props.clientId );
+				return !!( block && block.innerBlocks && block.innerBlocks.length );
+			}, [ props.clientId ] );
+			return el( Fragment, null,
+				el( InspectorControls, null,
+					el( PanelBody, { title: __( 'Section', 'rcmi-toolkit' ), initialOpen: true },
+						el( SelectControl, {
+							label: __( 'Background', 'rcmi-toolkit' ),
+							value: attrs.bg,
+							options: [
+								{ label: __( 'None (white)', 'rcmi-toolkit' ), value: 'none' },
+								{ label: __( 'Light gray', 'rcmi-toolkit' ), value: 'alt' },
+								{ label: __( 'UH Red', 'rcmi-toolkit' ), value: 'primary' },
+							],
+							onChange: function ( value ) { setAttributes( { bg: value } ); }
+						} ),
+						el( SelectControl, {
+							label: __( 'Vertical padding', 'rcmi-toolkit' ),
+							value: attrs.paddingY,
+							options: [
+								{ label: __( 'Normal', 'rcmi-toolkit' ), value: 'normal' },
+								{ label: __( 'Compact', 'rcmi-toolkit' ), value: 'tight' },
+								{ label: __( 'None', 'rcmi-toolkit' ), value: 'none' },
+							],
+							onChange: function ( value ) { setAttributes( { paddingY: value } ); }
+						} ),
+						el( SelectControl, {
+							label: __( 'Content width', 'rcmi-toolkit' ),
+							help: __( 'Wide matches every RCMI block (1280px). Narrow suits prose. Full keeps gutters but removes the width cap.', 'rcmi-toolkit' ),
+							value: attrs.contentWidth,
+							options: [
+								{ label: __( 'Wide — 1280px (default)', 'rcmi-toolkit' ), value: 'wide' },
+								{ label: __( 'Narrow — 820px', 'rcmi-toolkit' ), value: 'narrow' },
+								{ label: __( 'Full — edge to edge', 'rcmi-toolkit' ), value: 'full' },
+							],
+							onChange: function ( value ) { setAttributes( { contentWidth: value } ); }
+						} )
+					)
+				),
+				el( 'section', blockProps,
+					el( 'div', { className: wrapClasses.join( ' ' ) },
+						el( InnerBlocks, {
+							template: hasInnerBlocks ? undefined : [ [ 'core/paragraph', { placeholder: __( 'Add blocks to this section…', 'rcmi-toolkit' ) } ] ],
+							templateLock: false,
+							renderAppender: InnerBlocks.ButtonBlockAppender
+						} )
+					)
+				)
+			);
+		},
+		save: function () {
+			return el( InnerBlocks.Content );
+		}
+	} );
+
 	registerBlockType( 'rcmi/quote-block', {
 		apiVersion: 3,
 		title: __( 'RCMI Quote Block', 'rcmi-toolkit' ),

@@ -1162,6 +1162,44 @@ function rcmi_register_server_side_blocks() {
 		'supports' => array_merge( $story_supports, array( 'align' => array( 'full' ) ) ),
 	) );
 
+	// rcmi/section — generic container matching the RCMI design system's
+	// 1280px wrap + gutters. InnerBlocks content; wrapper rendered here.
+	register_block_type( 'rcmi/section', array(
+		'attributes' => array(
+			'bg'           => array( 'type' => 'string', 'default' => 'none' ),
+			'paddingY'     => array( 'type' => 'string', 'default' => 'normal' ),
+			'contentWidth' => array( 'type' => 'string', 'default' => 'wide' ),
+		),
+		'supports' => array(
+			'html'   => false,
+			'anchor' => true,
+			'align'  => array( 'wide', 'full' ),
+		),
+		'render_callback' => function ( $attrs, $content = '' ) {
+			$bg    = in_array( $attrs['bg'] ?? '', array( 'alt', 'primary' ), true ) ? $attrs['bg'] : 'none';
+			$pad   = in_array( $attrs['paddingY'] ?? '', array( 'tight', 'none' ), true ) ? $attrs['paddingY'] : 'normal';
+			$width = in_array( $attrs['contentWidth'] ?? '', array( 'narrow', 'full' ), true ) ? $attrs['contentWidth'] : 'wide';
+
+			$section_classes = 'rcmi-section'
+				. ( 'none' !== $bg ? ' bg-' . $bg : '' )
+				. ( 'tight' === $pad ? ' -tight' : '' )
+				. ( 'none' === $pad ? ' -flat' : '' );
+			$wrap_classes = 'wrap' . ( 'wide' !== $width ? ' -' . $width : '' );
+
+			$anchor = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
+
+			ob_start();
+			?>
+			<section class="<?php echo esc_attr( $section_classes ); ?>"<?php echo $anchor; ?>>
+				<div class="<?php echo esc_attr( $wrap_classes ); ?>">
+					<?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP ?>
+				</div>
+			</section>
+			<?php
+			return ob_get_clean();
+		},
+	) );
+
 	// rcmi/quote-block — large pull quote with citation.
 	register_block_type( 'rcmi/quote-block', array(
 		'attributes' => array(
