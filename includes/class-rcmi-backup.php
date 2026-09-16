@@ -320,6 +320,24 @@ function rcmi_backup_component_versions() {
 // ── create ──────────────────────────────────────────────────────────
 
 /**
+ * Compression method per file. Already-compressed formats (images, video,
+ * PDFs, Office docs, archives, fonts) gain ~0% from DEFLATE but cost the
+ * same CPU — storing them raw keeps the silent zip->close() window short,
+ * which matters on IIS where FastCGI activityTimeout kills quiet requests.
+ */
+function rcmi_backup_zip_method( $rel ) {
+	static $store = array(
+		'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'ico', 'heic', 'heif',
+		'mp4', 'm4v', 'mov', 'webm', 'avi', 'mkv', 'mp3', 'm4a', 'ogg', 'wav',
+		'zip', 'gz', 'bz2', '7z', 'rar', 'xz', 'tgz', 'jar', 'dmg', 'iso',
+		'pdf', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp',
+		'woff', 'woff2', 'eot', 'exe', 'msi',
+	);
+	$ext = strtolower( pathinfo( $rel, PATHINFO_EXTENSION ) );
+	return in_array( $ext, $store, true ) ? ZipArchive::CM_STORE : ZipArchive::CM_DEFLATE;
+}
+
+/**
  * Build a backup zip. $type: 'db' | 'full'. Returns path or WP_Error.
  */
 function rcmi_backup_create( $type = 'db', $label = '' ) {
@@ -402,7 +420,7 @@ function rcmi_backup_create( $type = 'db', $label = '' ) {
 			}
 			$entry = 'files/uploads/' . $rel;
 			$zip->addFile( $abs, $entry );
-			$zip->setCompressionName( $entry, ZipArchive::CM_DEFLATE );
+			$zip->setCompressionName( $entry, rcmi_backup_zip_method( $rel ) );
 			$count++;
 			$bytes += $file->getSize();
 		}

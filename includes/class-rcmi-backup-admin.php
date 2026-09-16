@@ -50,13 +50,30 @@ add_action( 'admin_post_rcmi_backup_download', function () {
 		rcmi_backup_redirect( array( 'rcmi_error' => 'Backup not found.' ) );
 	}
 	// Stream the file — backups are never exposed via a public URL.
+	// Chunked + flushed so IIS/FastCGI keeps seeing output (activityTimeout)
+	// and PHP's default max_execution_time doesn't cap long transfers.
+	@set_time_limit( 0 );
+	while ( ob_get_level() > 0 ) {
+		ob_end_clean();
+	}
 	nocache_headers();
 	header( 'Content-Type: application/zip' );
 	header( 'Content-Disposition: attachment; filename="' . basename( $path ) . '"' );
 	header( 'Content-Length: ' . filesize( $path ) );
 	$in = fopen( $path, 'rb' );
+	if ( ! $in ) {
+		wp_die( 'Could not read backup file.' );
+	}
 	$out = fopen( 'php://output', 'wb' );
-	stream_copy_to_stream( $in, $out );
+	while ( ! feof( $in ) ) {
+		$chunk = fread( $in, 1024 * 1024 );
+		if ( false === $chunk ) {
+			break;
+		}
+		fwrite( $out, $chunk );
+		fflush( $out );
+		flush();
+	}
 	fclose( $in );
 	fclose( $out );
 	exit;
