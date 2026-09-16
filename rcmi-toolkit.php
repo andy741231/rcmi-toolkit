@@ -23,6 +23,10 @@ define( 'RCMI_TOOLKIT_GITHUB_REPO', 'rcmi-toolkit' );
 // Lightweight, cookieless, first-party analytics. See includes/class-rcmi-analytics.php.
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics.php';
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics-admin.php';
+
+// Site backup/restore + schedules. See includes/class-rcmi-backup.php.
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-backup.php';
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-backup-admin.php';
 register_activation_hook( __FILE__, array( 'RCMI_Analytics', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'RCMI_Analytics', 'deactivate' ) );
 
@@ -152,6 +156,12 @@ function rcmi_toolkit_render_admin_overview() {
 	echo '<h2>Analytics</h2>';
 	echo '<p>Cookieless, first-party page views plus CTA and download tracking, with a Chart.js dashboard and PDF export.</p>';
 	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=rcmi-analytics' ) ) . '">Open Analytics</a></p>';
+	echo '</div>';
+
+	echo '<div class="rcmi-toolkit-card">';
+	echo '<h2>Backups</h2>';
+	echo '<p>Database and uploads backups with separate schedules, retention, download, and restore — stored in a protected directory.</p>';
+	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=rcmi-backup' ) ) . '">Open Backups</a></p>';
 	echo '</div>';
 
 	// The SEO settings page lives in the rcmi theme (inc/seo.php) but joins
