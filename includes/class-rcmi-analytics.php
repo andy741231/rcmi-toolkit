@@ -31,7 +31,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'RCMI_Analytics' ) ) {
 
-	define( 'RCMI_TOOLKIT_ANALYTICS_DB_VERSION', 3 );
+	define( 'RCMI_TOOLKIT_ANALYTICS_DB_VERSION', 4 );
 	define( 'RCMI_TOOLKIT_ANALYTICS_TABLE', $GLOBALS['wpdb']->prefix . 'rcmi_analytics_events' );
 
 	class RCMI_Analytics {
@@ -131,9 +131,12 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 				device        VARCHAR(20)     NOT NULL DEFAULT '',
 				visitor_hash  CHAR(64)        NOT NULL DEFAULT '',
 				is_bot        TINYINT(1)      NOT NULL DEFAULT 0,
+				is_logged_in  TINYINT(1)      NOT NULL DEFAULT 0,
+				user_roles    VARCHAR(255)    NOT NULL DEFAULT '',
 				PRIMARY KEY  (id),
 				KEY ts (ts),
 				KEY event_date_bot (event_date, is_bot),
+				KEY event_date_login (event_date, is_logged_in),
 				KEY event_date_visitor (event_date, visitor_hash),
 				KEY event_date_type (event_date, event_type, is_bot),
 				KEY path (path(191)),
@@ -145,7 +148,7 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 
 			// Only proceed once all new columns actually exist.
 			$columns  = (array) $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
-			$required = array( 'event_date', 'event_type', 'event_label', 'target_url' );
+			$required = array( 'event_date', 'event_type', 'event_label', 'target_url', 'is_logged_in', 'user_roles' );
 			if ( array_diff( $required, $columns ) ) {
 				return;
 			}
@@ -265,6 +268,7 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 			$context   = self::current_page_context();
 			$page_type = $context['page_type'];
 			$object_id = $context['object_id'];
+			$identity  = self::visitor_identity();
 
 			// Parse UA into browser / os / device.
 			$browser = self::parse_browser( $ua );
@@ -286,6 +290,8 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 				'device'       => $device,
 				'visitor_hash' => $visitor_hash,
 				'is_bot'       => $is_bot ? 1 : 0,
+				'is_logged_in' => $identity['is_logged_in'],
+				'user_roles'   => $identity['user_roles'],
 			);
 		}
 
@@ -315,8 +321,10 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 					'device'       => $payload['device'],
 					'visitor_hash' => $payload['visitor_hash'],
 					'is_bot'       => $payload['is_bot'],
+					'is_logged_in' => $payload['is_logged_in'],
+					'user_roles'   => $payload['user_roles'],
 				),
-				array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d' )
+				array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s' )
 			);
 		}
 
@@ -497,6 +505,20 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 		}
 
 		/**
+		 * Visitor login state and role list for the row being recorded.
+		 *
+		 * @return array{is_logged_in: int, user_roles: string}
+		 */
+		private static function visitor_identity() {
+			$identity = array( 'is_logged_in' => 0, 'user_roles' => '' );
+			if ( is_user_logged_in() ) {
+				$identity['is_logged_in'] = 1;
+				$identity['user_roles']   = implode( ',', array_map( 'sanitize_key', (array) wp_get_current_user()->roles ) );
+			}
+			return $identity;
+		}
+
+		/**
 		 * Classify the current page the same way build_payload does.
 		 *
 		 * @return array{page_type: string, object_id: int}
@@ -637,6 +659,7 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 			$event_date   = current_datetime()->format( 'Y-m-d' );
 			$anon_ip      = self::anonymize_ip( self::client_ip() );
 			$visitor_hash = self::visitor_hash( $anon_ip, $event_date );
+			$identity     = self::visitor_identity();
 
 			return array(
 				'ts'           => current_time( 'mysql', true ), // UTC.
@@ -653,6 +676,8 @@ if ( ! class_exists( 'RCMI_Analytics' ) ) {
 				'device'       => self::parse_device( $ua ),
 				'visitor_hash' => $visitor_hash,
 				'is_bot'       => $is_bot ? 1 : 0,
+				'is_logged_in' => $identity['is_logged_in'],
+				'user_roles'   => $identity['user_roles'],
 			);
 		}
 

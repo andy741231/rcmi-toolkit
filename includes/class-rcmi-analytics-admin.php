@@ -59,6 +59,11 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 					$args[ $key ] = sanitize_key( wp_unslash( $_GET[ $key ] ) );
 				}
 			}
+			foreach ( array( 'include', 'roles' ) as $key ) {
+				if ( isset( $_GET[ $key ] ) && is_array( $_GET[ $key ] ) ) {
+					$args[ $key ] = array_map( 'sanitize_key', wp_unslash( $_GET[ $key ] ) );
+				}
+			}
 			wp_safe_redirect( admin_url( 'admin.php?' . http_build_query( $args ) ) );
 			exit;
 		}
@@ -246,6 +251,49 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 		}
 
 		/**
+		 * Build the audience WHERE fragment from the checkbox filters. Within a
+		 * group (humans/bots, guests/logged-in, roles) checked values OR together;
+		 * the groups AND together; an entirely unchecked group adds no condition.
+		 * Role slugs are sanitize_key'd and whitelisted against registered roles,
+		 * so interpolating them into the fragment is safe.
+		 *
+		 * @param array $include Checked include[] values.
+		 * @param array $roles   Checked roles[] values.
+		 * @return string SQL WHERE fragment.
+		 */
+		public static function audience_where( $include, $roles ) {
+			$include = is_array( $include ) ? array_map( 'sanitize_key', $include ) : array();
+			$roles   = is_array( $roles ) ? array_map( 'sanitize_key', $roles ) : array();
+			$valid   = array_intersect( $roles, array_keys( wp_roles()->roles ?? array() ) );
+
+			$where = array();
+			$bots  = array_intersect( $include, array( 'humans', 'bots' ) );
+			if ( 1 === count( $bots ) ) {
+				$where[] = in_array( 'bots', $bots, true ) ? 'is_bot = 1' : 'is_bot = 0';
+			}
+
+			$states = array_intersect( $include, array( 'guests', 'logged_in' ) );
+			$role_clause = '';
+			if ( $valid ) {
+				$ors = array();
+				foreach ( $valid as $r ) {
+					$ors[] = "FIND_IN_SET('" . $r . "', user_roles)";
+				}
+				$role_clause = implode( ' OR ', $ors );
+			}
+
+			if ( array( 'guests' ) === array_values( $states ) ) {
+				$where[] = 'is_logged_in = 0';
+			} elseif ( array( 'logged_in' ) === array_values( $states ) ) {
+				$where[] = 'is_logged_in = 1' . ( $role_clause ? ' AND (' . $role_clause . ')' : '' );
+			} elseif ( 2 === count( $states ) && $role_clause ) {
+				$where[] = '( is_logged_in = 0 OR ( is_logged_in = 1 AND (' . $role_clause . ') ) )';
+			}
+
+			return $where ? implode( ' AND ', $where ) : '1 = 1';
+		}
+
+		/**
 		 * Render the overview dashboard: filters, summary cards, chart, top lists.
 		 */
 		private static function render_overview() {
@@ -258,16 +306,44 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			if ( ! in_array( $range, array( 7, 30, 90, 'custom' ), true ) ) {
 				$range = 30;
 			}
-			$traffic = isset( $_GET['traffic'] ) ? sanitize_key( wp_unslash( $_GET['traffic'] ) ) : 'human';
-			$traffic_map = array(
-				'human' => 'is_bot = 0',
-				'bots'  => 'is_bot = 1',
-				'all'   => '1 = 1',
-			);
-			if ( ! isset( $traffic_map[ $traffic ] ) ) {
-				$traffic = 'human';
+			// Audience checkboxes: within a group values OR; groups AND; an
+			// entirely unchecked group means "no filter" for that dimension.
+			$include_raw = isset( $_GET['include'] ) ? (array) wp_unslash( $_GET['include'] ) : array();
+			$roles_raw   = isset( $_GET['roles'] ) ? (array) wp_unslash( $_GET['roles'] ) : array();
+			$include     = array_values( array_intersect( array( 'humans', 'bots', 'guests', 'logged_in' ), array_map( 'sanitize_key', $include_raw ) ) );
+
+			// Back-compat: the old ?traffic=human|bots|all select still works.
+			if ( ! $include && isset( $_GET['traffic'] ) ) {
+				$legacy = sanitize_key( wp_unslash( $_GET['traffic'] ) );
+				if ( 'human' === $legacy ) {
+					$include = array( 'humans', 'guests', 'logged_in' );
+				} elseif ( 'bots' === $legacy ) {
+					$include = array( 'bots', 'guests', 'logged_in' );
+				} elseif ( 'all' === $legacy ) {
+					$include = array( 'humans', 'bots', 'guests', 'logged_in' );
+				}
 			}
-			$traffic_where = $traffic_map[ $traffic ];
+			if ( ! $include ) {
+				$include = array( 'humans', 'guests', 'logged_in' );
+			}
+			$traffic_where = self::audience_where( $include, $roles_raw );
+
+			$bot_sel   = array_intersect( $include, array( 'humans', 'bots' ) );
+			$state_sel = array_intersect( $include, array( 'guests', 'logged_in' ) );
+			$roles_sel = array_values( array_intersect( array_map( 'sanitize_key', $roles_raw ), array_keys( wp_roles()->roles ?? array() ) ) );
+
+			$traffic_label = 'All traffic';
+			if ( 1 === count( $bot_sel ) ) {
+				$traffic_label = in_array( 'bots', $bot_sel, true ) ? 'Bots' : 'Humans';
+			}
+			if ( array( 'guests' ) === array_values( $state_sel ) ) {
+				$traffic_label .= ' · guests';
+			} elseif ( array( 'logged_in' ) === array_values( $state_sel ) ) {
+				$traffic_label .= ' · logged-in';
+			}
+			if ( $roles_sel ) {
+				$traffic_label .= ' · roles: ' . implode( ', ', $roles_sel );
+			}
 			$range_labels  = array( 7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days', 'custom' => 'Custom range' );
 
 			// Date windows in the site timezone. An N-day range is today plus
@@ -326,14 +402,22 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 			echo '<label for="rcmi-analytics-to">To</label>';
 			echo '<input type="date" id="rcmi-analytics-to" name="to" value="' . esc_attr( $end ) . '" max="' . esc_attr( $today_str ) . '">';
 			echo '</div>';
-			echo '<div class="rcmi-analytics-filter-field">';
-			echo '<label for="rcmi-analytics-traffic">Traffic</label>';
-			echo '<select id="rcmi-analytics-traffic" name="traffic">';
-			foreach ( array( 'human' => 'Humans only', 'bots' => 'Bots only', 'all' => 'All traffic' ) as $value => $label ) {
-				echo '<option value="' . esc_attr( $value ) . '"' . selected( $traffic, $value, false ) . '>' . esc_html( $label ) . '</option>';
+			echo '<fieldset class="rcmi-analytics-filter-field rcmi-analytics-who">';
+			echo '<legend>Traffic</legend>';
+			foreach ( array( 'humans' => 'Humans', 'bots' => 'Bots', 'guests' => 'Guests', 'logged_in' => 'Logged-in' ) as $value => $label ) {
+				echo '<label><input type="checkbox" name="include[]" value="' . esc_attr( $value ) . '"' . checked( in_array( $value, $include, true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
 			}
-			echo '</select>';
-			echo '</div>';
+			echo '</fieldset>';
+			echo '<fieldset class="rcmi-analytics-filter-field rcmi-analytics-who">';
+			echo '<legend>Roles</legend>';
+			foreach ( wp_roles()->get_names() as $slug => $name ) {
+				echo '<label><input type="checkbox" name="roles[]" value="' . esc_attr( $slug ) . '"' . checked( in_array( $slug, $roles_sel, true ), true, false ) . '> ' . esc_html( translate_user_role( $name ) ) . '</label>';
+			}
+			echo '</fieldset>';
+			$asettings = RCMI_Analytics::get_settings();
+			if ( empty( $asettings['track_logged_in'] ) ) {
+				echo '<p class="description rcmi-analytics-role-hint">Logged-in filtering needs the "Track logged-in users" setting enabled.</p>';
+			}
 			echo '<button type="submit" class="button">Apply</button>';
 			echo '<button type="button" id="rcmi-analytics-export-pdf" class="button button-secondary" disabled>Export PDF</button>';
 			echo '<span id="rcmi-analytics-export-status" class="rcmi-analytics-export-status" role="status" aria-live="polite"></span>';
@@ -536,7 +620,7 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 				'title'       => 'RCMI Analytics',
 				'range'       => $human_range,
 				'rangeLabel'  => $range_labels[ $range ],
-				'traffic'     => array( 'human' => 'Humans only', 'bots' => 'Bots only', 'all' => 'All traffic' )[ $traffic ],
+				'traffic'     => $traffic_label,
 				'timezone'    => wp_timezone_string(),
 				'generatedAt' => current_datetime()->format( 'M j, Y g:i A' ),
 				'metrics'     => array(
@@ -929,6 +1013,10 @@ if ( ! class_exists( 'RCMI_Analytics_Admin' ) ) {
 	display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0;
 }
 .rcmi-analytics-filter-field { display: flex; align-items: center; gap: 8px; }
+fieldset.rcmi-analytics-who { border: 0; margin: 0; padding: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+fieldset.rcmi-analytics-who legend { font-weight: 600; font-size: 13px; float: left; margin-right: 4px; padding: 0; }
+fieldset.rcmi-analytics-who label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
+.rcmi-analytics-role-hint { flex-basis: 100%; margin: 2px 0 0; }
 .rcmi-analytics-dates.is-hidden { display: none; }
 .rcmi-analytics-dates input[type="date"] { min-width: 9.5rem; }
 .rcmi-analytics-filters label { font-weight: 600; font-size: 13px; }

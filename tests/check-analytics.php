@@ -1,6 +1,6 @@
 <?php
 /**
- * RCMI Analytics v3 — WP-CLI regression checks.
+ * RCMI Analytics v4 — WP-CLI regression checks.
  *
  * Run from the plugin directory:
  *   wp eval-file tests/check-analytics.php
@@ -47,7 +47,7 @@ function rcmi_call_admin_private( $method, array $args = array() ) {
 // ---------------------------------------------------------------------------
 // 1. DB version + schema upgrade.
 // ---------------------------------------------------------------------------
-rcmi_check( 3 === RCMI_TOOLKIT_ANALYTICS_DB_VERSION, 'DB version constant is not 3' );
+rcmi_check( 4 === RCMI_TOOLKIT_ANALYTICS_DB_VERSION, 'DB version constant is not 4' );
 
 RCMI_Analytics::maybe_install();
 
@@ -58,6 +58,8 @@ rcmi_check( in_array( 'event_date', $columns, true ), 'event_date column missing
 rcmi_check( in_array( 'event_type', $columns, true ), 'event_type column missing after maybe_install' );
 rcmi_check( in_array( 'event_label', $columns, true ), 'event_label column missing after maybe_install' );
 rcmi_check( in_array( 'target_url', $columns, true ), 'target_url column missing after maybe_install' );
+rcmi_check( in_array( 'is_logged_in', $columns, true ), 'is_logged_in column missing after maybe_install' );
+rcmi_check( in_array( 'user_roles', $columns, true ), 'user_roles column missing after maybe_install' );
 
 $indexes = array();
 foreach ( (array) $wpdb->get_results( "SHOW INDEX FROM {$table}" ) as $idx ) {
@@ -66,6 +68,7 @@ foreach ( (array) $wpdb->get_results( "SHOW INDEX FROM {$table}" ) as $idx ) {
 rcmi_check( isset( $indexes['event_date_bot'] ), 'event_date_bot index missing' );
 rcmi_check( isset( $indexes['event_date_visitor'] ), 'event_date_visitor index missing' );
 rcmi_check( isset( $indexes['event_date_type'] ), 'event_date_type index missing' );
+rcmi_check( isset( $indexes['event_date_login'] ), 'event_date_login index missing' );
 
 // ---------------------------------------------------------------------------
 // 2. normalize_path.
@@ -195,6 +198,7 @@ if ( is_array( $payload ) ) {
 	rcmi_check( current_datetime()->format( 'Y-m-d' ) === $payload['event_date'], 'payload event_date is not current site-local date' );
 	rcmi_check( 'external.example' === $payload['referrer'], 'payload referrer is not the external host' );
 	rcmi_check( isset( $payload['visitor_hash'] ) && 64 === strlen( $payload['visitor_hash'] ), 'payload visitor_hash not 64 chars' );
+	rcmi_check( isset( $payload['is_logged_in'] ) && isset( $payload['user_roles'] ), 'payload missing is_logged_in/user_roles keys' );
 }
 
 foreach ( $saved as $k => $v ) {
@@ -284,7 +288,7 @@ if ( $is_innodb ) {
 		);
 		$res_dl = RCMI_Analytics::record_interaction( $req );
 
-		$new_rows = $wpdb->get_results( "SELECT event_type, event_label, target_url, path FROM {$table} WHERE id > {$baseline_id} ORDER BY id ASC" );
+		$new_rows = $wpdb->get_results( "SELECT event_type, event_label, target_url, path, is_logged_in, user_roles FROM {$table} WHERE id > {$baseline_id} ORDER BY id ASC" );
 	} finally {
 		$wpdb->query( 'ROLLBACK' );
 		foreach ( $ep_saved as $k => $v ) {
@@ -308,6 +312,8 @@ if ( $is_innodb ) {
 		rcmi_check( 'Annual Report' === $new_rows[1]->event_label, 'download label wrong' );
 		rcmi_check( '/files/annual-report.pdf' === $new_rows[1]->target_url, "download target wrong: {$new_rows[1]->target_url}" );
 		rcmi_check( '/resources/' === $new_rows[1]->path, "download source path wrong: {$new_rows[1]->path}" );
+		rcmi_check( '0' === (string) $new_rows[0]->is_logged_in, "inserted row is_logged_in wrong: {$new_rows[0]->is_logged_in}" );
+		rcmi_check( '' === (string) $new_rows[0]->user_roles, "inserted row user_roles wrong: {$new_rows[0]->user_roles}" );
 	}
 } else {
 	rcmi_check( false, 'events table engine is not InnoDB — endpoint insert test skipped' );
@@ -349,6 +355,22 @@ rcmi_check( isset( $defaults['track_cta_clicks'] ) && 1 === $defaults['track_cta
 rcmi_check( isset( $defaults['track_downloads'] ) && 1 === $defaults['track_downloads'], 'default track_downloads is not 1' );
 
 // ---------------------------------------------------------------------------
+// 13. audience_where (checkbox audience filter).
+// ---------------------------------------------------------------------------
+$aw = RCMI_Analytics_Admin::audience_where( array( 'humans', 'guests', 'logged_in' ), array() );
+rcmi_check( 'is_bot = 0' === $aw, "audience_where humans+guests+logged_in returned '{$aw}'" );
+$aw = RCMI_Analytics_Admin::audience_where( array( 'bots' ), array() );
+rcmi_check( 'is_bot = 1' === $aw, "audience_where bots returned '{$aw}'" );
+$aw = RCMI_Analytics_Admin::audience_where( array( 'humans', 'guests' ), array() );
+rcmi_check( 'is_bot = 0 AND is_logged_in = 0' === $aw, "audience_where humans+guests returned '{$aw}'" );
+$aw = RCMI_Analytics_Admin::audience_where( array( 'humans', 'logged_in' ), array( 'subscriber' ) );
+rcmi_check( false !== strpos( $aw, 'is_logged_in = 1' ) && false !== strpos( $aw, "FIND_IN_SET('subscriber', user_roles)" ), "audience_where humans+logged_in+subscriber returned '{$aw}'" );
+$aw = RCMI_Analytics_Admin::audience_where( array(), array() );
+rcmi_check( '1 = 1' === $aw, "audience_where empty returned '{$aw}'" );
+$aw = RCMI_Analytics_Admin::audience_where( array( 'logged_in' ), array( 'administrator' ) );
+rcmi_check( false !== strpos( $aw, "is_logged_in = 1 AND (FIND_IN_SET('administrator', user_roles))" ), "audience_where logged_in+administrator returned '{$aw}'" );
+
+// ---------------------------------------------------------------------------
 // Result.
 // ---------------------------------------------------------------------------
 if ( $rcmi_errors ) {
@@ -357,4 +379,4 @@ if ( $rcmi_errors ) {
 	}
 	exit( 1 );
 }
-echo "RCMI Analytics v3 checks: all passed.\n";
+echo "RCMI Analytics v4 checks: all passed.\n";
