@@ -177,16 +177,28 @@ add_action( 'admin_post_rcmi_backup_restore', function () {
 	if ( 'RESTORE' !== strtoupper( trim( wp_unslash( $_POST['confirm'] ?? '' ) ) ) ) {
 		rcmi_backup_redirect( array( 'rcmi_error' => 'Confirmation phrase did not match — restore cancelled.', 'rcmi_confirm' => basename( $path ) ) );
 	}
+	$files_mode = isset( $_POST['files_mode'] ) ? sanitize_key( wp_unslash( $_POST['files_mode'] ) ) : '';
+	if ( ! in_array( $files_mode, array( 'restore', 'absolute', 'none' ), true ) ) {
+		$files_mode = ! empty( $_POST['restore_files'] ) ? 'restore' : 'none';
+	}
 	$opts = array(
-		'snapshot' => ! empty( $_POST['snapshot'] ),
-		'files'    => ! empty( $_POST['restore_files'] ),
+		'snapshot'       => ! empty( $_POST['snapshot'] ),
+		'files_mode'     => $files_mode,
+		'rewrite_urls'   => ! empty( $_POST['clone_rewrite'] ),
+		'preserve_users' => ! empty( $_POST['clone_preserve_users'] ),
 	);
 	$result = rcmi_backup_restore( $path, $opts );
 	if ( is_wp_error( $result ) ) {
 		rcmi_backup_redirect( array( 'rcmi_error' => rawurlencode( $result->get_error_message() ) ) );
 	}
+	$rewritten = 0;
+	foreach ( (array) ( $result->rewritten ?? array() ) as $k => $n ) {
+		if ( '_errors' !== $k ) {
+			$rewritten += (int) $n;
+		}
+	}
 	rcmi_backup_redirect( ! empty( $result->ok )
-		? array( 'rcmi_restored' => basename( $path ), 'rcmi_snapshot' => $result->snapshot ?: '' )
+		? array( 'rcmi_restored' => basename( $path ), 'rcmi_snapshot' => $result->snapshot ?: '', 'rcmi_rewritten' => $rewritten )
 		: array( 'rcmi_error' => rawurlencode( $result->error ) )
 	);
 } );
@@ -220,7 +232,7 @@ function rcmi_backup_admin_page() {
 			<div class="notice notice-success"><p>Backup created: <code><?php echo esc_html( wp_unslash( $_GET['rcmi_created'] ) ); ?></code></p></div>
 		<?php endif; ?>
 		<?php if ( isset( $_GET['rcmi_restored'] ) ) : ?>
-			<div class="notice notice-success"><p>Restore completed from <code><?php echo esc_html( wp_unslash( $_GET['rcmi_restored'] ) ); ?></code>.<?php echo ! empty( $_GET['rcmi_snapshot'] ) ? ' Pre-restore snapshot: <code>' . esc_html( wp_unslash( $_GET['rcmi_snapshot'] ) ) . '</code>' : ''; ?></p></div>
+			<div class="notice notice-success"><p>Restore completed from <code><?php echo esc_html( wp_unslash( $_GET['rcmi_restored'] ) ); ?></code>.<?php echo ! empty( $_GET['rcmi_snapshot'] ) ? ' Pre-restore snapshot: <code>' . esc_html( wp_unslash( $_GET['rcmi_snapshot'] ) ) . '</code>' : ''; ?><?php echo isset( $_GET['rcmi_rewritten'] ) && (int) $_GET['rcmi_rewritten'] > 0 ? ' URLs rewritten: <strong>' . (int) $_GET['rcmi_rewritten'] . '</strong>' : ''; ?></p></div>
 		<?php endif; ?>
 		<?php if ( isset( $_GET['rcmi_deleted'] ) ) : ?>
 			<div class="notice notice-info"><p>Backup deleted.</p></div>
@@ -263,13 +275,37 @@ function rcmi_backup_admin_page() {
 						<ul><?php foreach ( $diffs as $d ) : ?><li><?php echo esc_html( $d ); ?></li><?php endforeach; ?></ul>
 					</div>
 				<?php endif; ?>
-				<p><strong>This overwrites the current database</strong> (all content, settings, tickets, analytics)<?php echo 'full' === ( $confirm_m['type'] ?? '' ) ? ' and replaces files in uploads' : ''; ?>. The site briefly enters maintenance mode during the restore.</p>
+				<p><strong>This overwrites the current database</strong> (all content, settings, tickets, analytics)<?php echo 'full' === ( $confirm_m['type'] ?? '' ) ? ' and can replace files in uploads' : ''; ?>. The site briefly enters maintenance mode during the restore.</p>
+				<?php
+				$is_clone = ! empty( $confirm_m['site_url'] )
+					&& untrailingslashit( $confirm_m['site_url'] ) !== untrailingslashit( home_url() );
+				if ( $is_clone ) : ?>
+					<div class="notice notice-info inline">
+						<p><strong>Clone from another site.</strong> This backup was made on <code><?php echo esc_html( $confirm_m['site_url'] ); ?></code> — this site is <code><?php echo esc_html( home_url() ); ?></code>. Choose how the imported data adapts to this site:</p>
+					</div>
+				<?php endif; ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php wp_nonce_field( 'rcmi_backup_restore' ); ?>
 					<input type="hidden" name="action" value="rcmi_backup_restore" />
 					<input type="hidden" name="file" value="<?php echo esc_attr( basename( $confirm ) ); ?>" />
 					<p><label><input type="checkbox" name="snapshot" value="1" checked /> Create a pre-restore database snapshot first (recommended)</label></p>
-					<?php if ( 'full' === ( $confirm_m['type'] ?? '' ) ) : ?>
+					<?php if ( $is_clone ) : ?>
+						<p><label><input type="checkbox" name="clone_rewrite" value="1" checked /> <strong>Rewrite URLs to this site</strong> — replaces <code><?php echo esc_html( $confirm_m['site_url'] ); ?></code> with <code><?php echo esc_html( home_url() ); ?></code> throughout the imported database, so this site keeps its own address (serialization-safe)</label></p>
+						<p><label><input type="checkbox" name="clone_preserve_users" value="1" /> <strong>Preserve existing users</strong> — leaves <code>wp_users</code>/<code>wp_usermeta</code> untouched, so this site's accounts, passwords, and roles stay unchanged</label></p>
+						<?php if ( 'full' === ( $confirm_m['type'] ?? '' ) ) : ?>
+							<fieldset>
+								<legend style="font-weight:600;">Uploaded files</legend>
+								<p><label><input type="radio" name="files_mode" value="restore" checked /> Copy uploaded files into this site's <code>uploads/</code> directory</label></p>
+								<p><label><input type="radio" name="files_mode" value="absolute" /> Don't copy — keep file URLs pointing at <code><?php echo esc_html( untrailingslashit( $confirm_m['site_url'] ) . '/wp-content/uploads' ); ?></code></label></p>
+							</fieldset>
+						<?php else : ?>
+							<fieldset>
+								<legend style="font-weight:600;">Uploaded files</legend>
+								<p><label><input type="radio" name="files_mode" value="none" checked /> Leave file URLs as this site's own <code>uploads/</code> (existing files stay)</label></p>
+								<p><label><input type="radio" name="files_mode" value="absolute" /> Point file URLs at <code><?php echo esc_html( untrailingslashit( $confirm_m['site_url'] ) . '/wp-content/uploads' ); ?></code> — nothing is copied</label></p>
+							</fieldset>
+						<?php endif; ?>
+					<?php elseif ( 'full' === ( $confirm_m['type'] ?? '' ) ) : ?>
 						<p><label><input type="checkbox" name="restore_files" value="1" checked /> Also restore uploaded files</label></p>
 					<?php endif; ?>
 					<p>Type <code>RESTORE</code> to confirm:<br />

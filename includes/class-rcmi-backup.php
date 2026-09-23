@@ -538,7 +538,7 @@ function rcmi_backup_validate( $path ) {
  * Import database.sql one statement per line (the dump format writes a
  * single statement per line terminated by ";").
  */
-function rcmi_backup_import_sql( $path ) {
+function rcmi_backup_import_sql( $path, $skip_tables = array() ) {
 	global $wpdb;
 	$in = fopen( $path, 'rb' );
 	if ( ! $in ) {
@@ -546,6 +546,7 @@ function rcmi_backup_import_sql( $path ) {
 	}
 	$wpdb->query( 'SET FOREIGN_KEY_CHECKS=0' );
 	$statements = 0;
+	$skipped    = 0;
 	$errors     = array();
 	$buffer     = '';
 	while ( ( $line = fgets( $in ) ) !== false ) {
@@ -560,6 +561,12 @@ function rcmi_backup_import_sql( $path ) {
 		}
 		$stmt   = substr( $buffer, 0, -1 );
 		$buffer = '';
+		if ( $skip_tables
+			&& preg_match( '/^\s*(?:DROP\s+TABLE\s+IF\s+EXISTS|CREATE\s+TABLE|INSERT\s+INTO|TRUNCATE\s+TABLE|ALTER\s+TABLE|DELETE\s+FROM)\s+`?([A-Za-z0-9_]+)`?/i', $stmt, $tm )
+			&& in_array( $tm[1], $skip_tables, true ) ) {
+			$skipped++;
+			continue;
+		}
 		if ( false === $wpdb->query( $stmt ) ) {
 			$errors[] = $wpdb->last_error;
 			if ( count( $errors ) >= 5 ) {
@@ -573,7 +580,163 @@ function rcmi_backup_import_sql( $path ) {
 	if ( $errors ) {
 		return new WP_Error( 'rcmi_backup_sql', 'SQL import failed: ' . $errors[0], array( 'errors' => $errors, 'statements' => $statements ) );
 	}
-	return $statements;
+	return array( 'statements' => $statements, 'skipped' => $skipped );
+}
+
+// ============================================================================
+// URL rewriting (clone mode)
+// ============================================================================
+
+/**
+ * Build regex search/replace pairs that rewrite $from_url to $to_url.
+ *
+ * Covers the ways an absolute URL survives in DB content: plain, JSON-escaped
+ * (https:\/\/…), and protocol-relative (//…). The lookahead requires a URL
+ * boundary after the match so /rcmi never rewrites inside /rcmibeta.
+ *
+ * @param string $from_url e.g. https://uhph.uh.edu/rcmi
+ * @param string $to_url   e.g. http://localhost:8000
+ * @return array pattern => replacement
+ */
+function rcmi_backup_url_pairs( $from_url, $to_url ) {
+	$from       = untrailingslashit( $from_url );
+	$to         = untrailingslashit( $to_url );
+	$from_hp    = preg_replace( '#^https?://#i', '', $from );
+	$to_hp      = preg_replace( '#^https?://#i', '', $to );
+	$q_hp       = preg_quote( $from_hp, '#' );                          // uhph\.uh\.edu/rcmi (preg_quote leaves / bare for a # delimiter)
+	$q_hp_esc   = str_replace( '/', '\\\\/', $q_hp );                   // regex matching JSON-escaped uhph.uh.edu\/rcmi
+	// Replacement strings: preg_replace treats \ and $ specially, so
+	// escape them first; '\\\\/' emits a literal '\/' for JSON contexts.
+	$to_r       = str_replace( array( '\\', '$' ), array( '\\\\', '\\$' ), $to );
+	$to_esc_s   = str_replace( '/', '\\\\/', $to_r );                   // emits http:\/\/localhost:8000
+	$to_hp_safe = str_replace( array( '\\', '$' ), array( '\\\\', '\\$' ), '//' . $to_hp );
+	$look       = '(?=[/"\'?\#\s\\\\<)\]]|$)';                          // URL must end or be followed by a delimiter (# escaped — it's the pattern delimiter)
+	return array(
+		'#https?://' . $q_hp . $look . '#i'                => $to_r,
+		'#https?:\\\\/\\\\/' . $q_hp_esc . $look . '#i'    => $to_esc_s,
+		'#//' . $q_hp . $look . '#i'                       => $to_hp_safe,
+	);
+}
+
+/**
+ * Replace all URL patterns inside a plain string.
+ */
+function rcmi_backup_replace_str( $str, $pairs ) {
+	foreach ( $pairs as $re => $rep ) {
+		$str = preg_replace( $re, $rep, $str );
+	}
+	return $str;
+}
+
+/**
+ * Walk a serialized blob token by token, rewriting URL patterns inside
+ * string payloads and recomputing their declared byte lengths. Never calls
+ * unserialize — payloads are sliced by declared length, so quotes or
+ * "s:1:"-looking text inside string data can't desync the walk, and objects
+ * whose class isn't loaded (__PHP_Incomplete_Class — e.g. Freemius FS_*
+ * objects stored in options) keep their exact byte structure instead of
+ * fataling on property writes.
+ *
+ * Tokens handled: s:LEN:"DATA";  O:LEN:"Class":N:{...}  E:LEN:"Enum:Case";
+ * and C:LEN:"Class":DLEN:{DATA} (legacy Serializable interface — its second
+ * length-prefixed payload is rewritten too). a:/i:/d:/b:/N;/R: carry no
+ * string payload and pass through as structure.
+ */
+function rcmi_backup_replace_serialized( $ser, $pairs ) {
+	$out = '';
+	$pos = 0;
+	$len = strlen( $ser );
+	while ( $pos < $len && preg_match( '/([sOCE]):(\d+):"/', $ser, $m, PREG_OFFSET_CAPTURE, $pos ) ) {
+		$mpos    = $m[0][1];
+		$decl    = (int) $m[2][0];
+		$payload = substr( $ser, $mpos + strlen( $m[0][0] ), $decl );
+		$new     = rcmi_backup_replace_blob( $payload, $pairs );
+		// Emit tag + corrected length + payload WITHOUT a terminator — the
+		// original bytes after the payload ('";' for s/E, '":' for O/C) are
+		// copied as structure, preserving each type's real syntax.
+		$out .= substr( $ser, $pos, $mpos - $pos ) . $m[1][0] . ':' . strlen( $new ) . ':"' . $new;
+		$pos  = $mpos + strlen( $m[0][0] ) + $decl;
+		if ( 'C' === $m[1][0] && preg_match( '/":(\d+):\{/', $ser, $m2, PREG_OFFSET_CAPTURE, $pos ) && $pos === $m2[0][1] ) {
+			$cpay = substr( $ser, $m2[0][1] + strlen( $m2[0][0] ), (int) $m2[1][0] );
+			$cnew = rcmi_backup_replace_blob( $cpay, $pairs );
+			$out .= '":' . strlen( $cnew ) . ':{' . $cnew;
+			$pos  = $m2[0][1] + strlen( $m2[0][0] ) + (int) $m2[1][0];
+		}
+	}
+	return $out . substr( $ser, $pos );
+}
+
+/**
+ * Replace for a single DB column value. Serialized blobs take the
+ * token-walking rewrite so length prefixes stay valid (checked BEFORE any
+ * replace — a naive str_replace first would stale the lengths and make
+ * is_serialized fail); anything else is a plain string replace. Recurses
+ * into double-serialized payloads via the scanner.
+ */
+function rcmi_backup_replace_blob( $str, $pairs ) {
+	if ( ! is_string( $str ) || '' === $str ) {
+		return $str;
+	}
+	return is_serialized( $str )
+		? rcmi_backup_replace_serialized( $str, $pairs )
+		: rcmi_backup_replace_str( $str, $pairs );
+}
+
+/**
+ * Alias kept as the public entry point for the rewrite loop.
+ */
+function rcmi_backup_replace_value( $value, $pairs ) {
+	return rcmi_backup_replace_blob( $value, $pairs );
+}
+
+/**
+ * Rewrite URLs across every text column of every table. Rows are prefiltered
+ * by a LIKE on the bare host so only candidate rows are touched.
+ *
+ * @param array  $pairs       pattern => replacement from rcmi_backup_url_pairs()
+ * @param string $like_needle prefilter substring (bare host of the source URL)
+ * @param array  $skip_tables tables to leave alone (e.g. preserved users)
+ * @return array table.column => rows changed, plus '_errors' if any
+ */
+function rcmi_backup_rewrite_urls( $pairs, $like_needle, $skip_tables = array() ) {
+	global $wpdb;
+	$report = array();
+	$like   = '%' . $wpdb->esc_like( $like_needle ) . '%';
+	foreach ( $wpdb->get_col( 'SHOW TABLES' ) as $table ) {
+		if ( in_array( $table, $skip_tables, true ) ) {
+			continue;
+		}
+		$pk        = null;
+		$text_cols = array();
+		foreach ( $wpdb->get_results( 'DESCRIBE `' . esc_sql( $table ) . '`', ARRAY_A ) as $c ) {
+			if ( 'PRI' === $c['Key'] && null === $pk ) {
+				$pk = $c['Field'];
+			}
+			if ( preg_match( '/char|text/i', $c['Type'] ) ) {
+				$text_cols[] = $c['Field'];
+			}
+		}
+		foreach ( $text_cols as $col ) {
+			$sel  = null !== $pk
+				? "SELECT `$pk` AS _id, `$col` AS _v FROM `$table` WHERE `$col` LIKE %s"
+				: "SELECT `$col` AS _v FROM `$table` WHERE `$col` LIKE %s";
+			foreach ( (array) $wpdb->get_results( $wpdb->prepare( $sel, $like ), ARRAY_A ) as $row ) {
+				$new = rcmi_backup_replace_value( $row['_v'], $pairs );
+				if ( $new === $row['_v'] ) {
+					continue;
+				}
+				$ok = null !== $pk
+					? $wpdb->update( $table, array( $col => $new ), array( $pk => $row['_id'] ) )
+					: $wpdb->query( $wpdb->prepare( "UPDATE `$table` SET `$col` = %s WHERE `$col` = %s", $new, $row['_v'] ) );
+				if ( false === $ok ) {
+					$report['_errors'][] = "$table.$col: " . $wpdb->last_error;
+					continue;
+				}
+				$report[ $table . '.' . $col ] = ( $report[ $table . '.' . $col ] ?? 0 ) + 1;
+			}
+		}
+	}
+	return $report;
 }
 
 /**
@@ -633,14 +796,34 @@ function rcmi_backup_maintenance( $on ) {
 
 /**
  * Full restore pipeline for a backup zip at $path.
- * $opts: ['snapshot' => bool, 'files' => bool]
+ *
+ * $opts:
+ *   'snapshot'       bool   Create a pre-restore DB snapshot (default true).
+ *   'files'          bool   Legacy flag — superseded by 'files_mode'.
+ *   'files_mode'     string 'restore' | 'absolute' | 'none'. 'absolute' keeps
+ *                           file URLs pointing at the source site's uploads
+ *                           instead of copying files (clone only).
+ *   'rewrite_urls'   bool   Clone: rewrite the backup's site_url to this
+ *                           site's home_url() across all tables.
+ *   'preserve_users' bool   Clone: leave wp_users/wp_usermeta untouched so
+ *                           this site's accounts and roles survive.
  */
 function rcmi_backup_restore( $path, $opts = array() ) {
-	$opts = array_merge( array( 'snapshot' => true, 'files' => true ), $opts );
+	global $wpdb;
+	$opts = array_merge( array(
+		'snapshot'       => true,
+		'files'          => true,
+		'files_mode'     => null,
+		'rewrite_urls'   => false,
+		'preserve_users' => false,
+	), $opts );
 	$m = rcmi_backup_validate( $path );
 	if ( is_wp_error( $m ) ) {
 		return $m;
 	}
+	$files_mode = null !== $opts['files_mode']
+		? $opts['files_mode']
+		: ( $opts['files'] ? 'restore' : 'none' );
 
 	@set_time_limit( 0 );
 	@ini_set( 'memory_limit', '512M' );
@@ -665,7 +848,11 @@ function rcmi_backup_restore( $path, $opts = array() ) {
 	rcmi_backup_maintenance( true );
 	$result = array( 'snapshot' => $snapshot ? basename( $snapshot ) : null );
 
-	$imported = rcmi_backup_import_sql( $tmp_sql );
+	// Preserved tables are skipped at statement level — DROP, CREATE and
+	// INSERT for them never run, so existing rows stay exactly as they are.
+	$skip_tables = $opts['preserve_users'] ? array( $wpdb->users, $wpdb->usermeta ) : array();
+
+	$imported = rcmi_backup_import_sql( $tmp_sql, $skip_tables );
 	@unlink( $tmp_sql );
 	if ( is_wp_error( $imported ) ) {
 		rcmi_backup_maintenance( false );
@@ -673,17 +860,59 @@ function rcmi_backup_restore( $path, $opts = array() ) {
 		$result['ok']    = false;
 		return (object) $result;
 	}
-	$result['statements'] = $imported;
+	$result['statements']         = $imported['statements'];
+	$result['skipped_statements'] = $imported['skipped'];
+	if ( $skip_tables ) {
+		$result['skipped_tables'] = $skip_tables;
+	}
 
-	if ( $opts['files'] && 'full' === ( $m['type'] ?? '' ) ) {
+	// A cross-site restore ("clone") — the backup's site_url differs from
+	// this install's. Rewrite URLs so this WordPress keeps its own address.
+	$is_clone = ! empty( $m['site_url'] )
+		&& untrailingslashit( $m['site_url'] ) !== untrailingslashit( home_url() );
+
+	if ( $is_clone && $opts['rewrite_urls'] ) {
+		$result['rewritten'] = rcmi_backup_rewrite_urls(
+			rcmi_backup_url_pairs( $m['site_url'], home_url() ),
+			(string) wp_parse_url( $m['site_url'], PHP_URL_HOST ),
+			$skip_tables
+		);
+	}
+
+	if ( 'restore' === $files_mode && 'full' === ( $m['type'] ?? '' ) ) {
 		$result['files'] = rcmi_backup_restore_files( $path );
 		if ( is_wp_error( $result['files'] ) ) {
 			$result['files'] = 0;
 		}
+	} elseif ( 'absolute' === $files_mode && $is_clone ) {
+		// After the global rewrite, uploads URLs point at this site — flip
+		// just the uploads prefix back to the source so files are served
+		// from the origin site instead of being copied.
+		$src_uploads = untrailingslashit( $m['site_url'] ) . '/wp-content/uploads';
+		$tgt_uploads = wp_upload_dir( null, false )['baseurl'];
+		$result['uploads_linked'] = rcmi_backup_rewrite_urls(
+			rcmi_backup_url_pairs( $tgt_uploads, $src_uploads ),
+			(string) wp_parse_url( $tgt_uploads, PHP_URL_HOST ),
+			$skip_tables
+		);
 	}
+	$result['clone'] = $is_clone;
 
 	wp_cache_flush();
 	rcmi_backup_maintenance( false );
 	$result['ok'] = true;
+
+	if ( $is_clone ) {
+		/**
+		 * Fires after a clone restore completes — the place for
+		 * environment adjustments (deactivate SSO plugins, local admin
+		 * users, dev-only settings).
+		 *
+		 * @param array $result Restore report: statements, rewritten rows
+		 *                      per table.column, skipped_tables, files.
+		 * @param array $m      The backup's manifest (site_url, versions…).
+		 */
+		do_action( 'rcmi_backup_post_clone', $result, $m );
+	}
 	return (object) $result;
 }

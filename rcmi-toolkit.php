@@ -2,7 +2,7 @@
 /**
  * Plugin Name: RCMI Toolkit
  * Description: Custom Gutenberg blocks and tools for the RCMI theme — parallax hero, impact strip (tabs), role selector, impact stats, card grids, quote block, CTA band, Spectra integration, and lightweight cookieless analytics.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: UH RCMI Web Team
  * License: GPL-2.0-or-later
  * Text Domain: rcmi-toolkit
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RCMI_TOOLKIT_VERSION', '1.3.0' );
+define( 'RCMI_TOOLKIT_VERSION', '1.4.0' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
