@@ -590,6 +590,7 @@
 	var applyFormat = wp.richText.applyFormat;
 	var removeFormat = wp.richText.removeFormat;
 	var getActiveFormat = wp.richText.getActiveFormat;
+	var toggleFormat = wp.richText.toggleFormat;
 
 	// Unregister core text-color so our custom one can use the same className
 	try { unregisterFormatType( 'core/text-color' ); } catch ( e ) {}
@@ -893,6 +894,33 @@
 								}
 							} )
 						);
+					}
+				} )
+			);
+		}
+	} );
+
+	// --- Underline toolbar button ---
+	// core/underline is keyboard-only (Ctrl+U) by WP design — this proxy
+	// adds a visible button that toggles the SAME core/underline mark,
+	// so the button and shortcut interoperate on identical markup.
+	registerFormatType( 'rcmi/underline', {
+		title: __( 'Underline', 'rcmi-toolkit' ),
+		tagName: 'span',
+		className: 'rcmi-underline-proxy',
+		priority: 3,
+		edit: function ( props ) {
+			return el( BlockControls, null,
+				el( ToolbarButton, {
+					icon: 'editor-underline',
+					label: __( 'Underline', 'rcmi-toolkit' ),
+					isPressed: !! getActiveFormat( props.value, 'core/underline' ),
+					onClick: function () {
+						props.onChange( toggleFormat( props.value, {
+							type: 'core/underline',
+							attributes: { style: 'text-decoration: underline;' },
+							title: __( 'Underline', 'rcmi-toolkit' )
+						} ) );
 					}
 				} )
 			);
@@ -3928,7 +3956,14 @@
 			);
 		};
 
-		var cellFormats = [ 'core/bold', 'core/italic', 'core/link', 'core/strikethrough', 'core/code', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+		var cellFormats = [
+			'core/bold', 'core/italic', 'core/underline', 'core/strikethrough',
+			'core/code', 'core/link', 'core/subscript', 'core/superscript',
+			'core/keyboard', 'core/non-breaking-space', 'core/language',
+			'core/footnote', 'core/image',
+			'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family',
+			'rcmi/font-size', 'rcmi/line-height', 'rcmi/underline'
+		];
 
 		var renderCell = function ( r, c, tag, isHeaderCell ) {
 			var cell = rows[ r ][ c ];
