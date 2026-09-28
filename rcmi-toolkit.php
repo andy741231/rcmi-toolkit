@@ -2405,9 +2405,11 @@ function rcmi_register_server_side_blocks() {
 			'striped'    => array( 'type' => 'boolean', 'default' => true ),
 			'bordered'   => array( 'type' => 'boolean', 'default' => false ),
 			'mobileMode' => array( 'type' => 'string', 'default' => 'scroll' ),
-			'minWidth'   => array( 'type' => 'number', 'default' => 0 ),
-			'textAlign'  => array( 'type' => 'string', 'default' => 'left' ),
-			'caption'    => array( 'type' => 'string', 'default' => '' ),
+			'minWidth'    => array( 'type' => 'number', 'default' => 0 ),
+			'textAlign'   => array( 'type' => 'string', 'default' => 'left' ),
+			'headerAlign' => array( 'type' => 'string', 'default' => '' ),
+			'headerRows'  => array( 'type' => 'number', 'default' => 1 ),
+			'caption'     => array( 'type' => 'string', 'default' => '' ),
 		),
 		'supports' => array(
 			'html'   => false,
@@ -2568,8 +2570,12 @@ function rcmi_render_table_block( $attrs ) {
 		return '';
 	}
 	$cols       = count( $rows[0] );
-	$has_header = ! empty( $attrs['hasHeader'] );
 	$col_header = ! empty( $attrs['colHeader'] );
+	// First N rows are <thead> headers. `hasHeader` stays the master switch
+	// so content saved before headerRows existed is unchanged.
+	$header_count = ! empty( $attrs['hasHeader'] )
+		? min( max( 1, intval( $attrs['headerRows'] ?? 1 ) ), count( $rows ) )
+		: 0;
 
 	$classes = 'rcmi-table-block rcmi-table--' . $theme;
 	if ( ! empty( $attrs['striped'] ) ) {
@@ -2606,12 +2612,16 @@ function rcmi_render_table_block( $attrs ) {
 	if ( in_array( $attrs['textAlign'] ?? '', array( 'center', 'right' ), true ) ) {
 		$vars .= '--rcmi-tbl-align:' . $attrs['textAlign'] . ';';
 	}
+	if ( in_array( $attrs['headerAlign'] ?? '', array( 'left', 'center', 'right' ), true ) ) {
+		$vars .= '--rcmi-tbl-head-align:' . $attrs['headerAlign'] . ';';
+	}
 
 	// Column header text per grid column — used as data-labels in stacked mode.
+	// Labels come from the last header row, the one closest to the data.
 	$labels = array();
-	if ( $has_header ) {
+	if ( $header_count ) {
 		for ( $c = 0; $c < $cols; $c++ ) {
-			$root        = rcmi_table_root_at( $rows, 0, $c );
+			$root        = rcmi_table_root_at( $rows, $header_count - 1, $c );
 			$labels[ $c ] = trim( wp_strip_all_tags( $rows[ $root[0] ][ $root[1] ]['content'] ) );
 		}
 	}
@@ -2630,17 +2640,20 @@ function rcmi_render_table_block( $attrs ) {
 	ob_start();
 	echo '<figure class="' . esc_attr( $classes ) . '"' . $id_attr . ( $vars ? ' style="' . esc_attr( $vars ) . '"' : '' ) . '>';
 	echo '<div class="rcmi-table-scroll"><table>';
-	$body_start = 0;
-	if ( $has_header ) {
-		echo '<thead><tr>';
-		for ( $c = 0; $c < $cols; $c++ ) {
-			if ( $rows[0][ $c ]['hidden'] ) {
-				continue;
+	$body_start = $header_count;
+	if ( $header_count ) {
+		echo '<thead>';
+		for ( $hr = 0; $hr < $header_count; $hr++ ) {
+			echo '<tr>';
+			for ( $c = 0; $c < $cols; $c++ ) {
+				if ( $rows[ $hr ][ $c ]['hidden'] ) {
+					continue;
+				}
+				echo $render_cell( $rows[ $hr ][ $c ], 'th', ' scope="col"' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post
 			}
-			echo $render_cell( $rows[0][ $c ], 'th', ' scope="col"' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post
+			echo '</tr>';
 		}
-		echo '</tr></thead>';
-		$body_start = 1;
+		echo '</thead>';
 	}
 	echo '<tbody>';
 	for ( $r = $body_start; $r < count( $rows ); $r++ ) {
@@ -2652,7 +2665,7 @@ function rcmi_render_table_block( $attrs ) {
 			}
 			$is_row_head = $col_header && 0 === $c;
 			$extra       = $is_row_head ? ' scope="row"' : '';
-			if ( ! $is_row_head && $has_header && '' !== $labels[ $c ] ) {
+			if ( ! $is_row_head && $header_count && '' !== $labels[ $c ] ) {
 				$extra .= ' data-label="' . esc_attr( $labels[ $c ] ) . '"';
 			}
 			echo $render_cell( $cell, $is_row_head ? 'th' : 'td', $extra ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post

@@ -35,6 +35,8 @@
 	background:var(--rcmi-tbl-head-bg);
 	color:var(--rcmi-tbl-head-text);
 	font-weight:700;
+	/* Header alignment is independent of the body (--rcmi-tbl-align). */
+	text-align:var(--rcmi-tbl-head-align,var(--rcmi-tbl-align,left));
 }
 .rcmi-table-block tbody th[scope="row"]{
 	background:var(--rcmi-tbl-head-bg);

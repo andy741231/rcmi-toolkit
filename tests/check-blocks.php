@@ -117,6 +117,38 @@ rcmi_check( false !== strpos( $custom, '<figcaption' ), 'table: figcaption missi
 rcmi_check( false !== strpos( $custom, '<em>data</em>' ), 'table: caption markup stripped' );
 
 // ---------------------------------------------------------------------------
+// rcmi/table — multiple header rows + separate header alignment
+// ---------------------------------------------------------------------------
+
+$multi_head = rcmi_render( 'rcmi/table', array(
+	'headerRows'  => 2,
+	'headerAlign' => 'center',
+	'textAlign'   => 'right',
+	'mobileMode'  => 'stack',
+	'rows'        => array(
+		array( $cell( 'Group A' ), $cell( 'Group B' ) ),   // header row 1
+		array( $cell( 'Col A1' ),  $cell( 'Col B1' ) ),    // header row 2 — data labels
+		array( $cell( 'x' ),       $cell( 'y' ) ),          // body
+	),
+) );
+
+$thead_start = strpos( $multi_head, '<thead>' );
+$thead_html  = substr( $multi_head, $thead_start, strpos( $multi_head, '</thead>' ) - $thead_start );
+rcmi_check( 2 === substr_count( $thead_html, '<tr>' ), 'table: expected 2 rows inside thead' );
+rcmi_check( 4 === substr_count( $multi_head, 'scope="col"' ), 'table: both header rows should render th scope=col' );
+rcmi_check( false !== strpos( $multi_head, 'data-label="Col A1"' ), 'table: data-label should come from the last header row' );
+rcmi_check( false !== strpos( $multi_head, '--rcmi-tbl-head-align:center' ), 'table: header align var missing' );
+rcmi_check( false !== strpos( $multi_head, '--rcmi-tbl-align:right' ), 'table: body align var missing' );
+
+// headerRows is ignored when hasHeader is off.
+$no_head = rcmi_render( 'rcmi/table', array(
+	'hasHeader'  => false,
+	'headerRows' => 2,
+	'rows'       => array( array( $cell( 'a' ) ) ),
+) );
+rcmi_check( false === strpos( $no_head, '<thead>' ), 'table: thead should not render when hasHeader off' );
+
+// ---------------------------------------------------------------------------
 // rcmi/directory — card render
 // ---------------------------------------------------------------------------
 

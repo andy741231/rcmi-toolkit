@@ -3682,6 +3682,7 @@
 		if ( attrs.bodyText ) { vars[ '--rcmi-tbl-body-text' ] = attrs.bodyText; }
 		if ( attrs.minWidth > 0 ) { vars[ '--rcmi-tbl-min' ] = attrs.minWidth + 'px'; }
 		if ( attrs.textAlign && attrs.textAlign !== 'left' ) { vars[ '--rcmi-tbl-align' ] = attrs.textAlign; }
+		if ( attrs.headerAlign ) { vars[ '--rcmi-tbl-head-align' ] = attrs.headerAlign; }
 		return vars;
 	}
 
@@ -3713,10 +3714,15 @@
 			return ( settings.color && settings.color.palette ) || settings.colors || [];
 		}, [] );
 
+		// First `headerCount` rows render in <thead> as <th scope="col">.
+		// `hasHeader` stays the master switch so legacy content is unchanged.
+		var headerCount = attrs.hasHeader ? Math.min( Math.max( 1, attrs.headerRows || 1 ), rows.length ) : 0;
+
 		var headerLabels = [];
-		if ( attrs.hasHeader && rows.length ) {
+		if ( headerCount ) {
+			// Labels come from the last header row — the one closest to the data.
 			for ( var lc = 0; lc < cols; lc++ ) {
-				var hr = rcmiTableRootAt( rows, 0, lc );
+				var hr = rcmiTableRootAt( rows, headerCount - 1, lc );
 				headerLabels[ lc ] = ( rows[ hr[ 0 ] ][ hr[ 1 ] ].content || '' ).replace( /<[^>]*>/g, '' ).trim();
 			}
 		}
@@ -3856,7 +3862,7 @@
 				cellProps.scope = 'col';
 			} else if ( attrs.colHeader && c === 0 ) {
 				cellProps.scope = 'row';
-			} else if ( attrs.hasHeader && headerLabels[ c ] ) {
+			} else if ( headerCount && headerLabels[ c ] ) {
 				cellProps[ 'data-label' ] = headerLabels[ c ];
 			}
 			if ( attrs.colHeader && c === 0 ) {
@@ -3874,7 +3880,7 @@
 			);
 		};
 
-		var bodyStart = attrs.hasHeader ? 1 : 0;
+		var bodyStart = headerCount;
 		var blockProps = useBlockProps( {
 			className: rcmiTableClasses( attrs ),
 			style: rcmiTableVars( attrs )
@@ -3912,11 +3918,18 @@
 						options: RCMI_TABLE_THEMES,
 						onChange: function ( v ) { setAttributes( { theme: v } ); }
 					} ),
-					el( ToggleControl, {
-						label: __( 'Header row', 'rcmi-toolkit' ),
-						help: __( 'Top row renders as table headers.', 'rcmi-toolkit' ),
-						checked: attrs.hasHeader,
-						onChange: function ( v ) { setAttributes( { hasHeader: v } ); }
+					el( SelectControl, {
+						label: __( 'Header rows', 'rcmi-toolkit' ),
+						help: __( 'Top N rows render as table headers (th, scope="col").', 'rcmi-toolkit' ),
+						value: headerCount,
+						options: [ 0, 1, 2, 3 ].map( function ( n ) {
+							return { label: '' + n, value: n };
+						} ),
+						onChange: function ( v ) {
+							var n = parseInt( v, 10 ) || 0;
+							// Keep the legacy hasHeader flag in sync.
+							setAttributes( { headerRows: Math.max( 1, n ), hasHeader: n > 0 } );
+						}
 					} ),
 					el( ToggleControl, {
 						label: __( 'First column header', 'rcmi-toolkit' ),
@@ -3933,6 +3946,27 @@
 						label: __( 'Bordered cells', 'rcmi-toolkit' ),
 						checked: attrs.bordered,
 						onChange: function ( v ) { setAttributes( { bordered: v } ); }
+					} ),
+					el( SelectControl, {
+						label: __( 'Header text align', 'rcmi-toolkit' ),
+						value: attrs.headerAlign,
+						options: [
+							{ label: __( 'Same as body', 'rcmi-toolkit' ), value: '' },
+							{ label: __( 'Left', 'rcmi-toolkit' ), value: 'left' },
+							{ label: __( 'Center', 'rcmi-toolkit' ), value: 'center' },
+							{ label: __( 'Right', 'rcmi-toolkit' ), value: 'right' }
+						],
+						onChange: function ( v ) { setAttributes( { headerAlign: v } ); }
+					} ),
+					el( SelectControl, {
+						label: __( 'Body text align', 'rcmi-toolkit' ),
+						value: attrs.textAlign,
+						options: [
+							{ label: __( 'Left', 'rcmi-toolkit' ), value: 'left' },
+							{ label: __( 'Center', 'rcmi-toolkit' ), value: 'center' },
+							{ label: __( 'Right', 'rcmi-toolkit' ), value: 'right' }
+						],
+						onChange: function ( v ) { setAttributes( { textAlign: v || 'left' } ); }
 					} )
 				),
 				el( PanelBody, { title: __( 'Colors', 'rcmi-toolkit' ), initialOpen: false },
@@ -3967,10 +4001,14 @@
 			el( 'figure', blockProps,
 				el( 'div', { className: 'rcmi-table-scroll' },
 					el( 'table', null,
-						attrs.hasHeader && rows.length ? el( 'thead', null,
-							el( 'tr', null, rows[ 0 ].map( function ( cell, c ) {
-								return renderCell( 0, c, 'th', true );
-							} ) )
+						headerCount ? el( 'thead', null,
+							rows.slice( 0, headerCount ).map( function ( row, r ) {
+								return el( 'tr', { key: 'head-' + r },
+									row.map( function ( cell, c ) {
+										return renderCell( r, c, 'th', true );
+									} )
+								);
+							} )
 						) : null,
 						el( 'tbody', null,
 							rows.map( function ( row, r ) {
@@ -4024,6 +4062,8 @@
 			mobileMode: { type: 'string', default: 'scroll' },
 			minWidth:   { type: 'number', default: 0 },
 			textAlign:  { type: 'string', default: 'left' },
+			headerAlign: { type: 'string', default: '' },
+			headerRows: { type: 'number', default: 1 },
 			caption:    { type: 'string', default: '' }
 		},
 		edit: RcmiTableEdit,
