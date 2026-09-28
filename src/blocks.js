@@ -3888,30 +3888,27 @@
 		var tableMenuSections = {
 			insert: {
 				title: __( 'Insert', 'rcmi-toolkit' ),
-				icon: 'plus-alt2',
 				items: [
-					{ title: __( 'Row before', 'rcmi-toolkit' ), icon: 'table-row-before', onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r ), pos.r ); } },
-					{ title: __( 'Row after', 'rcmi-toolkit' ), icon: 'table-row-after', onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r + 1 ), pos.r + 1 ); } },
-					{ title: __( 'Header before', 'rcmi-toolkit' ), icon: 'table-row-before', onClick: function () { insertHeaderRow( false ); } },
-					{ title: __( 'Header after', 'rcmi-toolkit' ), icon: 'table-row-after', onClick: function () { insertHeaderRow( true ); } },
-					{ title: __( 'Column before', 'rcmi-toolkit' ), icon: 'table-col-before', onClick: function () { commit( rcmiTableInsertCol( rows, pos.c ) ); } },
-					{ title: __( 'Column after', 'rcmi-toolkit' ), icon: 'table-col-after', onClick: function () { commit( rcmiTableInsertCol( rows, pos.c + 1 ) ); } }
+					{ title: __( 'Row before', 'rcmi-toolkit' ), onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r ), pos.r ); } },
+					{ title: __( 'Row after', 'rcmi-toolkit' ), onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r + 1 ), pos.r + 1 ); } },
+					{ title: __( 'Header before', 'rcmi-toolkit' ), onClick: function () { insertHeaderRow( false ); } },
+					{ title: __( 'Header after', 'rcmi-toolkit' ), onClick: function () { insertHeaderRow( true ); } },
+					{ title: __( 'Column before', 'rcmi-toolkit' ), onClick: function () { commit( rcmiTableInsertCol( rows, pos.c ) ); } },
+					{ title: __( 'Column after', 'rcmi-toolkit' ), onClick: function () { commit( rcmiTableInsertCol( rows, pos.c + 1 ) ); } }
 				]
 			},
 			'delete': {
 				title: __( 'Delete', 'rcmi-toolkit' ),
-				icon: 'trash',
 				items: [
-					{ title: __( 'Row', 'rcmi-toolkit' ), icon: 'table-row-delete', isDisabled: rows.length <= 1, onClick: function () { commitRows( rcmiTableDeleteRow( rows, pos.r ), null, pos.r ); setSel( null ); } },
-					{ title: __( 'Column', 'rcmi-toolkit' ), icon: 'table-col-delete', isDisabled: cols <= 1, onClick: function () { commit( rcmiTableDeleteCol( rows, pos.c ) ); setSel( null ); } }
+					{ title: __( 'Row', 'rcmi-toolkit' ), isDisabled: rows.length <= 1, onClick: function () { commitRows( rcmiTableDeleteRow( rows, pos.r ), null, pos.r ); setSel( null ); } },
+					{ title: __( 'Column', 'rcmi-toolkit' ), isDisabled: cols <= 1, onClick: function () { commit( rcmiTableDeleteCol( rows, pos.c ) ); setSel( null ); } }
 				]
 			},
 			append: {
 				title: __( 'Add at end', 'rcmi-toolkit' ),
-				icon: 'table',
 				items: [
-					{ title: __( 'Row', 'rcmi-toolkit' ), icon: 'table-row-after', onClick: function () { commit( rcmiTableInsertRow( rows, rows.length ) ); } },
-					{ title: __( 'Column', 'rcmi-toolkit' ), icon: 'table-col-after', onClick: function () { commit( rcmiTableInsertCol( rows, cols ) ); } }
+					{ title: __( 'Row', 'rcmi-toolkit' ), onClick: function () { commit( rcmiTableInsertRow( rows, rows.length ) ); } },
+					{ title: __( 'Column', 'rcmi-toolkit' ), onClick: function () { commit( rcmiTableInsertCol( rows, cols ) ); } }
 				]
 			}
 		};
@@ -3921,7 +3918,6 @@
 			var item = function ( it ) {
 				return el( MenuItem, {
 					key: it.title,
-					icon: it.icon,
 					isDisabled: it.isDisabled,
 					onClick: function () { it.onClick(); close(); }
 				}, it.title );
@@ -3929,24 +3925,20 @@
 			if ( ! menuSection ) {
 				return el( MenuGroup, null,
 					Object.keys( tableMenuSections ).map( function ( key ) {
-						var s = tableMenuSections[ key ];
 						return el( MenuItem, {
 							key: key,
-							icon: s.icon,
 							shortcut: '›',
 							'aria-haspopup': 'menu',
 							onClick: function () { setMenuSection( key ); }
-						}, s.title );
+						}, tableMenuSections[ key ].title );
 					} ),
 					el( MenuItem, {
-						icon: posIsHeader ? 'arrow-down-alt2' : 'arrow-up-alt2',
 						onClick: function () { setRowHeader( pos.r, ! posIsHeader ); close(); }
 					}, posIsHeader ? __( 'Remove row from header', 'rcmi-toolkit' ) : __( 'Make row a header', 'rcmi-toolkit' ) )
 				);
 			}
 			return el( MenuGroup, null,
 				el( MenuItem, {
-					icon: 'arrow-left-alt2',
 					onClick: function () { setMenuSection( null ); }
 				}, __( 'Back', 'rcmi-toolkit' ) ),
 				tableMenuSections[ menuSection ].items.map( item )
@@ -4044,6 +4036,7 @@
 						return el( DropdownMenu, {
 							icon: 'editor-table',
 							label: __( 'Edit table', 'rcmi-toolkit' ),
+							noIcons: true,
 							toggleProps: toggleProps,
 							onToggle: function () { setMenuSection( null ); },
 							children: tableMenuContent
