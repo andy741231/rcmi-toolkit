@@ -2387,8 +2387,435 @@ function rcmi_register_server_side_blocks() {
 			return ob_get_clean();
 		},
 	) );
+
+	// rcmi/table — data table with cell merging (colspan/rowspan), separate
+	// header/body colors, UH theme presets, and scroll/stack mobile modes.
+	// The grid is stored as a rectangular `rows` array; merged-away cells
+	// carry hidden:true so merges can be split without losing content.
+	register_block_type( 'rcmi/table', array(
+		'attributes' => array(
+			'rows'       => array( 'type' => 'array', 'default' => rcmi_table_default_rows() ),
+			'hasHeader'  => array( 'type' => 'boolean', 'default' => true ),
+			'colHeader'  => array( 'type' => 'boolean', 'default' => false ),
+			'theme'      => array( 'type' => 'string', 'default' => 'uh-red' ),
+			'headerBg'   => array( 'type' => 'string', 'default' => '' ),
+			'headerText' => array( 'type' => 'string', 'default' => '' ),
+			'bodyBg'     => array( 'type' => 'string', 'default' => '' ),
+			'bodyText'   => array( 'type' => 'string', 'default' => '' ),
+			'striped'    => array( 'type' => 'boolean', 'default' => true ),
+			'bordered'   => array( 'type' => 'boolean', 'default' => false ),
+			'mobileMode' => array( 'type' => 'string', 'default' => 'scroll' ),
+			'minWidth'   => array( 'type' => 'number', 'default' => 0 ),
+			'textAlign'  => array( 'type' => 'string', 'default' => 'left' ),
+			'caption'    => array( 'type' => 'string', 'default' => '' ),
+		),
+		'supports' => array(
+			'html'   => false,
+			'anchor' => true,
+			'align'  => array( 'wide', 'full' ),
+		),
+		'render_callback' => 'rcmi_render_table_block',
+	) );
+
+	// rcmi/directory — staff/people grid. Each card: photo, name, degree,
+	// title, optional bio/email/phone, and an optional profile link.
+	register_block_type( 'rcmi/directory', array(
+		'attributes' => array(
+			'columns'    => array( 'type' => 'number', 'default' => 3 ),
+			'photoStyle' => array( 'type' => 'string', 'default' => 'circle' ),
+			'cardStyle'  => array( 'type' => 'string', 'default' => 'card' ),
+			'linkNewTab' => array( 'type' => 'boolean', 'default' => false ),
+			'people'     => array( 'type' => 'array', 'default' => rcmi_directory_default_people() ),
+		),
+		'supports' => array(
+			'html'   => false,
+			'anchor' => true,
+			'align'  => array( 'wide', 'full' ),
+		),
+		'render_callback' => 'rcmi_render_directory_block',
+	) );
 }
 add_action( 'init', 'rcmi_register_server_side_blocks' );
+
+// ============================================================================
+// rcmi/table — server render + grid helpers
+// ============================================================================
+
+/**
+ * Default cell/row model for a fresh rcmi/table block (3 columns, 4 rows).
+ * Kept in sync with rcmiTableDefaultRows() in src/blocks.js.
+ *
+ * @return array
+ */
+function rcmi_table_default_rows() {
+	$cell = function ( $content = '' ) {
+		return array( 'content' => $content, 'colSpan' => 1, 'rowSpan' => 1, 'hidden' => false );
+	};
+	return array(
+		array( $cell( 'Name' ), $cell( 'Role' ), $cell( 'Department' ) ),
+		array( $cell(), $cell(), $cell() ),
+		array( $cell(), $cell(), $cell() ),
+		array( $cell(), $cell(), $cell() ),
+	);
+}
+
+/**
+ * Normalize one table cell: scalar spans >= 1, boolean hidden flag.
+ *
+ * @param mixed $cell Raw cell value from block attributes.
+ * @return array
+ */
+function rcmi_table_cell( $cell ) {
+	$cell = is_array( $cell ) ? $cell : array();
+	return array(
+		'content' => isset( $cell['content'] ) ? (string) $cell['content'] : '',
+		'colSpan' => max( 1, intval( $cell['colSpan'] ?? 1 ) ),
+		'rowSpan' => max( 1, intval( $cell['rowSpan'] ?? 1 ) ),
+		'hidden'  => ! empty( $cell['hidden'] ),
+	);
+}
+
+/**
+ * Find the merge root covering grid slot ($r, $c).
+ *
+ * @param array $rows Normalized grid.
+ * @param int   $r    Row index.
+ * @param int   $c    Column index.
+ * @return array [row, col] of the root cell (or ($r, $c) itself).
+ */
+function rcmi_table_root_at( $rows, $r, $c ) {
+	if ( isset( $rows[ $r ][ $c ] ) && empty( $rows[ $r ][ $c ]['hidden'] ) ) {
+		return array( $r, $c );
+	}
+	foreach ( $rows as $i => $row ) {
+		foreach ( $row as $j => $cell ) {
+			if ( ! empty( $cell['hidden'] ) ) {
+				continue;
+			}
+			if ( $i <= $r && $r < $i + $cell['rowSpan'] && $j <= $c && $c < $j + $cell['colSpan'] ) {
+				return array( $i, $j );
+			}
+		}
+	}
+	return array( $r, $c );
+}
+
+/**
+ * Normalize rows into a rectangular grid. Ragged rows are padded; slots
+ * covered by an existing merge get hidden placeholder cells.
+ *
+ * @param mixed $rows Raw rows attribute.
+ * @return array
+ */
+function rcmi_table_normalize( $rows ) {
+	if ( ! is_array( $rows ) ) {
+		return array();
+	}
+	$out = array();
+	foreach ( $rows as $row ) {
+		$out[] = is_array( $row ) ? array_map( 'rcmi_table_cell', $row ) : array();
+	}
+	$cols = 0;
+	foreach ( $out as $row ) {
+		$cols = max( $cols, count( $row ) );
+	}
+	foreach ( $out as $i => $row ) {
+		while ( count( $out[ $i ] ) < $cols ) {
+			$c    = count( $out[ $i ] );
+			$root = rcmi_table_root_at( $out, $i, $c );
+			$out[ $i ][] = ( $root[0] === $i && $root[1] === $c )
+				? rcmi_table_cell( array() )
+				: array( 'content' => '', 'colSpan' => 1, 'rowSpan' => 1, 'hidden' => true );
+		}
+	}
+	return $out;
+}
+
+/**
+ * Render callback for rcmi/table.
+ *
+ * @param array $attrs Block attributes.
+ * @return string
+ */
+function rcmi_render_table_block( $attrs ) {
+	$themes = array( 'minimal', 'uh-red', 'brick', 'teal', 'forest', 'slate', 'dark', 'gold', 'cream' );
+	$theme  = in_array( $attrs['theme'] ?? '', $themes, true ) ? $attrs['theme'] : 'minimal';
+	$rows   = rcmi_table_normalize( $attrs['rows'] ?? array() );
+	if ( empty( $rows ) || empty( $rows[0] ) ) {
+		return '';
+	}
+	$cols       = count( $rows[0] );
+	$has_header = ! empty( $attrs['hasHeader'] );
+	$col_header = ! empty( $attrs['colHeader'] );
+
+	$classes = 'rcmi-table-block rcmi-table--' . $theme;
+	if ( ! empty( $attrs['striped'] ) ) {
+		$classes .= ' rcmi-table--striped';
+	}
+	if ( ! empty( $attrs['bordered'] ) ) {
+		$classes .= ' rcmi-table--bordered';
+	}
+	if ( 'stack' === ( $attrs['mobileMode'] ?? '' ) ) {
+		$classes .= ' rcmi-table--stack';
+	}
+	if ( ! empty( $attrs['align'] ) ) {
+		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
+	}
+	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
+
+	// Custom color/layout overrides as CSS custom properties.
+	$vars = '';
+	foreach ( array(
+		'headerBg'   => '--rcmi-tbl-head-bg',
+		'headerText' => '--rcmi-tbl-head-text',
+		'bodyBg'     => '--rcmi-tbl-body-bg',
+		'bodyText'   => '--rcmi-tbl-body-text',
+	) as $key => $var ) {
+		$v = $attrs[ $key ] ?? '';
+		if ( $v && sanitize_hex_color( $v ) ) {
+			$vars .= $var . ':' . sanitize_hex_color( $v ) . ';';
+		}
+	}
+	$min = intval( $attrs['minWidth'] ?? 0 );
+	if ( $min > 0 ) {
+		$vars .= '--rcmi-tbl-min:' . $min . 'px;';
+	}
+	if ( in_array( $attrs['textAlign'] ?? '', array( 'center', 'right' ), true ) ) {
+		$vars .= '--rcmi-tbl-align:' . $attrs['textAlign'] . ';';
+	}
+
+	// Column header text per grid column — used as data-labels in stacked mode.
+	$labels = array();
+	if ( $has_header ) {
+		for ( $c = 0; $c < $cols; $c++ ) {
+			$root        = rcmi_table_root_at( $rows, 0, $c );
+			$labels[ $c ] = trim( wp_strip_all_tags( $rows[ $root[0] ][ $root[1] ]['content'] ) );
+		}
+	}
+
+	$render_cell = function ( $cell, $tag, $extra ) {
+		$span = '';
+		if ( $cell['colSpan'] > 1 ) {
+			$span .= ' colspan="' . $cell['colSpan'] . '"';
+		}
+		if ( $cell['rowSpan'] > 1 ) {
+			$span .= ' rowspan="' . $cell['rowSpan'] . '"';
+		}
+		return '<' . $tag . $span . $extra . '>' . wp_kses_post( $cell['content'] ) . '</' . $tag . '>';
+	};
+
+	ob_start();
+	echo '<figure class="' . esc_attr( $classes ) . '"' . $id_attr . ( $vars ? ' style="' . esc_attr( $vars ) . '"' : '' ) . '>';
+	echo '<div class="rcmi-table-scroll"><table>';
+	$body_start = 0;
+	if ( $has_header ) {
+		echo '<thead><tr>';
+		for ( $c = 0; $c < $cols; $c++ ) {
+			if ( $rows[0][ $c ]['hidden'] ) {
+				continue;
+			}
+			echo $render_cell( $rows[0][ $c ], 'th', ' scope="col"' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post
+		}
+		echo '</tr></thead>';
+		$body_start = 1;
+	}
+	echo '<tbody>';
+	for ( $r = $body_start; $r < count( $rows ); $r++ ) {
+		echo '<tr>';
+		for ( $c = 0; $c < $cols; $c++ ) {
+			$cell = $rows[ $r ][ $c ];
+			if ( $cell['hidden'] ) {
+				continue;
+			}
+			$is_row_head = $col_header && 0 === $c;
+			$extra       = $is_row_head ? ' scope="row"' : '';
+			if ( ! $is_row_head && $has_header && '' !== $labels[ $c ] ) {
+				$extra .= ' data-label="' . esc_attr( $labels[ $c ] ) . '"';
+			}
+			echo $render_cell( $cell, $is_row_head ? 'th' : 'td', $extra ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post
+		}
+		echo '</tr>';
+	}
+	echo '</tbody></table></div>';
+	if ( ! empty( $attrs['caption'] ) ) {
+		echo '<figcaption class="rcmi-table-caption">' . wp_kses_post( $attrs['caption'] ) . '</figcaption>';
+	}
+	echo '</figure>';
+	return ob_get_clean();
+}
+
+// ============================================================================
+// rcmi/directory — server render
+// ============================================================================
+
+/**
+ * Default people list for a fresh rcmi/directory block.
+ * Kept in sync with rcmiDirDefaultPeople() in src/blocks.js.
+ *
+ * @return array
+ */
+function rcmi_directory_default_people() {
+	$person = function ( $name, $degree, $title ) {
+		return array(
+			'imageId' => 0, 'imageUrl' => '', 'imageAlt' => '',
+			'name'    => $name, 'degree' => $degree, 'title' => $title,
+			'bio'     => '', 'email' => '', 'phone' => '', 'link' => '',
+		);
+	};
+	return array(
+		$person( 'Dr. Jane Smith', 'PhD', 'Principal Investigator' ),
+		$person( 'John Doe', 'MS', 'Research Coordinator' ),
+		$person( 'Maria Garcia', 'MPH', 'Community Liaison' ),
+	);
+}
+
+/**
+ * Derive initials from a person's name for the no-photo placeholder.
+ * Skips common honorifics (Dr., Prof.) and keeps first + last initials.
+ *
+ * @param string $name Person name (may contain inline markup).
+ * @return string
+ */
+function rcmi_directory_initials( $name ) {
+	$clean = trim( wp_strip_all_tags( (string) $name ) );
+	if ( '' === $clean ) {
+		return '';
+	}
+	$parts = array_values( array_filter(
+		preg_split( '/\s+/u', $clean ),
+		function ( $p ) {
+			return '' !== $p && ! preg_match( '/^(dr|mr|mrs|ms|prof)\.?$/i', $p );
+		}
+	) );
+	if ( empty( $parts ) ) {
+		return '';
+	}
+	$first = mb_substr( $parts[0], 0, 1 );
+	$last  = count( $parts ) > 1 ? mb_substr( $parts[ count( $parts ) - 1 ], 0, 1 ) : '';
+	return mb_strtoupper( $first . $last );
+}
+
+/**
+ * Render callback for rcmi/directory.
+ *
+ * @param array $attrs Block attributes.
+ * @return string
+ */
+function rcmi_render_directory_block( $attrs ) {
+	$cols = intval( $attrs['columns'] ?? 3 );
+	if ( ! in_array( $cols, array( 1, 2, 3, 4, 6 ), true ) ) {
+		$cols = 3;
+	}
+	$photo_style = in_array( $attrs['photoStyle'] ?? '', array( 'circle', 'rounded', 'portrait' ), true ) ? $attrs['photoStyle'] : 'circle';
+	$card_style  = in_array( $attrs['cardStyle'] ?? '', array( 'card', 'plain' ), true ) ? $attrs['cardStyle'] : 'card';
+	$target      = ! empty( $attrs['linkNewTab'] ) ? ' target="_blank" rel="noopener noreferrer"' : '';
+
+	$classes = 'rcmi-directory rcmi-directory--cols-' . $cols . ' rcmi-directory--photo-' . $photo_style . ' rcmi-directory--' . $card_style;
+	if ( ! empty( $attrs['align'] ) ) {
+		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
+	}
+	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
+
+	$icon_email = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+	$icon_phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>';
+	$icon_arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+	$cards = '';
+	foreach ( (array) ( $attrs['people'] ?? array() ) as $p ) {
+		if ( ! is_array( $p ) ) {
+			continue;
+		}
+		$name   = (string) ( $p['name'] ?? '' );
+		$degree = (string) ( $p['degree'] ?? '' );
+		$title  = (string) ( $p['title'] ?? '' );
+		$bio    = (string) ( $p['bio'] ?? '' );
+		$email  = (string) ( $p['email'] ?? '' );
+		$phone  = (string) ( $p['phone'] ?? '' );
+		$link   = trim( (string) ( $p['link'] ?? '' ) );
+		$img_id = intval( $p['imageId'] ?? 0 );
+		$img_url = (string) ( $p['imageUrl'] ?? '' );
+		$img_alt = (string) ( $p['imageAlt'] ?? '' );
+
+		if ( ! $name && ! $degree && ! $title && ! $bio && ! $img_url && ! $img_id ) {
+			continue;
+		}
+		$has_link = '' !== $link;
+
+		// Photo: attachment image > URL fallback > initials placeholder.
+		$img = '';
+		if ( $img_id ) {
+			$img = wp_get_attachment_image( $img_id, 'medium_large', false, array(
+				'class'    => 'rcmi-person-img',
+				'alt'      => $img_alt,
+				'loading'  => 'lazy',
+				'itemprop' => 'image',
+			) );
+		}
+		if ( ! $img && $img_url ) {
+			$img = '<img class="rcmi-person-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy" itemprop="image" />';
+		}
+		$photo_inner = $img ? $img : '<span class="rcmi-person-initials" aria-hidden="true">' . esc_html( rcmi_directory_initials( $name ) ?: '·' ) . '</span>';
+		$photo_class = 'rcmi-person-photo' . ( $img ? '' : ' is-empty' );
+		if ( $has_link ) {
+			$photo_inner = '<a href="' . esc_url( $link ) . '"' . $target . ' class="rcmi-person-photo-link" tabindex="-1" aria-hidden="true">' . $photo_inner . '</a>';
+		}
+
+		// Contact row: mailto when the email parses, tel: for dialable numbers.
+		$contact = '';
+		if ( trim( $email ) ) {
+			$addr     = sanitize_email( wp_strip_all_tags( $email ) );
+			$contact .= ( $addr && is_email( $addr ) )
+				? '<a class="rcmi-person-email" href="mailto:' . esc_attr( $addr ) . '" itemprop="email">' . $icon_email . '<span>' . esc_html( $addr ) . '</span></a>'
+				: '<span class="rcmi-person-email">' . $icon_email . '<span>' . wp_kses_post( $email ) . '</span></span>';
+		}
+		if ( trim( $phone ) ) {
+			$dialable = preg_replace( '/[^0-9+]/', '', wp_strip_all_tags( $phone ) );
+			$contact .= ( strlen( $dialable ) >= 7 )
+				? '<a class="rcmi-person-phone" href="tel:' . esc_attr( $dialable ) . '" itemprop="telephone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></a>'
+				: '<span class="rcmi-person-phone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></span>';
+		}
+
+		$name_html = '<h3 class="rcmi-person-name" itemprop="name">' . wp_kses_post( $name ) . '</h3>';
+		if ( $has_link ) {
+			$name_html = '<h3 class="rcmi-person-name" itemprop="name"><a href="' . esc_url( $link ) . '"' . $target . '>' . wp_kses_post( $name ) . '</a></h3>';
+		}
+
+		$cards .= '<article class="rcmi-person" itemscope itemtype="https://schema.org/Person">';
+		$cards .= '<div class="' . esc_attr( $photo_class ) . '">' . $photo_inner . '</div>';
+		$cards .= '<div class="rcmi-person-body">';
+		$cards .= $name ? $name_html : '';
+		$cards .= $degree ? '<p class="rcmi-person-degree" itemprop="honorificSuffix">' . wp_kses_post( $degree ) . '</p>' : '';
+		$cards .= $title ? '<p class="rcmi-person-title" itemprop="jobTitle">' . wp_kses_post( $title ) . '</p>' : '';
+		$cards .= $bio ? '<p class="rcmi-person-bio">' . wp_kses_post( $bio ) . '</p>' : '';
+		$cards .= $contact ? '<p class="rcmi-person-contact">' . $contact . '</p>' : '';
+		$cards .= $has_link ? '<a class="rcmi-person-link" href="' . esc_url( $link ) . '"' . $target . ' itemprop="url">' . esc_html__( 'View profile', 'rcmi-toolkit' ) . ' ' . $icon_arrow . '</a>' : '';
+		$cards .= '</div></article>';
+	}
+
+	if ( '' === $cards ) {
+		return '';
+	}
+
+	return '<div class="' . esc_attr( $classes ) . '"' . $id_attr . '>' . $cards . '</div>';
+}
+
+/**
+ * Enqueue the shared stylesheet for rcmi/table and rcmi/directory.
+ * `enqueue_block_assets` loads it on the frontend AND inside the
+ * iframed block editor canvas.
+ */
+function rcmi_toolkit_block_styles() {
+	$ver = file_exists( RCMI_TOOLKIT_PATH . 'assets/css/rcmi-blocks.css' )
+		? filemtime( RCMI_TOOLKIT_PATH . 'assets/css/rcmi-blocks.css' )
+		: RCMI_TOOLKIT_VERSION;
+	wp_enqueue_style(
+		'rcmi-toolkit-blocks',
+		RCMI_TOOLKIT_URL . 'assets/css/rcmi-blocks.css',
+		array(),
+		$ver
+	);
+}
+add_action( 'enqueue_block_assets', 'rcmi_toolkit_block_styles' );
 
 /**
  * Enqueue front-end assets (tab switching JS).

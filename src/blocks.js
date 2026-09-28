@@ -21,6 +21,14 @@
 	var MediaUploadCheck = wp.blockEditor.MediaUploadCheck;
 	var RichText = wp.blockEditor.RichText;
 	var InnerBlocks = wp.blockEditor.InnerBlocks;
+	var BlockControls = wp.blockEditor.BlockControls;
+	var AlignmentControl = wp.blockEditor.AlignmentControl;
+	var ToolbarGroup = wp.components.ToolbarGroup;
+	var ToolbarButton = wp.components.ToolbarButton;
+	var ToolbarDropdownMenu = wp.components.ToolbarDropdownMenu;
+	var ColorPalette = wp.components.ColorPalette;
+	var BaseControl = wp.components.BaseControl;
+	var Button = wp.components.Button;
 	var __ = wp.i18n.__;
 	var addFilter = wp.hooks.addFilter;
 
@@ -3374,6 +3382,945 @@
 				el( 'div', { className: 'rcmi-story-immersive-scrim', 'aria-hidden': 'true' } ),
 				el( 'div', { className: 'rcmi-story-immersive-copy' }, attrs.eyebrow ? el( RichText.Content, { tagName: 'p', className: 'rcmi-story-eyebrow', value: attrs.eyebrow } ) : null, attrs.heading ? el( RichText.Content, { tagName: 'h2', value: attrs.heading } ) : null, attrs.body ? el( RichText.Content, { tagName: 'p', value: attrs.body } ) : null )
 			);
+		}
+	} );
+
+	// ============================================================
+	// Block: rcmi/table
+	// Editable data table with cell merging (colspan/rowspan),
+	// separate header/body colors, UH color theme presets,
+	// striped/bordered options, and scroll/stack mobile modes.
+	// ============================================================
+
+	// [rcmi-table-helpers-start]
+	// Pure grid helpers — no wp.* dependencies (extractable for tests).
+	// Grid model: rows is a rectangular array; every grid slot has a cell.
+	// A merge root carries colSpan/rowSpan > 1; covered slots are hidden:true.
+
+	function rcmiTableCell( content ) {
+		return { content: content || '', colSpan: 1, rowSpan: 1, hidden: false };
+	}
+
+	function rcmiTableNormalizeCell( cell ) {
+		var c = Object.assign( { content: '', colSpan: 1, rowSpan: 1, hidden: false }, cell || {} );
+		c.colSpan = Math.max( 1, parseInt( c.colSpan, 10 ) || 1 );
+		c.rowSpan = Math.max( 1, parseInt( c.rowSpan, 10 ) || 1 );
+		c.hidden = !! c.hidden;
+		return c;
+	}
+
+	// Returns [row, col] of the merge root covering slot (r, c).
+	// If the slot is a normal cell, returns (r, c) itself.
+	function rcmiTableRootAt( rows, r, c ) {
+		var cell = rows[ r ] && rows[ r ][ c ];
+		if ( cell && ! cell.hidden ) {
+			return [ r, c ];
+		}
+		for ( var i = 0; i < rows.length; i++ ) {
+			for ( var j = 0; j < rows[ i ].length; j++ ) {
+				var x = rows[ i ][ j ];
+				if ( x.hidden ) {
+					continue;
+				}
+				if ( i <= r && r < i + ( x.rowSpan || 1 ) && j <= c && c < j + ( x.colSpan || 1 ) ) {
+					return [ i, j ];
+				}
+			}
+		}
+		return [ r, c ];
+	}
+
+	// Deep-normalizes rows into a rectangular grid, padding ragged rows.
+	// Padded slots covered by an existing merge become hidden placeholders.
+	function rcmiTableClone( rows ) {
+		var out = ( rows || [] ).map( function ( row ) {
+			return ( row || [] ).map( rcmiTableNormalizeCell );
+		} );
+		var cols = 0;
+		out.forEach( function ( row ) { cols = Math.max( cols, row.length ); } );
+		out.forEach( function ( row, r ) {
+			while ( row.length < cols ) {
+				var c = row.length;
+				var root = rcmiTableRootAt( out, r, c );
+				row.push( ( root[ 0 ] === r && root[ 1 ] === c )
+					? rcmiTableCell()
+					: { content: '', colSpan: 1, rowSpan: 1, hidden: true } );
+			}
+		} );
+		return out;
+	}
+
+	// Selection rect spanning anchor/head, expanded outward until every
+	// merge it touches is fully contained.
+	function rcmiTableRect( rows, a, b ) {
+		var rect = {
+			r1: Math.min( a.r, b.r ), r2: Math.max( a.r, b.r ),
+			c1: Math.min( a.c, b.c ), c2: Math.max( a.c, b.c )
+		};
+		var changed = true, guard = 0;
+		while ( changed && guard++ < 60 ) {
+			changed = false;
+			for ( var r = rect.r1; r <= rect.r2; r++ ) {
+				for ( var c = rect.c1; c <= rect.c2; c++ ) {
+					var root = rcmiTableRootAt( rows, r, c );
+					var cell = rows[ root[ 0 ] ][ root[ 1 ] ];
+					var rEnd = root[ 0 ] + ( cell.rowSpan || 1 ) - 1;
+					var cEnd = root[ 1 ] + ( cell.colSpan || 1 ) - 1;
+					if ( root[ 0 ] < rect.r1 ) { rect.r1 = root[ 0 ]; changed = true; }
+					if ( root[ 1 ] < rect.c1 ) { rect.c1 = root[ 1 ]; changed = true; }
+					if ( rEnd > rect.r2 ) { rect.r2 = rEnd; changed = true; }
+					if ( cEnd > rect.c2 ) { rect.c2 = cEnd; changed = true; }
+				}
+			}
+		}
+		return rect;
+	}
+
+	function rcmiTableInRect( rect, r, c ) {
+		return !! rect && r >= rect.r1 && r <= rect.r2 && c >= rect.c1 && c <= rect.c2;
+	}
+
+	// Merge the (already expanded) rect: top-left slot becomes the root.
+	function rcmiTableMerge( rows, rect ) {
+		var next = rcmiTableClone( rows );
+		var root = next[ rect.r1 ][ rect.c1 ];
+		root.rowSpan = rect.r2 - rect.r1 + 1;
+		root.colSpan = rect.c2 - rect.c1 + 1;
+		for ( var r = rect.r1; r <= rect.r2; r++ ) {
+			for ( var c = rect.c1; c <= rect.c2; c++ ) {
+				if ( r === rect.r1 && c === rect.c1 ) {
+					continue;
+				}
+				next[ r ][ c ].hidden = true;
+				next[ r ][ c ].colSpan = 1;
+				next[ r ][ c ].rowSpan = 1;
+			}
+		}
+		return next;
+	}
+
+	// Split the merge covering (r, c): covered slots become normal cells
+	// again (any content they stored while hidden resurfaces).
+	function rcmiTableSplit( rows, r, c ) {
+		var next = rcmiTableClone( rows );
+		var root = rcmiTableRootAt( next, r, c );
+		var cell = next[ root[ 0 ] ][ root[ 1 ] ];
+		var rs = cell.rowSpan || 1, cs = cell.colSpan || 1;
+		if ( rs === 1 && cs === 1 ) {
+			return next;
+		}
+		for ( var i = root[ 0 ]; i < root[ 0 ] + rs; i++ ) {
+			for ( var j = root[ 1 ]; j < root[ 1 ] + cs; j++ ) {
+				if ( i === root[ 0 ] && j === root[ 1 ] ) {
+					continue;
+				}
+				next[ i ][ j ].hidden = false;
+			}
+		}
+		cell.rowSpan = 1;
+		cell.colSpan = 1;
+		return next;
+	}
+
+	// Insert a row at index `at`. Vertical merges spanning the insertion
+	// line grow by one row; their new slots stay hidden.
+	function rcmiTableInsertRow( rows, at ) {
+		var next = rcmiTableClone( rows );
+		var cols = next[ 0 ] ? next[ 0 ].length : 0;
+		var extended = {};
+		var newRow = [];
+		for ( var c = 0; c < cols; c++ ) {
+			var covered = false;
+			if ( at > 0 ) {
+				var root = rcmiTableRootAt( next, at - 1, c );
+				var cell = next[ root[ 0 ] ][ root[ 1 ] ];
+				var key = root[ 0 ] + ':' + root[ 1 ];
+				covered = root[ 0 ] + ( cell.rowSpan || 1 ) - 1 >= at;
+				if ( covered && ! extended[ key ] ) {
+					extended[ key ] = true;
+					cell.rowSpan = ( cell.rowSpan || 1 ) + 1;
+				}
+			}
+			newRow.push( covered ? { content: '', colSpan: 1, rowSpan: 1, hidden: true } : rcmiTableCell() );
+		}
+		next.splice( at, 0, newRow );
+		return next;
+	}
+
+	// Insert a column at index `at`. Horizontal merges spanning the
+	// insertion line grow by one column; their new slots stay hidden.
+	function rcmiTableInsertCol( rows, at ) {
+		var next = rcmiTableClone( rows );
+		var extended = {};
+		next.forEach( function ( row, r ) {
+			var covered = false;
+			if ( at > 0 ) {
+				var root = rcmiTableRootAt( next, r, at - 1 );
+				var cell = next[ root[ 0 ] ][ root[ 1 ] ];
+				var key = root[ 0 ] + ':' + root[ 1 ];
+				covered = root[ 1 ] + ( cell.colSpan || 1 ) - 1 >= at;
+				if ( covered && ! extended[ key ] ) {
+					extended[ key ] = true;
+					cell.colSpan = ( cell.colSpan || 1 ) + 1;
+				}
+			}
+			row.splice( at, 0, covered ? { content: '', colSpan: 1, rowSpan: 1, hidden: true } : rcmiTableCell() );
+		} );
+		return next;
+	}
+
+	// Delete row `at`. Merges rooted in the row promote the cell directly
+	// below the root (keeping content and remaining span); merges crossing
+	// the row shrink by one.
+	function rcmiTableDeleteRow( rows, at ) {
+		var next = rcmiTableClone( rows );
+		if ( next.length <= 1 ) {
+			return next;
+		}
+		var cols = next[ 0 ].length;
+		var seen = {};
+		for ( var c = 0; c < cols; c++ ) {
+			var root = rcmiTableRootAt( next, at, c );
+			var key = root[ 0 ] + ':' + root[ 1 ];
+			if ( seen[ key ] ) {
+				continue;
+			}
+			seen[ key ] = true;
+			var cell = next[ root[ 0 ] ][ root[ 1 ] ];
+			var rs = cell.rowSpan || 1;
+			if ( root[ 0 ] === at ) {
+				if ( rs > 1 && at + 1 < next.length ) {
+					var below = next[ at + 1 ][ root[ 1 ] ];
+					below.hidden = false;
+					below.colSpan = cell.colSpan || 1;
+					below.rowSpan = rs - 1;
+					below.content = cell.content || below.content || '';
+				}
+			} else {
+				cell.rowSpan = Math.max( 1, rs - 1 );
+			}
+		}
+		next.splice( at, 1 );
+		return next;
+	}
+
+	// Delete column `at`. Merges rooted in the column promote the cell
+	// directly right of the root (keeping content and remaining span);
+	// merges crossing the column shrink by one. Single-column merges
+	// rooted here live entirely inside the deleted column and vanish.
+	function rcmiTableDeleteCol( rows, at ) {
+		var next = rcmiTableClone( rows );
+		if ( ! next[ 0 ] || next[ 0 ].length <= 1 ) {
+			return next;
+		}
+		var seen = {};
+		for ( var r = 0; r < next.length; r++ ) {
+			var root = rcmiTableRootAt( next, r, at );
+			var key = root[ 0 ] + ':' + root[ 1 ];
+			var cell = next[ root[ 0 ] ][ root[ 1 ] ];
+			if ( ! seen[ key ] ) {
+				seen[ key ] = true;
+				var cs = cell.colSpan || 1;
+				if ( root[ 1 ] === at && cs > 1 && at + 1 < next[ r ].length ) {
+					var right = next[ r ][ at + 1 ];
+					right.hidden = false;
+					right.colSpan = cs - 1;
+					right.rowSpan = cell.rowSpan || 1;
+					right.content = cell.content || right.content || '';
+				} else if ( root[ 1 ] !== at ) {
+					cell.colSpan = Math.max( 1, cs - 1 );
+				}
+			}
+			next[ r ].splice( at, 1 );
+		}
+		return next;
+	}
+	// [rcmi-table-helpers-end]
+
+	var RCMI_TABLE_THEMES = [
+		{ label: __( 'UH Red', 'rcmi-toolkit' ), value: 'uh-red' },
+		{ label: __( 'Brick', 'rcmi-toolkit' ), value: 'brick' },
+		{ label: __( 'Teal', 'rcmi-toolkit' ), value: 'teal' },
+		{ label: __( 'Forest Green', 'rcmi-toolkit' ), value: 'forest' },
+		{ label: __( 'Slate', 'rcmi-toolkit' ), value: 'slate' },
+		{ label: __( 'Dark', 'rcmi-toolkit' ), value: 'dark' },
+		{ label: __( 'Gold', 'rcmi-toolkit' ), value: 'gold' },
+		{ label: __( 'Cream', 'rcmi-toolkit' ), value: 'cream' },
+		{ label: __( 'Minimal', 'rcmi-toolkit' ), value: 'minimal' }
+	];
+
+	function rcmiTableDefaultRows() {
+		return [
+			[ rcmiTableCell( 'Name' ), rcmiTableCell( 'Role' ), rcmiTableCell( 'Department' ) ],
+			[ rcmiTableCell(), rcmiTableCell(), rcmiTableCell() ],
+			[ rcmiTableCell(), rcmiTableCell(), rcmiTableCell() ],
+			[ rcmiTableCell(), rcmiTableCell(), rcmiTableCell() ]
+		];
+	}
+
+	function rcmiTableClasses( attrs ) {
+		var theme = attrs.theme || 'uh-red';
+		var cls = 'rcmi-table-block rcmi-table--' + theme;
+		if ( attrs.striped ) {
+			cls += ' rcmi-table--striped';
+		}
+		if ( attrs.bordered ) {
+			cls += ' rcmi-table--bordered';
+		}
+		if ( attrs.mobileMode === 'stack' ) {
+			cls += ' rcmi-table--stack';
+		}
+		return cls;
+	}
+
+	function rcmiTableVars( attrs ) {
+		var vars = {};
+		if ( attrs.headerBg ) { vars[ '--rcmi-tbl-head-bg' ] = attrs.headerBg; }
+		if ( attrs.headerText ) { vars[ '--rcmi-tbl-head-text' ] = attrs.headerText; }
+		if ( attrs.bodyBg ) { vars[ '--rcmi-tbl-body-bg' ] = attrs.bodyBg; }
+		if ( attrs.bodyText ) { vars[ '--rcmi-tbl-body-text' ] = attrs.bodyText; }
+		if ( attrs.minWidth > 0 ) { vars[ '--rcmi-tbl-min' ] = attrs.minWidth + 'px'; }
+		if ( attrs.textAlign && attrs.textAlign !== 'left' ) { vars[ '--rcmi-tbl-align' ] = attrs.textAlign; }
+		return vars;
+	}
+
+	var RcmiTableEdit = function ( props ) {
+		var attrs = props.attributes, setAttributes = props.setAttributes;
+		var rows = rcmiTableClone( attrs.rows );
+		var cols = rows.length ? rows[ 0 ].length : 0;
+
+		var selState = useState( null );
+		var sel = selState[ 0 ], setSel = selState[ 1 ];
+		var dragging = useRef( false );
+		var shiftPicking = useRef( false );
+
+		useEffect( function () {
+			var up = function () { dragging.current = false; shiftPicking.current = false; };
+			document.addEventListener( 'mouseup', up );
+			return function () { document.removeEventListener( 'mouseup', up ); };
+		}, [] );
+
+		var rect = sel ? rcmiTableRect( rows, sel.anchor, sel.head ) : null;
+		var selRoot = sel ? rcmiTableRootAt( rows, sel.head.r, sel.head.c ) : null;
+		var selCell = selRoot ? rows[ selRoot[ 0 ] ][ selRoot[ 1 ] ] : null;
+		var canMerge = !!( rect && ( rect.r2 > rect.r1 || rect.c2 > rect.c1 ) );
+		var canSplit = !!( selCell && ( ( selCell.rowSpan || 1 ) > 1 || ( selCell.colSpan || 1 ) > 1 ) );
+		var pos = sel ? sel.head : { r: rows.length - 1, c: cols - 1 };
+
+		var editorColors = useSelect( function ( select ) {
+			var settings = select( 'core/block-editor' ).getSettings() || {};
+			return ( settings.color && settings.color.palette ) || settings.colors || [];
+		}, [] );
+
+		var headerLabels = [];
+		if ( attrs.hasHeader && rows.length ) {
+			for ( var lc = 0; lc < cols; lc++ ) {
+				var hr = rcmiTableRootAt( rows, 0, lc );
+				headerLabels[ lc ] = ( rows[ hr[ 0 ] ][ hr[ 1 ] ].content || '' ).replace( /<[^>]*>/g, '' ).trim();
+			}
+		}
+
+		var updateCell = function ( r, c, content ) {
+			var next = rows.map( function ( row ) {
+				return row.map( function ( cell ) { return Object.assign( {}, cell ); } );
+			} );
+			next[ r ][ c ].content = content;
+			setAttributes( { rows: next } );
+		};
+		var commit = function ( next ) { setAttributes( { rows: next } ); };
+		var mergeSelection = function () {
+			if ( ! canMerge ) {
+				return;
+			}
+			commit( rcmiTableMerge( rows, rect ) );
+			setSel( { anchor: { r: rect.r1, c: rect.c1 }, head: { r: rect.r1, c: rect.c1 } } );
+		};
+		var splitSelection = function () {
+			if ( ! canSplit ) {
+				return;
+			}
+			commit( rcmiTableSplit( rows, sel.head.r, sel.head.c ) );
+		};
+
+		var onCellMouseDown = function ( r, c ) {
+			return function ( e ) {
+				if ( e.shiftKey ) {
+					e.preventDefault();
+					shiftPicking.current = true;
+					setSel( { anchor: sel ? sel.anchor : { r: r, c: c }, head: { r: r, c: c } } );
+				} else {
+					setSel( { anchor: { r: r, c: c }, head: { r: r, c: c } } );
+				}
+				dragging.current = true;
+			};
+		};
+		var onCellMouseEnter = function ( r, c ) {
+			return function () {
+				if ( dragging.current && shiftPicking.current && sel ) {
+					setSel( { anchor: sel.anchor, head: { r: r, c: c } } );
+				}
+			};
+		};
+		var onCellFocus = function ( r, c ) {
+			return function () {
+				if ( ! shiftPicking.current && ( ! sel || sel.head.r !== r || sel.head.c !== c ) ) {
+					setSel( { anchor: { r: r, c: c }, head: { r: r, c: c } } );
+				}
+			};
+		};
+
+		var tableMenuControls = [
+			{
+				title: __( 'Insert row before', 'rcmi-toolkit' ),
+				icon: 'table-row-before',
+				onClick: function () { commit( rcmiTableInsertRow( rows, pos.r ) ); }
+			},
+			{
+				title: __( 'Insert row after', 'rcmi-toolkit' ),
+				icon: 'table-row-after',
+				onClick: function () { commit( rcmiTableInsertRow( rows, pos.r + 1 ) ); }
+			},
+			{
+				title: __( 'Delete row', 'rcmi-toolkit' ),
+				icon: 'table-row-delete',
+				isDisabled: rows.length <= 1,
+				onClick: function () { commit( rcmiTableDeleteRow( rows, pos.r ) ); setSel( null ); }
+			},
+			{
+				title: __( 'Insert column before', 'rcmi-toolkit' ),
+				icon: 'table-col-before',
+				onClick: function () { commit( rcmiTableInsertCol( rows, pos.c ) ); }
+			},
+			{
+				title: __( 'Insert column after', 'rcmi-toolkit' ),
+				icon: 'table-col-after',
+				onClick: function () { commit( rcmiTableInsertCol( rows, pos.c + 1 ) ); }
+			},
+			{
+				title: __( 'Delete column', 'rcmi-toolkit' ),
+				icon: 'table-col-delete',
+				isDisabled: cols <= 1,
+				onClick: function () { commit( rcmiTableDeleteCol( rows, pos.c ) ); setSel( null ); }
+			},
+			{
+				title: __( 'Add row at end', 'rcmi-toolkit' ),
+				icon: 'table-row-after',
+				onClick: function () { commit( rcmiTableInsertRow( rows, rows.length ) ); }
+			},
+			{
+				title: __( 'Add column at end', 'rcmi-toolkit' ),
+				icon: 'table-col-after',
+				onClick: function () { commit( rcmiTableInsertCol( rows, cols ) ); }
+			}
+		];
+
+		var colorField = function ( label, attrKey ) {
+			return el( BaseControl, { label: label, className: 'rcmi-color-field' },
+				el( ColorPalette, {
+					colors: editorColors,
+					value: attrs[ attrKey ] || '',
+					clearable: true,
+					onChange: function ( v ) {
+						var u = {};
+						u[ attrKey ] = v || '';
+						setAttributes( u );
+					}
+				} )
+			);
+		};
+
+		var cellFormats = [ 'core/bold', 'core/italic', 'core/link', 'core/strikethrough', 'core/code', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+
+		var renderCell = function ( r, c, tag, isHeaderCell ) {
+			var cell = rows[ r ][ c ];
+			if ( cell.hidden ) {
+				return null;
+			}
+			var cellProps = {
+				key: 'cell-' + r + '-' + c,
+				className: 'rcmi-td'
+					+ ( rcmiTableInRect( rect, r, c ) ? ' is-in-range' : '' )
+					+ ( sel && sel.head.r === r && sel.head.c === c ? ' is-head' : '' ),
+				onMouseDown: onCellMouseDown( r, c ),
+				onMouseEnter: onCellMouseEnter( r, c ),
+				onFocus: onCellFocus( r, c )
+			};
+			if ( cell.colSpan > 1 ) {
+				cellProps.colSpan = cell.colSpan;
+			}
+			if ( cell.rowSpan > 1 ) {
+				cellProps.rowSpan = cell.rowSpan;
+			}
+			if ( isHeaderCell ) {
+				cellProps.scope = 'col';
+			} else if ( attrs.colHeader && c === 0 ) {
+				cellProps.scope = 'row';
+			} else if ( attrs.hasHeader && headerLabels[ c ] ) {
+				cellProps[ 'data-label' ] = headerLabels[ c ];
+			}
+			if ( attrs.colHeader && c === 0 ) {
+				tag = 'th';
+			}
+			return el( tag, cellProps,
+				el( RichText, {
+					tagName: 'div',
+					className: 'rcmi-td-inner',
+					value: cell.content,
+					onChange: function ( v ) { updateCell( r, c, v ); },
+					placeholder: isHeaderCell ? __( 'Header…', 'rcmi-toolkit' ) : __( 'Cell…', 'rcmi-toolkit' ),
+					allowedFormats: cellFormats
+				} )
+			);
+		};
+
+		var bodyStart = attrs.hasHeader ? 1 : 0;
+		var blockProps = useBlockProps( {
+			className: rcmiTableClasses( attrs ),
+			style: rcmiTableVars( attrs )
+		} );
+
+		return el( Fragment, null,
+			el( BlockControls, null,
+				el( ToolbarGroup, null,
+					el( ToolbarButton, {
+						label: __( 'Merge selected cells', 'rcmi-toolkit' ),
+						onClick: mergeSelection,
+						disabled: ! canMerge
+					}, __( 'Merge', 'rcmi-toolkit' ) ),
+					el( ToolbarButton, {
+						label: __( 'Split merged cell', 'rcmi-toolkit' ),
+						onClick: splitSelection,
+						disabled: ! canSplit
+					}, __( 'Split', 'rcmi-toolkit' ) )
+				),
+				el( ToolbarDropdownMenu, {
+					icon: 'editor-table',
+					label: __( 'Edit table', 'rcmi-toolkit' ),
+					controls: tableMenuControls
+				} ),
+				el( AlignmentControl, {
+					value: attrs.textAlign,
+					onChange: function ( v ) { setAttributes( { textAlign: v || 'left' } ); }
+				} )
+			),
+			el( InspectorControls, null,
+				el( PanelBody, { title: __( 'Table Style', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, {
+						label: __( 'Color theme', 'rcmi-toolkit' ),
+						value: attrs.theme,
+						options: RCMI_TABLE_THEMES,
+						onChange: function ( v ) { setAttributes( { theme: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'Header row', 'rcmi-toolkit' ),
+						help: __( 'Top row renders as table headers.', 'rcmi-toolkit' ),
+						checked: attrs.hasHeader,
+						onChange: function ( v ) { setAttributes( { hasHeader: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'First column header', 'rcmi-toolkit' ),
+						help: __( 'Left column cells render as row headers.', 'rcmi-toolkit' ),
+						checked: attrs.colHeader,
+						onChange: function ( v ) { setAttributes( { colHeader: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'Striped rows', 'rcmi-toolkit' ),
+						checked: attrs.striped,
+						onChange: function ( v ) { setAttributes( { striped: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'Bordered cells', 'rcmi-toolkit' ),
+						checked: attrs.bordered,
+						onChange: function ( v ) { setAttributes( { bordered: v } ); }
+					} )
+				),
+				el( PanelBody, { title: __( 'Colors', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { className: 'rcmi-color-help' }, __( 'Overrides the selected theme. Clear a color to return to the theme default.', 'rcmi-toolkit' ) ),
+					colorField( __( 'Header background', 'rcmi-toolkit' ), 'headerBg' ),
+					colorField( __( 'Header text', 'rcmi-toolkit' ), 'headerText' ),
+					colorField( __( 'Body background', 'rcmi-toolkit' ), 'bodyBg' ),
+					colorField( __( 'Body text', 'rcmi-toolkit' ), 'bodyText' )
+				),
+				el( PanelBody, { title: __( 'Mobile', 'rcmi-toolkit' ), initialOpen: false },
+					el( SelectControl, {
+						label: __( 'On small screens', 'rcmi-toolkit' ),
+						value: attrs.mobileMode,
+						options: [
+							{ label: __( 'Scroll horizontally', 'rcmi-toolkit' ), value: 'scroll' },
+							{ label: __( 'Stack rows as cards', 'rcmi-toolkit' ), value: 'stack' }
+						],
+						onChange: function ( v ) { setAttributes( { mobileMode: v } ); }
+					} ),
+					attrs.mobileMode !== 'stack' ? el( RangeControl, {
+						label: __( 'Minimum table width (px)', 'rcmi-toolkit' ),
+						help: __( 'Wide tables scroll horizontally on narrow screens. 0 = auto.', 'rcmi-toolkit' ),
+						value: attrs.minWidth,
+						min: 0,
+						max: 1600,
+						step: 40,
+						onChange: function ( v ) { setAttributes( { minWidth: v || 0 } ); }
+					} ) : null,
+					el( 'p', { className: 'rcmi-color-help' }, __( 'Shift-click or shift-drag to select a cell range, then use Merge. Click a merged cell and use Split to undo.', 'rcmi-toolkit' ) )
+				)
+			),
+			el( 'figure', blockProps,
+				el( 'div', { className: 'rcmi-table-scroll' },
+					el( 'table', null,
+						attrs.hasHeader && rows.length ? el( 'thead', null,
+							el( 'tr', null, rows[ 0 ].map( function ( cell, c ) {
+								return renderCell( 0, c, 'th', true );
+							} ) )
+						) : null,
+						el( 'tbody', null,
+							rows.map( function ( row, r ) {
+								if ( r < bodyStart ) {
+									return null;
+								}
+								return el( 'tr', { key: 'row-' + r },
+									row.map( function ( cell, c ) {
+										return renderCell( r, c, 'td', false );
+									} )
+								);
+							} )
+						)
+					)
+				),
+				el( RichText, {
+					tagName: 'figcaption',
+					className: 'rcmi-table-caption',
+					value: attrs.caption,
+					onChange: function ( v ) { setAttributes( { caption: v } ); },
+					placeholder: __( 'Table caption (optional)…', 'rcmi-toolkit' ),
+					allowedFormats: [ 'core/bold', 'core/italic', 'core/link' ]
+				} )
+			)
+		);
+	};
+
+	registerBlockType( 'rcmi/table', {
+		apiVersion: 3,
+		title: __( 'RCMI Table', 'rcmi-toolkit' ),
+		description: __( 'Data table with cell merging, UH color themes, separate header/body colors, and responsive modes.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'editor-table',
+		keywords: [ 'table', 'data', 'grid', 'directory' ],
+		supports: {
+			html: false,
+			anchor: true,
+			align: [ 'wide', 'full' ]
+		},
+		attributes: {
+			rows:       { type: 'array', default: rcmiTableDefaultRows() },
+			hasHeader:  { type: 'boolean', default: true },
+			colHeader:  { type: 'boolean', default: false },
+			theme:      { type: 'string', default: 'uh-red' },
+			headerBg:   { type: 'string', default: '' },
+			headerText: { type: 'string', default: '' },
+			bodyBg:     { type: 'string', default: '' },
+			bodyText:   { type: 'string', default: '' },
+			striped:    { type: 'boolean', default: true },
+			bordered:   { type: 'boolean', default: false },
+			mobileMode: { type: 'string', default: 'scroll' },
+			minWidth:   { type: 'number', default: 0 },
+			textAlign:  { type: 'string', default: 'left' },
+			caption:    { type: 'string', default: '' }
+		},
+		edit: RcmiTableEdit,
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
+		}
+	} );
+
+	// ============================================================
+	// Block: rcmi/directory
+	// Staff/people directory grid — photo, name, degree, title,
+	// optional bio/email/phone/profile link, 1/2/3/4/6 columns.
+	// ============================================================
+
+	function rcmiDirInitials( name ) {
+		var clean = ( name || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim();
+		var parts = clean.split( ' ' ).filter( function ( p ) {
+			return p && ! /^(dr|mr|mrs|ms|prof)\.?$/i.test( p );
+		} );
+		if ( ! parts.length ) {
+			return '';
+		}
+		var first = parts[ 0 ].charAt( 0 );
+		var last = parts.length > 1 ? parts[ parts.length - 1 ].charAt( 0 ) : '';
+		return ( first + last ).toUpperCase();
+	}
+
+	function rcmiDirDefaultPeople() {
+		return [
+			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'Dr. Jane Smith', degree: 'PhD', title: 'Principal Investigator', bio: '', email: '', phone: '', link: '' },
+			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'John Doe', degree: 'MS', title: 'Research Coordinator', bio: '', email: '', phone: '', link: '' },
+			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'Maria Garcia', degree: 'MPH', title: 'Community Liaison', bio: '', email: '', phone: '', link: '' }
+		];
+	}
+
+	var RcmiDirectoryEdit = function ( props ) {
+		var attrs = props.attributes, setAttributes = props.setAttributes;
+		var people = attrs.people || [];
+		var cols = attrs.columns || 3;
+
+		var updatePerson = function ( idx, key, val ) {
+			setAttributes( {
+				people: people.map( function ( p, i ) {
+					if ( i !== idx ) {
+						return p;
+					}
+					var np = Object.assign( {}, p );
+					np[ key ] = val;
+					return np;
+				} )
+			} );
+		};
+		var addPerson = function () {
+			setAttributes( {
+				people: people.concat( [ { imageId: 0, imageUrl: '', imageAlt: '', name: '', degree: '', title: '', bio: '', email: '', phone: '', link: '' } ] )
+			} );
+		};
+		var removePerson = function ( idx ) {
+			if ( people.length <= 1 ) {
+				return;
+			}
+			setAttributes( { people: people.filter( function ( _, i ) { return i !== idx; } ) } );
+		};
+		var movePerson = function ( idx, dir ) {
+			var next = people.slice();
+			var target = idx + dir;
+			if ( target < 0 || target >= next.length ) {
+				return;
+			}
+			var tmp = next[ target ];
+			next[ target ] = next[ idx ];
+			next[ idx ] = tmp;
+			setAttributes( { people: next } );
+		};
+		var duplicatePerson = function ( idx ) {
+			var copy = Object.assign( {}, people[ idx ] );
+			var next = people.slice();
+			next.splice( idx + 1, 0, copy );
+			setAttributes( { people: next } );
+		};
+
+		var nameFormats = [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+		var bioFormats = [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+
+		var personEl = function ( p, i ) {
+			var initials = rcmiDirInitials( p.name );
+			return el( 'article', { key: 'person-' + i, className: 'rcmi-person' },
+				el( 'div', { className: 'rcmi-person-photo' + ( p.imageUrl ? '' : ' is-empty' ) },
+					el( MediaUploadCheck, null,
+						el( MediaUpload, {
+							onSelect: function ( media ) {
+								setAttributes( {
+									people: people.map( function ( q, qi ) {
+										return qi === i ? Object.assign( {}, q, { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || q.imageAlt || '' } ) : q;
+									} )
+								} );
+							},
+							allowedTypes: [ 'image' ],
+							value: p.imageId,
+							render: function ( obj ) {
+								return el( 'button', {
+									type: 'button',
+									className: 'rcmi-dir-photo-btn',
+									onClick: obj.open,
+									title: p.imageUrl ? __( 'Replace photo', 'rcmi-toolkit' ) : __( 'Add photo', 'rcmi-toolkit' )
+								},
+									p.imageUrl
+										? el( 'img', { src: p.imageUrl, alt: p.imageAlt || '' } )
+										: el( Fragment, null,
+											el( 'span', { className: 'rcmi-person-initials', 'aria-hidden': 'true' }, initials || '?' ),
+											el( 'span', { className: 'rcmi-dir-photo-hint' }, __( 'Add photo', 'rcmi-toolkit' ) )
+										)
+								);
+							}
+						} )
+					),
+					p.imageUrl ? el( Button, {
+						className: 'rcmi-dir-photo-remove',
+						type: 'button',
+						icon: 'no-alt',
+						label: __( 'Remove photo', 'rcmi-toolkit' ),
+						onClick: function () {
+							setAttributes( {
+								people: people.map( function ( q, qi ) {
+									return qi === i ? Object.assign( {}, q, { imageId: 0, imageUrl: '' } ) : q;
+								} )
+							} );
+						}
+					} ) : null
+				),
+				el( 'div', { className: 'rcmi-person-body' },
+					el( RichText, {
+						tagName: 'h3',
+						className: 'rcmi-person-name',
+						value: p.name,
+						onChange: function ( v ) { updatePerson( i, 'name', v ); },
+						placeholder: __( 'Name…', 'rcmi-toolkit' ),
+						allowedFormats: nameFormats
+					} ),
+					el( RichText, {
+						tagName: 'p',
+						className: 'rcmi-person-degree',
+						value: p.degree,
+						onChange: function ( v ) { updatePerson( i, 'degree', v ); },
+						placeholder: __( 'Degree / credentials…', 'rcmi-toolkit' ),
+						allowedFormats: nameFormats
+					} ),
+					el( RichText, {
+						tagName: 'p',
+						className: 'rcmi-person-title',
+						value: p.title,
+						onChange: function ( v ) { updatePerson( i, 'title', v ); },
+						placeholder: __( 'Title / role…', 'rcmi-toolkit' ),
+						allowedFormats: nameFormats
+					} ),
+					el( RichText, {
+						tagName: 'p',
+						className: 'rcmi-person-bio',
+						value: p.bio,
+						onChange: function ( v ) { updatePerson( i, 'bio', v ); },
+						placeholder: __( 'Short bio (optional)…', 'rcmi-toolkit' ),
+						allowedFormats: bioFormats
+					} ),
+					el( 'div', { className: 'rcmi-person-contact' },
+						el( RichText, {
+							tagName: 'span',
+							className: 'rcmi-person-email',
+							value: p.email,
+							onChange: function ( v ) { updatePerson( i, 'email', v ); },
+							placeholder: __( 'Email…', 'rcmi-toolkit' ),
+							allowedFormats: nameFormats
+						} ),
+						el( RichText, {
+							tagName: 'span',
+							className: 'rcmi-person-phone',
+							value: p.phone,
+							onChange: function ( v ) { updatePerson( i, 'phone', v ); },
+							placeholder: __( 'Phone…', 'rcmi-toolkit' ),
+							allowedFormats: nameFormats
+						} )
+					),
+					p.link ? el( 'span', { className: 'rcmi-person-link' }, __( 'View profile →', 'rcmi-toolkit' ) ) : null
+				)
+			);
+		};
+
+		var peoplePanel = el( PanelBody, { title: __( 'People', 'rcmi-toolkit' ), initialOpen: false },
+			people.map( function ( p, idx ) {
+				var label = ( p.name || '' ).replace( /<[^>]*>/g, '' ).trim() || __( 'Person ', 'rcmi-toolkit' ) + ( idx + 1 );
+				return el( 'div', { key: 'pmgmt-' + idx, className: 'rcmi-people-item', style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
+					el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
+						el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, label ),
+						el( 'div', null,
+							idx > 0 ? el( Button, { onClick: function () { movePerson( idx, -1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-up-alt2' } ) : null,
+							idx < people.length - 1 ? el( Button, { onClick: function () { movePerson( idx, 1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-down-alt2' } ) : null,
+							el( Button, { onClick: function () { duplicatePerson( idx ); }, variant: 'tertiary', isSmall: true, icon: 'admin-page', title: __( 'Duplicate', 'rcmi-toolkit' ) } ),
+							people.length > 1 ? el( Button, { onClick: function () { removePerson( idx ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove', 'rcmi-toolkit' ) ) : null
+						)
+					),
+					el( TextControl, { label: __( 'Profile link', 'rcmi-toolkit' ), value: p.link, onChange: function ( v ) { updatePerson( idx, 'link', v ); }, placeholder: 'https://…' } ),
+					el( TextControl, { label: __( 'Photo alt text', 'rcmi-toolkit' ), value: p.imageAlt, onChange: function ( v ) { updatePerson( idx, 'imageAlt', v ); } } )
+				);
+			} ),
+			el( Button, { onClick: addPerson, variant: 'secondary', isSmall: true, style: { marginTop: '10px' } }, __( '+ Add person', 'rcmi-toolkit' ) )
+		);
+
+		var blockProps = useBlockProps( {
+			className: 'rcmi-directory rcmi-directory--cols-' + cols
+				+ ' rcmi-directory--photo-' + ( attrs.photoStyle || 'circle' )
+				+ ' rcmi-directory--' + ( attrs.cardStyle || 'card' )
+		} );
+
+		return el( Fragment, null,
+			el( BlockControls, null,
+				el( ToolbarGroup, null,
+					el( ToolbarButton, {
+						icon: 'plus',
+						label: __( 'Add person', 'rcmi-toolkit' ),
+						onClick: addPerson
+					} )
+				)
+			),
+			el( InspectorControls, null,
+				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, {
+						label: __( 'Columns', 'rcmi-toolkit' ),
+						value: cols,
+						options: [
+							{ label: '1', value: 1 },
+							{ label: '2', value: 2 },
+							{ label: '3', value: 3 },
+							{ label: '4', value: 4 },
+							{ label: '6', value: 6 }
+						],
+						onChange: function ( v ) { setAttributes( { columns: parseInt( v, 10 ) || 3 } ); }
+					} ),
+					el( SelectControl, {
+						label: __( 'Photo style', 'rcmi-toolkit' ),
+						value: attrs.photoStyle,
+						options: [
+							{ label: __( 'Circle', 'rcmi-toolkit' ), value: 'circle' },
+							{ label: __( 'Rounded square', 'rcmi-toolkit' ), value: 'rounded' },
+							{ label: __( 'Full-width portrait', 'rcmi-toolkit' ), value: 'portrait' }
+						],
+						onChange: function ( v ) { setAttributes( { photoStyle: v } ); }
+					} ),
+					el( SelectControl, {
+						label: __( 'Card style', 'rcmi-toolkit' ),
+						value: attrs.cardStyle,
+						options: [
+							{ label: __( 'Card', 'rcmi-toolkit' ), value: 'card' },
+							{ label: __( 'Plain', 'rcmi-toolkit' ), value: 'plain' }
+						],
+						onChange: function ( v ) { setAttributes( { cardStyle: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'Open profile links in a new tab', 'rcmi-toolkit' ),
+						checked: attrs.linkNewTab,
+						onChange: function ( v ) { setAttributes( { linkNewTab: v } ); }
+					} )
+				),
+				peoplePanel
+			),
+			el( 'div', blockProps,
+				people.map( function ( p, i ) { return personEl( p, i ); } ),
+				el( 'button', {
+					type: 'button',
+					className: 'rcmi-directory-add',
+					onClick: addPerson
+				}, '+ ' + __( 'Add person', 'rcmi-toolkit' ) )
+			)
+		);
+	};
+
+	registerBlockType( 'rcmi/directory', {
+		apiVersion: 3,
+		title: __( 'RCMI Directory', 'rcmi-toolkit' ),
+		description: __( 'Staff directory grid — photo, name, degree, and title cards in 1–6 columns.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'id-alt',
+		keywords: [ 'staff', 'people', 'team', 'directory', 'faculty' ],
+		supports: {
+			html: false,
+			anchor: true,
+			align: [ 'wide', 'full' ]
+		},
+		attributes: {
+			columns:    { type: 'number', default: 3 },
+			photoStyle: { type: 'string', default: 'circle' },
+			cardStyle:  { type: 'string', default: 'card' },
+			linkNewTab: { type: 'boolean', default: false },
+			people:     { type: 'array', default: rcmiDirDefaultPeople() }
+		},
+		edit: RcmiDirectoryEdit,
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
 		}
 	} );
 
