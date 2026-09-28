@@ -2658,6 +2658,7 @@ function rcmi_directory_default_people() {
 	$person = function ( $name, $degree, $title ) {
 		return array(
 			'imageId' => 0, 'imageUrl' => '', 'imageAlt' => '',
+			'positionX' => 50, 'positionY' => 50,
 			'name'    => $name, 'degree' => $degree, 'title' => $title,
 			'bio'     => '', 'email' => '', 'phone' => '', 'link' => '',
 		);
@@ -2735,6 +2736,10 @@ function rcmi_render_directory_block( $attrs ) {
 		$img_id = intval( $p['imageId'] ?? 0 );
 		$img_url = (string) ( $p['imageUrl'] ?? '' );
 		$img_alt = (string) ( $p['imageAlt'] ?? '' );
+		// Photo crop focus (0–100 object-position; omitted when centered).
+		$pos_x = max( 0, min( 100, intval( $p['positionX'] ?? 50 ) ) );
+		$pos_y = max( 0, min( 100, intval( $p['positionY'] ?? 50 ) ) );
+		$img_style = ( 50 === $pos_x && 50 === $pos_y ) ? '' : 'object-position:' . $pos_x . '% ' . $pos_y . '%';
 
 		if ( ! $name && ! $degree && ! $title && ! $bio && ! $img_url && ! $img_id ) {
 			continue;
@@ -2744,15 +2749,19 @@ function rcmi_render_directory_block( $attrs ) {
 		// Photo: attachment image > URL fallback > initials placeholder.
 		$img = '';
 		if ( $img_id ) {
-			$img = wp_get_attachment_image( $img_id, 'medium_large', false, array(
+			$img_attrs = array(
 				'class'    => 'rcmi-person-img',
 				'alt'      => $img_alt,
 				'loading'  => 'lazy',
 				'itemprop' => 'image',
-			) );
+			);
+			if ( $img_style ) {
+				$img_attrs['style'] = $img_style;
+			}
+			$img = wp_get_attachment_image( $img_id, 'medium_large', false, $img_attrs );
 		}
 		if ( ! $img && $img_url ) {
-			$img = '<img class="rcmi-person-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy" itemprop="image" />';
+			$img = '<img class="rcmi-person-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy" itemprop="image"' . ( $img_style ? ' style="' . esc_attr( $img_style ) . '"' : '' ) . ' />';
 		}
 		$photo_inner = $img ? $img : '<span class="rcmi-person-initials" aria-hidden="true">' . esc_html( rcmi_directory_initials( $name ) ?: '·' ) . '</span>';
 		$photo_class = 'rcmi-person-photo' . ( $img ? '' : ' is-empty' );

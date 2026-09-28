@@ -132,6 +132,18 @@ $dir = rcmi_render( 'rcmi/directory', array(
 			'name' => 'No Photo Person', 'degree' => '', 'title' => 'Analyst',
 			'bio'  => '', 'email' => '', 'phone' => '', 'link' => '', 'imageUrl' => '', 'imageId' => 0, 'imageAlt' => '',
 		),
+		array(
+			'name' => 'Photo Position', 'degree' => '', 'title' => '',
+			'bio'  => '', 'email' => '', 'phone' => '', 'link' => '',
+			'imageUrl' => 'https://example.edu/p.jpg', 'imageId' => 0, 'imageAlt' => 'P',
+			'positionX' => 20, 'positionY' => 80,
+		),
+		array(
+			'name' => 'Centered Photo', 'degree' => '', 'title' => '',
+			'bio'  => '', 'email' => '', 'phone' => '', 'link' => '',
+			'imageUrl' => 'https://example.edu/c.jpg', 'imageId' => 0, 'imageAlt' => '',
+			'positionX' => 50, 'positionY' => 50,
+		),
 	),
 ) );
 
@@ -143,6 +155,8 @@ rcmi_check( false !== strpos( $dir, 'tel:7135550100' ), 'directory: tel link mis
 rcmi_check( false !== strpos( $dir, 'href="https://example.edu/ada"' ), 'directory: profile link missing' );
 rcmi_check( false !== strpos( $dir, 'rcmi-person-initials' ), 'directory: initials fallback missing' );
 rcmi_check( false !== strpos( $dir, '>NP<' ) || false !== strpos( $dir, 'NP</span>' ), 'directory: initials should be NP' );
+rcmi_check( false !== strpos( $dir, 'object-position:20% 80%' ), 'directory: object-position style missing for shifted photo' );
+rcmi_check( false === strpos( $dir, 'c.jpg" alt="" loading="lazy" itemprop="image" style' ), 'directory: centered photo should not emit object-position' );
 
 // ---------------------------------------------------------------------------
 // rcmi/directory — empty people list renders nothing

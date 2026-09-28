@@ -4053,9 +4053,9 @@
 
 	function rcmiDirDefaultPeople() {
 		return [
-			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'Dr. Jane Smith', degree: 'PhD', title: 'Principal Investigator', bio: '', email: '', phone: '', link: '' },
-			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'John Doe', degree: 'MS', title: 'Research Coordinator', bio: '', email: '', phone: '', link: '' },
-			{ imageId: 0, imageUrl: '', imageAlt: '', name: 'Maria Garcia', degree: 'MPH', title: 'Community Liaison', bio: '', email: '', phone: '', link: '' }
+			{ imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: 'Dr. Jane Smith', degree: 'PhD', title: 'Principal Investigator', bio: '', email: '', phone: '', link: '' },
+			{ imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: 'John Doe', degree: 'MS', title: 'Research Coordinator', bio: '', email: '', phone: '', link: '' },
+			{ imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: 'Maria Garcia', degree: 'MPH', title: 'Community Liaison', bio: '', email: '', phone: '', link: '' }
 		];
 	}
 
@@ -4078,7 +4078,7 @@
 		};
 		var addPerson = function () {
 			setAttributes( {
-				people: people.concat( [ { imageId: 0, imageUrl: '', imageAlt: '', name: '', degree: '', title: '', bio: '', email: '', phone: '', link: '' } ] )
+				people: people.concat( [ { imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: '', degree: '', title: '', bio: '', email: '', phone: '', link: '' } ] )
 			} );
 		};
 		var removePerson = function ( idx ) {
@@ -4110,6 +4110,9 @@
 
 		var personEl = function ( p, i ) {
 			var initials = rcmiDirInitials( p.name );
+			var posX = p.positionX == null ? 50 : p.positionX;
+			var posY = p.positionY == null ? 50 : p.positionY;
+			var imgStyle = { objectPosition: posX + '% ' + posY + '%' };
 			return el( 'article', { key: 'person-' + i, className: 'rcmi-person' },
 				el( 'div', { className: 'rcmi-person-photo' + ( p.imageUrl ? '' : ' is-empty' ) },
 					el( MediaUploadCheck, null,
@@ -4131,7 +4134,7 @@
 									title: p.imageUrl ? __( 'Replace photo', 'rcmi-toolkit' ) : __( 'Add photo', 'rcmi-toolkit' )
 								},
 									p.imageUrl
-										? el( 'img', { src: p.imageUrl, alt: p.imageAlt || '' } )
+										? el( 'img', { src: p.imageUrl, alt: p.imageAlt || '', style: imgStyle } )
 										: el( Fragment, null,
 											el( 'span', { className: 'rcmi-person-initials', 'aria-hidden': 'true' }, initials || '?' ),
 											el( 'span', { className: 'rcmi-dir-photo-hint' }, __( 'Add photo', 'rcmi-toolkit' ) )
@@ -4224,7 +4227,9 @@
 						)
 					),
 					el( TextControl, { label: __( 'Profile link', 'rcmi-toolkit' ), value: p.link, onChange: function ( v ) { updatePerson( idx, 'link', v ); }, placeholder: 'https://…' } ),
-					el( TextControl, { label: __( 'Photo alt text', 'rcmi-toolkit' ), value: p.imageAlt, onChange: function ( v ) { updatePerson( idx, 'imageAlt', v ); } } )
+					el( TextControl, { label: __( 'Photo alt text', 'rcmi-toolkit' ), value: p.imageAlt, onChange: function ( v ) { updatePerson( idx, 'imageAlt', v ); } } ),
+					p.imageUrl ? el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), help: __( 'Photo crop position (0 = left, 100 = right).', 'rcmi-toolkit' ), value: p.positionX == null ? 50 : p.positionX, min: 0, max: 100, onChange: function ( v ) { updatePerson( idx, 'positionX', v ); } } ) : null,
+					p.imageUrl ? el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), help: __( 'Photo crop position (0 = top, 100 = bottom).', 'rcmi-toolkit' ), value: p.positionY == null ? 50 : p.positionY, min: 0, max: 100, onChange: function ( v ) { updatePerson( idx, 'positionY', v ); } } ) : null
 				);
 			} ),
 			el( Button, { onClick: addPerson, variant: 'secondary', isSmall: true, style: { marginTop: '10px' } }, __( '+ Add person', 'rcmi-toolkit' ) )
