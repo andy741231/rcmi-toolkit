@@ -3788,6 +3788,40 @@
 				onClick: function () { commit( rcmiTableInsertRow( rows, pos.r + 1 ) ); }
 			},
 			{
+				title: __( 'Insert header before', 'rcmi-toolkit' ),
+				icon: 'table-row-before',
+				isDisabled: !( 0 === headerCount || pos.r < headerCount ),
+				onClick: function () {
+					var at = headerCount ? pos.r : 0;
+					setAttributes( {
+						rows: rcmiTableInsertRow( rows, at ),
+						headerRows: headerCount + 1,
+						hasHeader: true
+					} );
+				}
+			},
+			{
+				title: __( 'Insert header after', 'rcmi-toolkit' ),
+				icon: 'table-row-after',
+				isDisabled: !( 0 === headerCount || pos.r < headerCount ),
+				onClick: function () {
+					var at = headerCount ? pos.r + 1 : 0;
+					setAttributes( {
+						rows: rcmiTableInsertRow( rows, at ),
+						headerRows: headerCount + 1,
+						hasHeader: true
+					} );
+				}
+			},
+			{
+				title: __( 'Remove row from header', 'rcmi-toolkit' ),
+				icon: 'arrow-down-alt2',
+				isDisabled: pos.r !== headerCount - 1,
+				onClick: function () {
+					setAttributes( { headerRows: headerCount - 1, hasHeader: headerCount - 1 > 0 } );
+				}
+			},
+			{
 				title: __( 'Delete row', 'rcmi-toolkit' ),
 				icon: 'table-row-delete',
 				isDisabled: rows.length <= 1,
@@ -3918,18 +3952,11 @@
 						options: RCMI_TABLE_THEMES,
 						onChange: function ( v ) { setAttributes( { theme: v } ); }
 					} ),
-					el( SelectControl, {
-						label: __( 'Header rows', 'rcmi-toolkit' ),
-						help: __( 'Top N rows render as table headers (th, scope="col").', 'rcmi-toolkit' ),
-						value: headerCount,
-						options: [ 0, 1, 2, 3 ].map( function ( n ) {
-							return { label: '' + n, value: n };
-						} ),
-						onChange: function ( v ) {
-							var n = parseInt( v, 10 ) || 0;
-							// Keep the legacy hasHeader flag in sync.
-							setAttributes( { headerRows: Math.max( 1, n ), hasHeader: n > 0 } );
-						}
+					el( ToggleControl, {
+						label: __( 'Header row', 'rcmi-toolkit' ),
+						help: __( 'Top row renders as table headers. Use Edit table → Insert header to add more header rows.', 'rcmi-toolkit' ),
+						checked: attrs.hasHeader,
+						onChange: function ( v ) { setAttributes( { hasHeader: v, headerRows: Math.max( 1, attrs.headerRows || 1 ) } ); }
 					} ),
 					el( ToggleControl, {
 						label: __( 'First column header', 'rcmi-toolkit' ),
