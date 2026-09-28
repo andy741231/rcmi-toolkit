@@ -3736,9 +3736,18 @@
 		var shiftPicking = useRef( false );
 
 		useEffect( function () {
-			var up = function () { dragging.current = false; shiftPicking.current = false; };
-			document.addEventListener( 'mouseup', up );
-			return function () { document.removeEventListener( 'mouseup', up ); };
+			var clear = function () { dragging.current = false; shiftPicking.current = false; };
+			var keyup = function ( e ) { if ( 'Shift' === e.key ) { shiftPicking.current = false; } };
+			// Capture phase: editor chrome can stopPropagation a bubble listener.
+			// window blur covers mouse released outside an iframed canvas.
+			document.addEventListener( 'mouseup', clear, true );
+			document.addEventListener( 'keyup', keyup, true );
+			window.addEventListener( 'blur', clear );
+			return function () {
+				document.removeEventListener( 'mouseup', clear, true );
+				document.removeEventListener( 'keyup', keyup, true );
+				window.removeEventListener( 'blur', clear );
+			};
 		}, [] );
 
 		var rect = sel ? rcmiTableRect( rows, sel.anchor, sel.head ) : null;
@@ -3817,14 +3826,15 @@
 					shiftPicking.current = true;
 					setSel( { anchor: sel ? sel.anchor : { r: r, c: c }, head: { r: r, c: c } } );
 				} else {
+					shiftPicking.current = false;
 					setSel( { anchor: { r: r, c: c }, head: { r: r, c: c } } );
 				}
 				dragging.current = true;
 			};
 		};
 		var onCellMouseEnter = function ( r, c ) {
-			return function () {
-				if ( dragging.current && shiftPicking.current && sel ) {
+			return function ( e ) {
+				if ( dragging.current && shiftPicking.current && e.shiftKey && sel ) {
 					setSel( { anchor: sel.anchor, head: { r: r, c: c } } );
 				}
 			};
