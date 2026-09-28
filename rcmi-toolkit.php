@@ -2409,6 +2409,9 @@ function rcmi_register_server_side_blocks() {
 			'textAlign'   => array( 'type' => 'string', 'default' => 'left' ),
 			'headerAlign' => array( 'type' => 'string', 'default' => '' ),
 			'headerRows'  => array( 'type' => 'number', 'default' => 1 ),
+			// Row indices flagged as headers — may sit anywhere in the table.
+			// No default: absent means pre-flag markup (hasHeader+headerRows).
+			'headerRowIdx' => array( 'type' => 'array' ),
 			'caption'     => array( 'type' => 'string', 'default' => '' ),
 		),
 		'supports' => array(
@@ -2571,11 +2574,27 @@ function rcmi_render_table_block( $attrs ) {
 	}
 	$cols       = count( $rows[0] );
 	$col_header = ! empty( $attrs['colHeader'] );
-	// First N rows are <thead> headers. `hasHeader` stays the master switch
-	// so content saved before headerRows existed is unchanged.
-	$header_count = ! empty( $attrs['hasHeader'] )
-		? min( max( 1, intval( $attrs['headerRows'] ?? 1 ) ), count( $rows ) )
-		: 0;
+	// Header rows may sit anywhere. New saves store `headerRowIdx` indices;
+	// pre-flag markup carries `hasHeader`/`headerRows` = first N rows.
+	$header_set = array();
+	if ( isset( $attrs['headerRowIdx'] ) && is_array( $attrs['headerRowIdx'] ) ) {
+		foreach ( $attrs['headerRowIdx'] as $i ) {
+			$i = intval( $i );
+			if ( $i >= 0 && $i < count( $rows ) ) {
+				$header_set[ $i ] = true;
+			}
+		}
+	} elseif ( ! empty( $attrs['hasHeader'] ) ) {
+		for ( $i = 0, $n = min( max( 1, intval( $attrs['headerRows'] ?? 1 ) ), count( $rows ) ); $i < $n; $i++ ) {
+			$header_set[ $i ] = true;
+		}
+	}
+	// Contiguous header prefix renders in <thead>; flagged rows below it are
+	// mid-table section headers rendered as th rows inside <tbody>.
+	$thead_count = 0;
+	while ( isset( $header_set[ $thead_count ] ) ) {
+		$thead_count++;
+	}
 
 	$classes = 'rcmi-table-block rcmi-table--' . $theme;
 	if ( ! empty( $attrs['striped'] ) ) {
@@ -2617,11 +2636,11 @@ function rcmi_render_table_block( $attrs ) {
 	}
 
 	// Column header text per grid column — used as data-labels in stacked mode.
-	// Labels come from the last header row, the one closest to the data.
+	// Labels come from the last top header row, the one closest to the data.
 	$labels = array();
-	if ( $header_count ) {
+	if ( $thead_count ) {
 		for ( $c = 0; $c < $cols; $c++ ) {
-			$root        = rcmi_table_root_at( $rows, $header_count - 1, $c );
+			$root        = rcmi_table_root_at( $rows, $thead_count - 1, $c );
 			$labels[ $c ] = trim( wp_strip_all_tags( $rows[ $root[0] ][ $root[1] ]['content'] ) );
 		}
 	}
@@ -2640,10 +2659,10 @@ function rcmi_render_table_block( $attrs ) {
 	ob_start();
 	echo '<figure class="' . esc_attr( $classes ) . '"' . $id_attr . ( $vars ? ' style="' . esc_attr( $vars ) . '"' : '' ) . '>';
 	echo '<div class="rcmi-table-scroll"><table>';
-	$body_start = $header_count;
-	if ( $header_count ) {
+	$body_start = $thead_count;
+	if ( $thead_count ) {
 		echo '<thead>';
-		for ( $hr = 0; $hr < $header_count; $hr++ ) {
+		for ( $hr = 0; $hr < $thead_count; $hr++ ) {
 			echo '<tr>';
 			for ( $c = 0; $c < $cols; $c++ ) {
 				if ( $rows[ $hr ][ $c ]['hidden'] ) {
@@ -2657,15 +2676,20 @@ function rcmi_render_table_block( $attrs ) {
 	}
 	echo '<tbody>';
 	for ( $r = $body_start; $r < count( $rows ); $r++ ) {
-		echo '<tr>';
+		$is_head_row = isset( $header_set[ $r ] );
+		echo $is_head_row ? '<tr class="rcmi-head-row">' : '<tr>';
 		for ( $c = 0; $c < $cols; $c++ ) {
 			$cell = $rows[ $r ][ $c ];
 			if ( $cell['hidden'] ) {
 				continue;
 			}
+			if ( $is_head_row ) {
+				echo $render_cell( $cell, 'th', ' scope="col"' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post
+				continue;
+			}
 			$is_row_head = $col_header && 0 === $c;
 			$extra       = $is_row_head ? ' scope="row"' : '';
-			if ( ! $is_row_head && $header_count && '' !== $labels[ $c ] ) {
+			if ( ! $is_row_head && $thead_count && '' !== $labels[ $c ] ) {
 				$extra .= ' data-label="' . esc_attr( $labels[ $c ] ) . '"';
 			}
 			echo $render_cell( $cell, $is_row_head ? 'th' : 'td', $extra ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built with esc_* / wp_kses_post

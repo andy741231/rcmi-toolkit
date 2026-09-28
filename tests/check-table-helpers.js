@@ -139,5 +139,15 @@ var bi2 = rcmiTableInsertRow(b, 1);
 eq(bi2[0][0].rowSpan, 3, 'insert inside merge extends it');
 eq(bi2[2][0].hidden, true, 'trailing covered slot stays hidden');
 
+// --- header row index set helpers ---
+eq(rcmiTableHeaderSet({ hasHeader: true, headerRows: 2 }, 4), [0, 1], 'legacy hasHeader+headerRows → first N');
+eq(rcmiTableHeaderSet({ hasHeader: false }, 4), [], 'legacy hasHeader off → empty');
+eq(rcmiTableHeaderSet({ headerRowIdx: [3, 0, 9, -1] }, 4), [0, 3], 'headerRowIdx filters out-of-range + sorts');
+eq(rcmiTableTheadCount([0, 1, 3]), 2, 'thead prefix stops at the gap');
+eq(rcmiTableTheadCount([1, 3]), 0, 'no row-0 flag → no thead');
+eq(rcmiTableShiftHeaderIdx([0, 2], 1, null), [0, 3], 'insert shifts indices at/after');
+eq(rcmiTableShiftHeaderIdx([0, 2, 3], null, 2), [0, 2], 'delete removes + shifts down');
+eq(rcmiTableShiftHeaderIdx([1], 0, null), [2], 'insert at top shifts header off row 0');
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

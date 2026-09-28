@@ -31,7 +31,8 @@
 	vertical-align:top;
 	border-bottom:1px solid var(--rcmi-tbl-border);
 }
-.rcmi-table-block thead th{
+.rcmi-table-block thead th,
+.rcmi-table-block tbody tr.rcmi-head-row th{
 	background:var(--rcmi-tbl-head-bg);
 	color:var(--rcmi-tbl-head-text);
 	font-weight:700;

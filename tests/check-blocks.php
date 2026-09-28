@@ -148,6 +148,22 @@ $no_head = rcmi_render( 'rcmi/table', array(
 ) );
 rcmi_check( false === strpos( $no_head, '<thead>' ), 'table: thead should not render when hasHeader off' );
 
+// headerRowIdx: header rows anywhere — contiguous prefix in thead, rest mid-table.
+$mid_head = rcmi_render( 'rcmi/table', array(
+	'headerRowIdx' => array( 0, 2 ),
+	'rows'         => array(
+		array( $cell( 'H' ), $cell( 'H2' ) ),
+		array( $cell( 'a' ), $cell( 'b' ) ),
+		array( $cell( 'Section' ), $cell( '' ) ),
+		array( $cell( 'c' ), $cell( 'd' ) ),
+	),
+) );
+rcmi_check( false !== strpos( $mid_head, '<thead>' ), 'table(mid): thead missing for row 0' );
+rcmi_check( false !== strpos( $mid_head, '<tr class="rcmi-head-row">' ), 'table(mid): mid-table head row class missing' );
+rcmi_check( false !== strpos( $mid_head, '<th scope="col">Section</th>' ), 'table(mid): mid-table header should render th' );
+rcmi_check( strpos( $mid_head, 'rcmi-head-row' ) > strpos( $mid_head, '</thead>' ), 'table(mid): head row should be inside tbody' );
+rcmi_check( false !== strpos( $mid_head, '>a</td>' ), 'table(mid): row between headers should stay a body cell' );
+
 // ---------------------------------------------------------------------------
 // rcmi/directory — card render
 // ---------------------------------------------------------------------------

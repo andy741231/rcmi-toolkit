@@ -3636,6 +3636,45 @@
 		}
 		return next;
 	}
+
+	// Resolve which rows render as header <th> rows. New blocks store
+	// `headerRowIdx` (indices anywhere in the table); older saves carry
+	// `hasHeader` + `headerRows` meaning "the first N rows". Both normalize
+	// to a sorted list of indices.
+	function rcmiTableHeaderSet( attrs, rowCount ) {
+		if ( Array.isArray( attrs.headerRowIdx ) ) {
+			return attrs.headerRowIdx.filter( function ( i ) {
+				return typeof i === 'number' && i >= 0 && i < rowCount;
+			} ).sort( function ( a, b ) { return a - b; } );
+		}
+		var n = attrs.hasHeader ? Math.min( Math.max( 1, attrs.headerRows || 1 ), rowCount ) : 0;
+		var out = [];
+		for ( var i = 0; i < n; i++ ) { out.push( i ); }
+		return out;
+	}
+
+	// Count of contiguous header rows starting at row 0 — those render in
+	// <thead>. Flagged rows below the prefix are mid-table section headers.
+	function rcmiTableTheadCount( headerSet ) {
+		var n = 0;
+		while ( headerSet.indexOf( n ) !== -1 ) { n++; }
+		return n;
+	}
+
+	// Renumber a header index set when rows are inserted (insIdx = index the
+	// new row landed at) or deleted (delIdx). Either may be null.
+	function rcmiTableShiftHeaderIdx( set, insIdx, delIdx ) {
+		var out = [];
+		set.forEach( function ( i ) {
+			if ( delIdx !== null ) {
+				if ( i === delIdx ) { return; }
+				if ( i > delIdx ) { i--; }
+			}
+			if ( insIdx !== null && i >= insIdx ) { i++; }
+			out.push( i );
+		} );
+		return out.sort( function ( a, b ) { return a - b; } );
+	}
 	// [rcmi-table-helpers-end]
 
 	var RCMI_TABLE_THEMES = [
@@ -3714,15 +3753,16 @@
 			return ( settings.color && settings.color.palette ) || settings.colors || [];
 		}, [] );
 
-		// First `headerCount` rows render in <thead> as <th scope="col">.
-		// `hasHeader` stays the master switch so legacy content is unchanged.
-		var headerCount = attrs.hasHeader ? Math.min( Math.max( 1, attrs.headerRows || 1 ), rows.length ) : 0;
+		// Header rows can live anywhere; the contiguous prefix renders in
+		// <thead>, flagged rows below it are mid-table section headers.
+		var headerSet = rcmiTableHeaderSet( attrs, rows.length );
+		var theadCount = rcmiTableTheadCount( headerSet );
 
 		var headerLabels = [];
-		if ( headerCount ) {
-			// Labels come from the last header row — the one closest to the data.
+		if ( theadCount ) {
+			// Labels come from the last top header row — closest to the data.
 			for ( var lc = 0; lc < cols; lc++ ) {
-				var hr = rcmiTableRootAt( rows, headerCount - 1, lc );
+				var hr = rcmiTableRootAt( rows, theadCount - 1, lc );
 				headerLabels[ lc ] = ( rows[ hr[ 0 ] ][ hr[ 1 ] ].content || '' ).replace( /<[^>]*>/g, '' ).trim();
 			}
 		}
@@ -3735,6 +3775,27 @@
 			setAttributes( { rows: next } );
 		};
 		var commit = function ( next ) { setAttributes( { rows: next } ); };
+		// Row ops must also renumber headerRowIdx so header flags follow rows.
+		var commitRows = function ( next, insIdx, delIdx ) {
+			var idx = rcmiTableShiftHeaderIdx( headerSet, insIdx === undefined ? null : insIdx, delIdx === undefined ? null : delIdx );
+			setAttributes( { rows: next, headerRowIdx: idx, hasHeader: idx.length > 0 } );
+		};
+		var setRowHeader = function ( r, on ) {
+			var idx = headerSet.slice();
+			if ( on && idx.indexOf( r ) === -1 ) { idx.push( r ); idx.sort( function ( a, b ) { return a - b; } ); }
+			if ( ! on ) { idx = idx.filter( function ( i ) { return i !== r; } ); }
+			setAttributes( { headerRowIdx: idx, hasHeader: idx.length > 0 } );
+		};
+		var insertHeaderRow = function ( after ) {
+			var at = after ? pos.r + 1 : pos.r;
+			var idx = rcmiTableShiftHeaderIdx( headerSet, at, null );
+			idx.push( at );
+			setAttributes( {
+				rows: rcmiTableInsertRow( rows, at ),
+				headerRowIdx: idx,
+				hasHeader: true
+			} );
+		};
 		var mergeSelection = function () {
 			if ( ! canMerge ) {
 				return;
@@ -3780,52 +3841,39 @@
 			{
 				title: __( 'Insert row before', 'rcmi-toolkit' ),
 				icon: 'table-row-before',
-				onClick: function () { commit( rcmiTableInsertRow( rows, pos.r ) ); }
+				onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r ), pos.r ); }
 			},
 			{
 				title: __( 'Insert row after', 'rcmi-toolkit' ),
 				icon: 'table-row-after',
-				onClick: function () { commit( rcmiTableInsertRow( rows, pos.r + 1 ) ); }
+				onClick: function () { commitRows( rcmiTableInsertRow( rows, pos.r + 1 ), pos.r + 1 ); }
 			},
 			{
 				title: __( 'Insert header before', 'rcmi-toolkit' ),
 				icon: 'table-row-before',
-				isDisabled: !( 0 === headerCount || pos.r < headerCount ),
-				onClick: function () {
-					var at = headerCount ? pos.r : 0;
-					setAttributes( {
-						rows: rcmiTableInsertRow( rows, at ),
-						headerRows: headerCount + 1,
-						hasHeader: true
-					} );
-				}
+				onClick: function () { insertHeaderRow( false ); }
 			},
 			{
 				title: __( 'Insert header after', 'rcmi-toolkit' ),
 				icon: 'table-row-after',
-				isDisabled: !( 0 === headerCount || pos.r < headerCount ),
-				onClick: function () {
-					var at = headerCount ? pos.r + 1 : 0;
-					setAttributes( {
-						rows: rcmiTableInsertRow( rows, at ),
-						headerRows: headerCount + 1,
-						hasHeader: true
-					} );
-				}
+				onClick: function () { insertHeaderRow( true ); }
 			},
-			{
-				title: __( 'Remove row from header', 'rcmi-toolkit' ),
-				icon: 'arrow-down-alt2',
-				isDisabled: pos.r !== headerCount - 1,
-				onClick: function () {
-					setAttributes( { headerRows: headerCount - 1, hasHeader: headerCount - 1 > 0 } );
+			headerSet.indexOf( pos.r ) !== -1
+				? {
+					title: __( 'Remove row from header', 'rcmi-toolkit' ),
+					icon: 'arrow-down-alt2',
+					onClick: function () { setRowHeader( pos.r, false ); }
 				}
-			},
+				: {
+					title: __( 'Make row a header', 'rcmi-toolkit' ),
+					icon: 'arrow-up-alt2',
+					onClick: function () { setRowHeader( pos.r, true ); }
+				},
 			{
 				title: __( 'Delete row', 'rcmi-toolkit' ),
 				icon: 'table-row-delete',
 				isDisabled: rows.length <= 1,
-				onClick: function () { commit( rcmiTableDeleteRow( rows, pos.r ) ); setSel( null ); }
+				onClick: function () { commitRows( rcmiTableDeleteRow( rows, pos.r ), null, pos.r ); setSel( null ); }
 			},
 			{
 				title: __( 'Insert column before', 'rcmi-toolkit' ),
@@ -3896,7 +3944,7 @@
 				cellProps.scope = 'col';
 			} else if ( attrs.colHeader && c === 0 ) {
 				cellProps.scope = 'row';
-			} else if ( headerCount && headerLabels[ c ] ) {
+			} else if ( theadCount && headerLabels[ c ] ) {
 				cellProps[ 'data-label' ] = headerLabels[ c ];
 			}
 			if ( attrs.colHeader && c === 0 ) {
@@ -3914,7 +3962,7 @@
 			);
 		};
 
-		var bodyStart = headerCount;
+		var bodyStart = theadCount;
 		var blockProps = useBlockProps( {
 			className: rcmiTableClasses( attrs ),
 			style: rcmiTableVars( attrs )
@@ -3954,9 +4002,9 @@
 					} ),
 					el( ToggleControl, {
 						label: __( 'Header row', 'rcmi-toolkit' ),
-						help: __( 'Top row renders as table headers. Use Edit table → Insert header to add more header rows.', 'rcmi-toolkit' ),
-						checked: attrs.hasHeader,
-						onChange: function ( v ) { setAttributes( { hasHeader: v, headerRows: Math.max( 1, attrs.headerRows || 1 ) } ); }
+						help: __( 'Top row renders as table headers. Use Edit table → Insert header to add header rows anywhere.', 'rcmi-toolkit' ),
+						checked: headerSet.indexOf( 0 ) !== -1,
+						onChange: function ( v ) { setRowHeader( 0, v ); }
 					} ),
 					el( ToggleControl, {
 						label: __( 'First column header', 'rcmi-toolkit' ),
@@ -4028,8 +4076,8 @@
 			el( 'figure', blockProps,
 				el( 'div', { className: 'rcmi-table-scroll' },
 					el( 'table', null,
-						headerCount ? el( 'thead', null,
-							rows.slice( 0, headerCount ).map( function ( row, r ) {
+						theadCount ? el( 'thead', null,
+							rows.slice( 0, theadCount ).map( function ( row, r ) {
 								return el( 'tr', { key: 'head-' + r },
 									row.map( function ( cell, c ) {
 										return renderCell( r, c, 'th', true );
@@ -4042,9 +4090,10 @@
 								if ( r < bodyStart ) {
 									return null;
 								}
-								return el( 'tr', { key: 'row-' + r },
+								var isHeadRow = headerSet.indexOf( r ) !== -1;
+								return el( 'tr', { key: 'row-' + r, className: isHeadRow ? 'rcmi-head-row' : undefined },
 									row.map( function ( cell, c ) {
-										return renderCell( r, c, 'td', false );
+										return renderCell( r, c, isHeadRow ? 'th' : 'td', isHeadRow );
 									} )
 								);
 							} )
@@ -4091,6 +4140,9 @@
 			textAlign:  { type: 'string', default: 'left' },
 			headerAlign: { type: 'string', default: '' },
 			headerRows: { type: 'number', default: 1 },
+			// Row indices flagged as headers (may sit anywhere in the table).
+			// Absent on pre-flag saves, which use hasHeader + headerRows.
+			headerRowIdx: { type: 'array' },
 			caption:    { type: 'string', default: '' }
 		},
 		edit: RcmiTableEdit,
