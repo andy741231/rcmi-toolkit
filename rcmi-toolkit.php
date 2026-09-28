@@ -2417,22 +2417,45 @@ function rcmi_register_server_side_blocks() {
 		'render_callback' => 'rcmi_render_table_block',
 	) );
 
-	// rcmi/directory — staff/people grid. Each card: photo, name, degree,
-	// title, optional bio/email/phone, and an optional profile link.
+	// rcmi/directory — staff/people grid. Profiles are rcmi/directory-person
+	// inner blocks (photo, name, degree, title, optional bio/email/phone and
+	// a profile link). The legacy `people` array attribute is kept for
+	// directories saved before profiles became child blocks.
 	register_block_type( 'rcmi/directory', array(
 		'attributes' => array(
 			'columns'    => array( 'type' => 'number', 'default' => 3 ),
 			'photoStyle' => array( 'type' => 'string', 'default' => 'circle' ),
 			'cardStyle'  => array( 'type' => 'string', 'default' => 'card' ),
 			'linkNewTab' => array( 'type' => 'boolean', 'default' => false ),
-			'people'     => array( 'type' => 'array', 'default' => rcmi_directory_default_people() ),
+			'people'     => array( 'type' => 'array', 'default' => array() ),
 		),
+		'provides_context' => array( 'rcmi/linkNewTab' => 'linkNewTab' ),
 		'supports' => array(
 			'html'   => false,
 			'anchor' => true,
 			'align'  => array( 'wide', 'full' ),
 		),
 		'render_callback' => 'rcmi_render_directory_block',
+	) );
+
+	register_block_type( 'rcmi/directory-person', array(
+		'attributes' => array(
+			'imageId'   => array( 'type' => 'number', 'default' => 0 ),
+			'imageUrl'  => array( 'type' => 'string', 'default' => '' ),
+			'imageAlt'  => array( 'type' => 'string', 'default' => '' ),
+			'positionX' => array( 'type' => 'number', 'default' => 50 ),
+			'positionY' => array( 'type' => 'number', 'default' => 50 ),
+			'name'      => array( 'type' => 'string', 'default' => '' ),
+			'degree'    => array( 'type' => 'string', 'default' => '' ),
+			'title'     => array( 'type' => 'string', 'default' => '' ),
+			'bio'       => array( 'type' => 'string', 'default' => '' ),
+			'email'     => array( 'type' => 'string', 'default' => '' ),
+			'phone'     => array( 'type' => 'string', 'default' => '' ),
+			'link'      => array( 'type' => 'string', 'default' => '' ),
+		),
+		'uses_context'    => array( 'rcmi/linkNewTab' ),
+		'supports'        => array( 'html' => false ),
+		'render_callback' => 'rcmi_render_directory_person_block',
 	) );
 }
 add_action( 'init', 'rcmi_register_server_side_blocks' );
@@ -2649,28 +2672,6 @@ function rcmi_render_table_block( $attrs ) {
 // ============================================================================
 
 /**
- * Default people list for a fresh rcmi/directory block.
- * Kept in sync with rcmiDirDefaultPeople() in src/blocks.js.
- *
- * @return array
- */
-function rcmi_directory_default_people() {
-	$person = function ( $name, $degree, $title ) {
-		return array(
-			'imageId' => 0, 'imageUrl' => '', 'imageAlt' => '',
-			'positionX' => 50, 'positionY' => 50,
-			'name'    => $name, 'degree' => $degree, 'title' => $title,
-			'bio'     => '', 'email' => '', 'phone' => '', 'link' => '',
-		);
-	};
-	return array(
-		$person( 'Dr. Jane Smith', 'PhD', 'Principal Investigator' ),
-		$person( 'John Doe', 'MS', 'Research Coordinator' ),
-		$person( 'Maria Garcia', 'MPH', 'Community Liaison' ),
-	);
-}
-
-/**
  * Derive initials from a person's name for the no-photo placeholder.
  * Skips common honorifics (Dr., Prof.) and keeps first + last initials.
  *
@@ -2697,12 +2698,123 @@ function rcmi_directory_initials( $name ) {
 }
 
 /**
- * Render callback for rcmi/directory.
+ * Build one profile card's markup from a person attribute array.
+ * Shared by rcmi_render_directory_person_block() and the legacy
+ * `people` attribute path in rcmi_render_directory_block().
  *
- * @param array $attrs Block attributes.
+ * @param array  $p      Person attributes.
+ * @param string $target Prebuilt `target="…" rel="…"` string or ''.
+ * @return string <article> markup, or '' when the person is empty.
+ */
+function rcmi_render_directory_person_card( $p, $target = '' ) {
+	if ( ! is_array( $p ) ) {
+		return '';
+	}
+	$name   = (string) ( $p['name'] ?? '' );
+	$degree = (string) ( $p['degree'] ?? '' );
+	$title  = (string) ( $p['title'] ?? '' );
+	$bio    = (string) ( $p['bio'] ?? '' );
+	$email  = (string) ( $p['email'] ?? '' );
+	$phone  = (string) ( $p['phone'] ?? '' );
+	$link   = trim( (string) ( $p['link'] ?? '' ) );
+	$img_id = intval( $p['imageId'] ?? 0 );
+	$img_url = (string) ( $p['imageUrl'] ?? '' );
+	$img_alt = (string) ( $p['imageAlt'] ?? '' );
+	// Photo crop focus (0–100 object-position; omitted when centered).
+	$pos_x = max( 0, min( 100, intval( $p['positionX'] ?? 50 ) ) );
+	$pos_y = max( 0, min( 100, intval( $p['positionY'] ?? 50 ) ) );
+	$img_style = ( 50 === $pos_x && 50 === $pos_y ) ? '' : 'object-position:' . $pos_x . '% ' . $pos_y . '%';
+
+	if ( ! $name && ! $degree && ! $title && ! $bio && ! $img_url && ! $img_id ) {
+		return '';
+	}
+	$has_link = '' !== $link;
+
+	$icon_email = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+	$icon_phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>';
+	$icon_arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+	// Photo: attachment image > URL fallback > initials placeholder.
+	$img = '';
+	if ( $img_id ) {
+		$img_attrs = array(
+			'class'    => 'rcmi-person-img',
+			'alt'      => $img_alt,
+			'loading'  => 'lazy',
+			'itemprop' => 'image',
+		);
+		if ( $img_style ) {
+			$img_attrs['style'] = $img_style;
+		}
+		$img = wp_get_attachment_image( $img_id, 'medium_large', false, $img_attrs );
+	}
+	if ( ! $img && $img_url ) {
+		$img = '<img class="rcmi-person-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy" itemprop="image"' . ( $img_style ? ' style="' . esc_attr( $img_style ) . '"' : '' ) . ' />';
+	}
+	$photo_inner = $img ? $img : '<span class="rcmi-person-initials" aria-hidden="true">' . esc_html( rcmi_directory_initials( $name ) ?: '·' ) . '</span>';
+	$photo_class = 'rcmi-person-photo' . ( $img ? '' : ' is-empty' );
+	if ( $has_link ) {
+		$photo_inner = '<a href="' . esc_url( $link ) . '"' . $target . ' class="rcmi-person-photo-link" tabindex="-1" aria-hidden="true">' . $photo_inner . '</a>';
+	}
+
+	// Contact row: mailto when the email parses, tel: for dialable numbers.
+	$contact = '';
+	if ( trim( $email ) ) {
+		$addr     = sanitize_email( wp_strip_all_tags( $email ) );
+		$contact .= ( $addr && is_email( $addr ) )
+			? '<a class="rcmi-person-email" href="mailto:' . esc_attr( $addr ) . '" itemprop="email">' . $icon_email . '<span>' . esc_html( $addr ) . '</span></a>'
+			: '<span class="rcmi-person-email">' . $icon_email . '<span>' . wp_kses_post( $email ) . '</span></span>';
+	}
+	if ( trim( $phone ) ) {
+		$dialable = preg_replace( '/[^0-9+]/', '', wp_strip_all_tags( $phone ) );
+		$contact .= ( strlen( $dialable ) >= 7 )
+			? '<a class="rcmi-person-phone" href="tel:' . esc_attr( $dialable ) . '" itemprop="telephone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></a>'
+			: '<span class="rcmi-person-phone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></span>';
+	}
+
+	$name_html = '<h3 class="rcmi-person-name" itemprop="name">' . wp_kses_post( $name ) . '</h3>';
+	if ( $has_link ) {
+		$name_html = '<h3 class="rcmi-person-name" itemprop="name"><a href="' . esc_url( $link ) . '"' . $target . '>' . wp_kses_post( $name ) . '</a></h3>';
+	}
+
+	$card  = '<article class="rcmi-person" itemscope itemtype="https://schema.org/Person">';
+	$card .= '<div class="' . esc_attr( $photo_class ) . '">' . $photo_inner . '</div>';
+	$card .= '<div class="rcmi-person-body">';
+	$card .= $name ? $name_html : '';
+	$card .= $degree ? '<p class="rcmi-person-degree" itemprop="honorificSuffix">' . wp_kses_post( $degree ) . '</p>' : '';
+	$card .= $title ? '<p class="rcmi-person-title" itemprop="jobTitle">' . wp_kses_post( $title ) . '</p>' : '';
+	$card .= $bio ? '<p class="rcmi-person-bio">' . wp_kses_post( $bio ) . '</p>' : '';
+	$card .= $contact ? '<p class="rcmi-person-contact">' . $contact . '</p>' : '';
+	$card .= $has_link ? '<a class="rcmi-person-link" href="' . esc_url( $link ) . '"' . $target . ' itemprop="url">' . esc_html__( 'View profile', 'rcmi-toolkit' ) . ' ' . $icon_arrow . '</a>' : '';
+	$card .= '</div></article>';
+	return $card;
+}
+
+/**
+ * Render callback for rcmi/directory-person (child block of rcmi/directory).
+ *
+ * @param array    $attrs   Block attributes.
+ * @param string   $content Inner content (unused).
+ * @param WP_Block $block   Block instance (provides rcmi/linkNewTab context).
  * @return string
  */
-function rcmi_render_directory_block( $attrs ) {
+function rcmi_render_directory_person_block( $attrs, $content = '', $block = null ) {
+	$target = '';
+	if ( $block instanceof WP_Block && ! empty( $block->context['rcmi/linkNewTab'] ) ) {
+		$target = ' target="_blank" rel="noopener noreferrer"';
+	}
+	return rcmi_render_directory_person_card( $attrs, $target );
+}
+
+/**
+ * Render callback for rcmi/directory.
+ *
+ * @param array    $attrs   Block attributes.
+ * @param string   $content Inner content (unused; profiles render via inner blocks).
+ * @param WP_Block $block   Block instance.
+ * @return string
+ */
+function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 	$cols = intval( $attrs['columns'] ?? 3 );
 	if ( ! in_array( $cols, array( 1, 2, 3, 4, 6 ), true ) ) {
 		$cols = 3;
@@ -2717,88 +2829,19 @@ function rcmi_render_directory_block( $attrs ) {
 	}
 	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
 
-	$icon_email = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
-	$icon_phone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>';
-	$icon_arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
-
 	$cards = '';
-	foreach ( (array) ( $attrs['people'] ?? array() ) as $p ) {
-		if ( ! is_array( $p ) ) {
-			continue;
-		}
-		$name   = (string) ( $p['name'] ?? '' );
-		$degree = (string) ( $p['degree'] ?? '' );
-		$title  = (string) ( $p['title'] ?? '' );
-		$bio    = (string) ( $p['bio'] ?? '' );
-		$email  = (string) ( $p['email'] ?? '' );
-		$phone  = (string) ( $p['phone'] ?? '' );
-		$link   = trim( (string) ( $p['link'] ?? '' ) );
-		$img_id = intval( $p['imageId'] ?? 0 );
-		$img_url = (string) ( $p['imageUrl'] ?? '' );
-		$img_alt = (string) ( $p['imageAlt'] ?? '' );
-		// Photo crop focus (0–100 object-position; omitted when centered).
-		$pos_x = max( 0, min( 100, intval( $p['positionX'] ?? 50 ) ) );
-		$pos_y = max( 0, min( 100, intval( $p['positionY'] ?? 50 ) ) );
-		$img_style = ( 50 === $pos_x && 50 === $pos_y ) ? '' : 'object-position:' . $pos_x . '% ' . $pos_y . '%';
-
-		if ( ! $name && ! $degree && ! $title && ! $bio && ! $img_url && ! $img_id ) {
-			continue;
-		}
-		$has_link = '' !== $link;
-
-		// Photo: attachment image > URL fallback > initials placeholder.
-		$img = '';
-		if ( $img_id ) {
-			$img_attrs = array(
-				'class'    => 'rcmi-person-img',
-				'alt'      => $img_alt,
-				'loading'  => 'lazy',
-				'itemprop' => 'image',
-			);
-			if ( $img_style ) {
-				$img_attrs['style'] = $img_style;
+	if ( $block instanceof WP_Block ) {
+		foreach ( $block->inner_blocks as $inner ) {
+			if ( 'rcmi/directory-person' === $inner->name ) {
+				$cards .= $inner->render();
 			}
-			$img = wp_get_attachment_image( $img_id, 'medium_large', false, $img_attrs );
 		}
-		if ( ! $img && $img_url ) {
-			$img = '<img class="rcmi-person-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy" itemprop="image"' . ( $img_style ? ' style="' . esc_attr( $img_style ) . '"' : '' ) . ' />';
+	}
+	if ( '' === $cards ) {
+		// Legacy path: profiles stored in the `people` attribute.
+		foreach ( (array) ( $attrs['people'] ?? array() ) as $p ) {
+			$cards .= rcmi_render_directory_person_card( $p, $target );
 		}
-		$photo_inner = $img ? $img : '<span class="rcmi-person-initials" aria-hidden="true">' . esc_html( rcmi_directory_initials( $name ) ?: '·' ) . '</span>';
-		$photo_class = 'rcmi-person-photo' . ( $img ? '' : ' is-empty' );
-		if ( $has_link ) {
-			$photo_inner = '<a href="' . esc_url( $link ) . '"' . $target . ' class="rcmi-person-photo-link" tabindex="-1" aria-hidden="true">' . $photo_inner . '</a>';
-		}
-
-		// Contact row: mailto when the email parses, tel: for dialable numbers.
-		$contact = '';
-		if ( trim( $email ) ) {
-			$addr     = sanitize_email( wp_strip_all_tags( $email ) );
-			$contact .= ( $addr && is_email( $addr ) )
-				? '<a class="rcmi-person-email" href="mailto:' . esc_attr( $addr ) . '" itemprop="email">' . $icon_email . '<span>' . esc_html( $addr ) . '</span></a>'
-				: '<span class="rcmi-person-email">' . $icon_email . '<span>' . wp_kses_post( $email ) . '</span></span>';
-		}
-		if ( trim( $phone ) ) {
-			$dialable = preg_replace( '/[^0-9+]/', '', wp_strip_all_tags( $phone ) );
-			$contact .= ( strlen( $dialable ) >= 7 )
-				? '<a class="rcmi-person-phone" href="tel:' . esc_attr( $dialable ) . '" itemprop="telephone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></a>'
-				: '<span class="rcmi-person-phone">' . $icon_phone . '<span>' . wp_kses_post( $phone ) . '</span></span>';
-		}
-
-		$name_html = '<h3 class="rcmi-person-name" itemprop="name">' . wp_kses_post( $name ) . '</h3>';
-		if ( $has_link ) {
-			$name_html = '<h3 class="rcmi-person-name" itemprop="name"><a href="' . esc_url( $link ) . '"' . $target . '>' . wp_kses_post( $name ) . '</a></h3>';
-		}
-
-		$cards .= '<article class="rcmi-person" itemscope itemtype="https://schema.org/Person">';
-		$cards .= '<div class="' . esc_attr( $photo_class ) . '">' . $photo_inner . '</div>';
-		$cards .= '<div class="rcmi-person-body">';
-		$cards .= $name ? $name_html : '';
-		$cards .= $degree ? '<p class="rcmi-person-degree" itemprop="honorificSuffix">' . wp_kses_post( $degree ) . '</p>' : '';
-		$cards .= $title ? '<p class="rcmi-person-title" itemprop="jobTitle">' . wp_kses_post( $title ) . '</p>' : '';
-		$cards .= $bio ? '<p class="rcmi-person-bio">' . wp_kses_post( $bio ) . '</p>' : '';
-		$cards .= $contact ? '<p class="rcmi-person-contact">' . $contact . '</p>' : '';
-		$cards .= $has_link ? '<a class="rcmi-person-link" href="' . esc_url( $link ) . '"' . $target . ' itemprop="url">' . esc_html__( 'View profile', 'rcmi-toolkit' ) . ' ' . $icon_arrow . '</a>' : '';
-		$cards .= '</div></article>';
 	}
 
 	if ( '' === $cards ) {

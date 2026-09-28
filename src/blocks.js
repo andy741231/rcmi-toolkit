@@ -9,6 +9,7 @@
 	var useSelect = wp.data.useSelect;
 	var registerBlockType = wp.blocks.registerBlockType;
 	var RangeControl = wp.components.RangeControl;
+	var FocalPointPicker = wp.components.FocalPointPicker;
 	var SelectControl = wp.components.SelectControl;
 	var ToggleControl = wp.components.ToggleControl;
 	var useBlockProps = wp.blockEditor.useBlockProps;
@@ -4059,82 +4060,88 @@
 		];
 	}
 
-	var RcmiDirectoryEdit = function ( props ) {
+	// Convert a FocalPointPicker value ({x,y} — floats 0–1 or '50%' strings
+	// depending on WP version) into the 0–100 object-position scale we store.
+	function rcmiDirFocalToPct( v ) {
+		var n = typeof v === 'number' ? v * 100 : parseFloat( v );
+		return isNaN( n ) ? 50 : Math.max( 0, Math.min( 100, Math.round( n ) ) );
+	}
+
+	var rcmiDirNameFormats = [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+	var rcmiDirBioFormats = [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
+
+	var rcmiDirectoryPersonAttributes = {
+		imageId:   { type: 'number', default: 0 },
+		imageUrl:  { type: 'string', default: '' },
+		imageAlt:  { type: 'string', default: '' },
+		positionX: { type: 'number', default: 50 },
+		positionY: { type: 'number', default: 50 },
+		name:      { type: 'string', default: '' },
+		degree:    { type: 'string', default: '' },
+		title:     { type: 'string', default: '' },
+		bio:       { type: 'string', default: '' },
+		email:     { type: 'string', default: '' },
+		phone:     { type: 'string', default: '' },
+		link:      { type: 'string', default: '' }
+	};
+
+	var RcmiDirectoryPersonEdit = function ( props ) {
 		var attrs = props.attributes, setAttributes = props.setAttributes;
-		var people = attrs.people || [];
-		var cols = attrs.columns || 3;
+		var initials = rcmiDirInitials( attrs.name );
+		var posX = attrs.positionX == null ? 50 : attrs.positionX;
+		var posY = attrs.positionY == null ? 50 : attrs.positionY;
+		var blockProps = useBlockProps( { className: 'rcmi-person' } );
 
-		var updatePerson = function ( idx, key, val ) {
-			setAttributes( {
-				people: people.map( function ( p, i ) {
-					if ( i !== idx ) {
-						return p;
-					}
-					var np = Object.assign( {}, p );
-					np[ key ] = val;
-					return np;
-				} )
-			} );
-		};
-		var addPerson = function () {
-			setAttributes( {
-				people: people.concat( [ { imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: '', degree: '', title: '', bio: '', email: '', phone: '', link: '' } ] )
-			} );
-		};
-		var removePerson = function ( idx ) {
-			if ( people.length <= 1 ) {
-				return;
-			}
-			setAttributes( { people: people.filter( function ( _, i ) { return i !== idx; } ) } );
-		};
-		var movePerson = function ( idx, dir ) {
-			var next = people.slice();
-			var target = idx + dir;
-			if ( target < 0 || target >= next.length ) {
-				return;
-			}
-			var tmp = next[ target ];
-			next[ target ] = next[ idx ];
-			next[ idx ] = tmp;
-			setAttributes( { people: next } );
-		};
-		var duplicatePerson = function ( idx ) {
-			var copy = Object.assign( {}, people[ idx ] );
-			var next = people.slice();
-			next.splice( idx + 1, 0, copy );
-			setAttributes( { people: next } );
-		};
-
-		var nameFormats = [ 'core/bold', 'core/italic', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
-		var bioFormats = [ 'core/bold', 'core/italic', 'core/link', 'rcmi/text-color', 'rcmi/highlight', 'rcmi/font-family', 'rcmi/font-size' ];
-
-		var personEl = function ( p, i ) {
-			var initials = rcmiDirInitials( p.name );
-			var posX = p.positionX == null ? 50 : p.positionX;
-			var posY = p.positionY == null ? 50 : p.positionY;
-			var imgStyle = { objectPosition: posX + '% ' + posY + '%' };
-			return el( 'article', { key: 'person-' + i, className: 'rcmi-person' },
-				el( 'div', { className: 'rcmi-person-photo' + ( p.imageUrl ? '' : ' is-empty' ) },
+		return el( Fragment, null,
+			el( InspectorControls, null,
+				el( PanelBody, { title: __( 'Profile', 'rcmi-toolkit' ), initialOpen: true },
+					el( TextControl, {
+						label: __( 'Profile link', 'rcmi-toolkit' ),
+						value: attrs.link,
+						onChange: function ( v ) { setAttributes( { link: v } ); },
+						placeholder: 'https://…'
+					} ),
+					attrs.imageUrl ? el( FocalPointPicker, {
+						label: __( 'Focal point', 'rcmi-toolkit' ),
+						url: attrs.imageUrl,
+						value: { x: posX / 100, y: posY / 100 },
+						onChange: function ( f ) {
+							setAttributes( {
+								positionX: rcmiDirFocalToPct( f.x ),
+								positionY: rcmiDirFocalToPct( f.y )
+							} );
+						}
+					} ) : null,
+					attrs.imageUrl ? el( TextControl, {
+						label: __( 'Photo alt text', 'rcmi-toolkit' ),
+						value: attrs.imageAlt,
+						onChange: function ( v ) { setAttributes( { imageAlt: v } ); }
+					} ) : null,
+					attrs.imageUrl ? el( Button, {
+						variant: 'secondary',
+						isDestructive: true,
+						onClick: function () { setAttributes( { imageId: 0, imageUrl: '', imageAlt: '' } ); }
+					}, __( 'Remove photo', 'rcmi-toolkit' ) ) : null
+				)
+			),
+			el( 'article', blockProps,
+				el( 'div', { className: 'rcmi-person-photo' + ( attrs.imageUrl ? '' : ' is-empty' ) },
 					el( MediaUploadCheck, null,
 						el( MediaUpload, {
 							onSelect: function ( media ) {
-								setAttributes( {
-									people: people.map( function ( q, qi ) {
-										return qi === i ? Object.assign( {}, q, { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || q.imageAlt || '' } ) : q;
-									} )
-								} );
+								setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || attrs.imageAlt || '' } );
 							},
 							allowedTypes: [ 'image' ],
-							value: p.imageId,
+							value: attrs.imageId,
 							render: function ( obj ) {
 								return el( 'button', {
 									type: 'button',
 									className: 'rcmi-dir-photo-btn',
 									onClick: obj.open,
-									title: p.imageUrl ? __( 'Replace photo', 'rcmi-toolkit' ) : __( 'Add photo', 'rcmi-toolkit' )
+									title: attrs.imageUrl ? __( 'Replace photo', 'rcmi-toolkit' ) : __( 'Add photo', 'rcmi-toolkit' )
 								},
-									p.imageUrl
-										? el( 'img', { src: p.imageUrl, alt: p.imageAlt || '', style: imgStyle } )
+									attrs.imageUrl
+										? el( 'img', { src: attrs.imageUrl, alt: attrs.imageAlt || '', style: { objectPosition: posX + '% ' + posY + '%' } } )
 										: el( Fragment, null,
 											el( 'span', { className: 'rcmi-person-initials', 'aria-hidden': 'true' }, initials || '?' ),
 											el( 'span', { className: 'rcmi-dir-photo-hint' }, __( 'Add photo', 'rcmi-toolkit' ) )
@@ -4142,98 +4149,93 @@
 								);
 							}
 						} )
-					),
-					p.imageUrl ? el( Button, {
-						className: 'rcmi-dir-photo-remove',
-						type: 'button',
-						icon: 'no-alt',
-						label: __( 'Remove photo', 'rcmi-toolkit' ),
-						onClick: function () {
-							setAttributes( {
-								people: people.map( function ( q, qi ) {
-									return qi === i ? Object.assign( {}, q, { imageId: 0, imageUrl: '' } ) : q;
-								} )
-							} );
-						}
-					} ) : null
+					)
 				),
 				el( 'div', { className: 'rcmi-person-body' },
 					el( RichText, {
 						tagName: 'h3',
 						className: 'rcmi-person-name',
-						value: p.name,
-						onChange: function ( v ) { updatePerson( i, 'name', v ); },
+						value: attrs.name,
+						onChange: function ( v ) { setAttributes( { name: v } ); },
 						placeholder: __( 'Name…', 'rcmi-toolkit' ),
-						allowedFormats: nameFormats
+						allowedFormats: rcmiDirNameFormats
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						className: 'rcmi-person-degree',
-						value: p.degree,
-						onChange: function ( v ) { updatePerson( i, 'degree', v ); },
+						value: attrs.degree,
+						onChange: function ( v ) { setAttributes( { degree: v } ); },
 						placeholder: __( 'Degree / credentials…', 'rcmi-toolkit' ),
-						allowedFormats: nameFormats
+						allowedFormats: rcmiDirNameFormats
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						className: 'rcmi-person-title',
-						value: p.title,
-						onChange: function ( v ) { updatePerson( i, 'title', v ); },
+						value: attrs.title,
+						onChange: function ( v ) { setAttributes( { title: v } ); },
 						placeholder: __( 'Title / role…', 'rcmi-toolkit' ),
-						allowedFormats: nameFormats
+						allowedFormats: rcmiDirNameFormats
 					} ),
 					el( RichText, {
 						tagName: 'p',
 						className: 'rcmi-person-bio',
-						value: p.bio,
-						onChange: function ( v ) { updatePerson( i, 'bio', v ); },
+						value: attrs.bio,
+						onChange: function ( v ) { setAttributes( { bio: v } ); },
 						placeholder: __( 'Short bio (optional)…', 'rcmi-toolkit' ),
-						allowedFormats: bioFormats
+						allowedFormats: rcmiDirBioFormats
 					} ),
 					el( 'div', { className: 'rcmi-person-contact' },
 						el( RichText, {
 							tagName: 'span',
 							className: 'rcmi-person-email',
-							value: p.email,
-							onChange: function ( v ) { updatePerson( i, 'email', v ); },
+							value: attrs.email,
+							onChange: function ( v ) { setAttributes( { email: v } ); },
 							placeholder: __( 'Email…', 'rcmi-toolkit' ),
-							allowedFormats: nameFormats
+							allowedFormats: rcmiDirNameFormats
 						} ),
 						el( RichText, {
 							tagName: 'span',
 							className: 'rcmi-person-phone',
-							value: p.phone,
-							onChange: function ( v ) { updatePerson( i, 'phone', v ); },
+							value: attrs.phone,
+							onChange: function ( v ) { setAttributes( { phone: v } ); },
 							placeholder: __( 'Phone…', 'rcmi-toolkit' ),
-							allowedFormats: nameFormats
+							allowedFormats: rcmiDirNameFormats
 						} )
 					),
-					p.link ? el( 'span', { className: 'rcmi-person-link' }, __( 'View profile →', 'rcmi-toolkit' ) ) : null
+					attrs.link ? el( 'span', { className: 'rcmi-person-link' }, __( 'View profile →', 'rcmi-toolkit' ) ) : null
 				)
+			)
+		);
+	};
+
+	var RcmiDirectoryEdit = function ( props ) {
+		var attrs = props.attributes, setAttributes = props.setAttributes;
+		var cols = attrs.columns || 3;
+		var clientId = props.clientId;
+
+		var personCount = useSelect( function ( select ) {
+			var block = select( 'core/block-editor' ).getBlock( clientId );
+			return block && block.innerBlocks ? block.innerBlocks.length : 0;
+		}, [ clientId ] );
+
+		// One-time migration: directories saved before profiles became child
+		// blocks carry profiles in the `people` attribute — convert them once.
+		useEffect( function () {
+			var people = attrs.people || [];
+			if ( people.length && ! personCount ) {
+				wp.data.dispatch( 'core/block-editor' ).replaceInnerBlocks(
+					clientId,
+					people.map( function ( p ) { return wp.blocks.createBlock( 'rcmi/directory-person', p ); } )
+				);
+				setAttributes( { people: [] } );
+			}
+		}, [ clientId ] );
+
+		var addPerson = function () {
+			wp.data.dispatch( 'core/block-editor' ).insertBlock(
+				wp.blocks.createBlock( 'rcmi/directory-person' ), personCount, clientId
 			);
 		};
-
-		var peoplePanel = el( PanelBody, { title: __( 'People', 'rcmi-toolkit' ), initialOpen: false },
-			people.map( function ( p, idx ) {
-				var label = ( p.name || '' ).replace( /<[^>]*>/g, '' ).trim() || __( 'Person ', 'rcmi-toolkit' ) + ( idx + 1 );
-				return el( 'div', { key: 'pmgmt-' + idx, className: 'rcmi-people-item', style: { borderBottom: '1px solid #f0f0f0', paddingBottom: '10px', marginBottom: '10px' } },
-					el( 'div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' } },
-						el( 'span', { style: { fontSize: '12px', fontWeight: '600' } }, label ),
-						el( 'div', null,
-							idx > 0 ? el( Button, { onClick: function () { movePerson( idx, -1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-up-alt2' } ) : null,
-							idx < people.length - 1 ? el( Button, { onClick: function () { movePerson( idx, 1 ); }, variant: 'tertiary', isSmall: true, icon: 'arrow-down-alt2' } ) : null,
-							el( Button, { onClick: function () { duplicatePerson( idx ); }, variant: 'tertiary', isSmall: true, icon: 'admin-page', title: __( 'Duplicate', 'rcmi-toolkit' ) } ),
-							people.length > 1 ? el( Button, { onClick: function () { removePerson( idx ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove', 'rcmi-toolkit' ) ) : null
-						)
-					),
-					el( TextControl, { label: __( 'Profile link', 'rcmi-toolkit' ), value: p.link, onChange: function ( v ) { updatePerson( idx, 'link', v ); }, placeholder: 'https://…' } ),
-					el( TextControl, { label: __( 'Photo alt text', 'rcmi-toolkit' ), value: p.imageAlt, onChange: function ( v ) { updatePerson( idx, 'imageAlt', v ); } } ),
-					p.imageUrl ? el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), help: __( 'Photo crop position (0 = left, 100 = right).', 'rcmi-toolkit' ), value: p.positionX == null ? 50 : p.positionX, min: 0, max: 100, onChange: function ( v ) { updatePerson( idx, 'positionX', v ); } } ) : null,
-					p.imageUrl ? el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), help: __( 'Photo crop position (0 = top, 100 = bottom).', 'rcmi-toolkit' ), value: p.positionY == null ? 50 : p.positionY, min: 0, max: 100, onChange: function ( v ) { updatePerson( idx, 'positionY', v ); } } ) : null
-				);
-			} ),
-			el( Button, { onClick: addPerson, variant: 'secondary', isSmall: true, style: { marginTop: '10px' } }, __( '+ Add person', 'rcmi-toolkit' ) )
-		);
 
 		var blockProps = useBlockProps( {
 			className: 'rcmi-directory rcmi-directory--cols-' + cols
@@ -4289,19 +4291,42 @@
 						checked: attrs.linkNewTab,
 						onChange: function ( v ) { setAttributes( { linkNewTab: v } ); }
 					} )
-				),
-				peoplePanel
+				)
 			),
 			el( 'div', blockProps,
-				people.map( function ( p, i ) { return personEl( p, i ); } ),
-				el( 'button', {
-					type: 'button',
-					className: 'rcmi-directory-add',
-					onClick: addPerson
-				}, '+ ' + __( 'Add person', 'rcmi-toolkit' ) )
+				el( InnerBlocks, {
+					allowedBlocks: [ 'rcmi/directory-person' ],
+					template: rcmiDirDefaultPeople().map( function ( p ) { return [ 'rcmi/directory-person', p ]; } ),
+					templateLock: false,
+					renderAppender: function () {
+						return el( 'button', {
+							type: 'button',
+							className: 'rcmi-directory-add',
+							onClick: addPerson
+						}, '+ ' + __( 'Add person', 'rcmi-toolkit' ) );
+					}
+				} )
 			)
 		);
 	};
+
+	registerBlockType( 'rcmi/directory-person', {
+		apiVersion: 3,
+		title: __( 'Directory profile', 'rcmi-toolkit' ),
+		description: __( 'A single staff profile card — photo, name, degree, title, contact details.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'id',
+		parent: [ 'rcmi/directory' ],
+		supports: {
+			html: false
+		},
+		attributes: rcmiDirectoryPersonAttributes,
+		edit: RcmiDirectoryPersonEdit,
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
+		}
+	} );
 
 	registerBlockType( 'rcmi/directory', {
 		apiVersion: 3,
@@ -4320,12 +4345,15 @@
 			photoStyle: { type: 'string', default: 'circle' },
 			cardStyle:  { type: 'string', default: 'card' },
 			linkNewTab: { type: 'boolean', default: false },
-			people:     { type: 'array', default: rcmiDirDefaultPeople() }
+			// Legacy: pre-InnerBlocks directories stored profiles in this
+			// attribute; the edit component migrates them to person blocks.
+			people:     { type: 'array', default: [] }
 		},
 		edit: RcmiDirectoryEdit,
 		save: function () {
-			// Server-side rendered (dynamic block).
-			return null;
+			// Dynamic block, but InnerBlocks.Content must be returned so the
+			// rcmi/directory-person children are preserved in saved markup.
+			return el( InnerBlocks.Content );
 		}
 	} );
 

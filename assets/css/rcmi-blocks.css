@@ -335,17 +335,20 @@
 	text-transform:uppercase;
 	color:var(--slate,#54585A);
 }
-.rcmi-dir-photo-remove{
-	position:absolute !important;
-	top:6px;
-	right:6px;
-	z-index:2;
-	background:rgba(255,255,255,.92) !important;
-	border-radius:50% !important;
-	padding:2px !important;
-	min-width:24px !important;
-	height:24px !important;
-	box-shadow:0 1px 4px rgba(0,0,0,.25);
+/* InnerBlocks wrappers sit between the grid and person cards — display:contents
+   keeps the grid treating each .rcmi-person block as a direct grid item. */
+.editor-styles-wrapper .rcmi-directory .block-editor-inner-blocks,
+.editor-styles-wrapper .rcmi-directory .block-editor-block-list__layout{
+	display:contents;
+}
+/* Person blocks inside the directory get their own selection outline. */
+.editor-styles-wrapper .rcmi-directory .wp-block-rcmi-directory-person.rcmi-person{
+	outline:none;
+}
+.editor-styles-wrapper .rcmi-directory .wp-block-rcmi-directory-person.rcmi-person.is-selected,
+.editor-styles-wrapper .rcmi-directory .wp-block-rcmi-directory-person.rcmi-person.has-child-selected{
+	box-shadow:0 0 0 1.5px var(--wp-admin-theme-color,#007cba);
+	border-radius:12px;
 }
 .rcmi-directory-add{
 	border:2px dashed var(--color-border,#DEE1E2);

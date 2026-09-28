@@ -50,6 +50,7 @@ function rcmi_render( $name, $attrs ) {
 
 rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/table' ), 'rcmi/table is not registered' );
 rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/directory' ), 'rcmi/directory is not registered' );
+rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/directory-person' ), 'rcmi/directory-person is not registered' );
 
 // ---------------------------------------------------------------------------
 // rcmi/table — basic render
@@ -157,6 +158,32 @@ rcmi_check( false !== strpos( $dir, 'rcmi-person-initials' ), 'directory: initia
 rcmi_check( false !== strpos( $dir, '>NP<' ) || false !== strpos( $dir, 'NP</span>' ), 'directory: initials should be NP' );
 rcmi_check( false !== strpos( $dir, 'object-position:20% 80%' ), 'directory: object-position style missing for shifted photo' );
 rcmi_check( false === strpos( $dir, 'c.jpg" alt="" loading="lazy" itemprop="image" style' ), 'directory: centered photo should not emit object-position' );
+
+// ---------------------------------------------------------------------------
+// rcmi/directory — InnerBlocks path (rcmi/directory-person children)
+// ---------------------------------------------------------------------------
+
+$nested = do_blocks(
+	'<!-- wp:rcmi/directory {"columns":2,"linkNewTab":true} -->'
+	. '<!-- wp:rcmi/directory-person {"name":"Kid Example","degree":"BS","link":"https://example.edu/kid","imageUrl":"https://example.edu/p.jpg","imageAlt":"Kid","positionX":20,"positionY":80} /-->'
+	. '<!-- wp:rcmi/directory-person {"name":"Plain Person","title":"Staff"} /-->'
+	. '<!-- /wp:rcmi/directory -->'
+);
+
+rcmi_check( false !== strpos( $nested, 'rcmi-directory--cols-2' ), 'directory(inner): cols class missing' );
+rcmi_check( 2 === substr_count( $nested, '<article class="rcmi-person"' ), 'directory(inner): expected 2 person cards' );
+rcmi_check( false !== strpos( $nested, 'Kid Example' ), 'directory(inner): child name missing' );
+rcmi_check( false !== strpos( $nested, 'object-position:20% 80%' ), 'directory(inner): object-position missing' );
+rcmi_check( false !== strpos( $nested, 'target="_blank" rel="noopener noreferrer"' ), 'directory(inner): linkNewTab context did not reach child' );
+
+// Inner blocks win over a stale legacy `people` attribute on the same comment.
+$both = do_blocks(
+	'<!-- wp:rcmi/directory {"people":[{"name":"Ghost Person"}]} -->'
+	. '<!-- wp:rcmi/directory-person {"name":"Real Person"} /-->'
+	. '<!-- /wp:rcmi/directory -->'
+);
+rcmi_check( false !== strpos( $both, 'Real Person' ), 'directory(inner): child block should render' );
+rcmi_check( false === strpos( $both, 'Ghost Person' ), 'directory(inner): legacy people attr should be ignored when children exist' );
 
 // ---------------------------------------------------------------------------
 // rcmi/directory — empty people list renders nothing
