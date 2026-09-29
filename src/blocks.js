@@ -2486,7 +2486,7 @@
 			var isParallax = attrs.mode === 'parallax';
 			var deviceTypeState = useState( ( wp.data.select( 'core/editor' ).getDeviceType && wp.data.select( 'core/editor' ).getDeviceType() ) || 'Desktop' );
 			var deviceType = deviceTypeState[0];
-			var blockProps = useBlockProps( { className: 'rcmi-parallax-editor', style: { minHeight: attrs.height + 'vh' } } );
+			var blockProps = useBlockProps( { className: 'rcmi-parallax-editor', style: { height: attrs.height + 'vh', minHeight: attrs.height + 'vh' } } );
 
 			// Follow WordPress's Desktop / Tablet / Mobile preview toolbar.
 			// The editor store changes device type when the preview toolbar is
