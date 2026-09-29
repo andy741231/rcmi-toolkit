@@ -1,0 +1,57 @@
+/* RCMI inserter UI: accordion + New/Updated badges */
+
+/* ---- accordion ---- */
+.block-editor-inserter__panel-header.rcmi-acc-done {
+	cursor: pointer;
+	user-select: none;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.block-editor-inserter__panel-header.rcmi-acc-done::after {
+	content: "";
+	width: 0;
+	height: 0;
+	border-left: 5px solid transparent;
+	border-right: 5px solid transparent;
+	border-top: 5px solid currentColor;
+	margin-left: 8px;
+	opacity: .6;
+	flex-shrink: 0;
+	transition: transform .15s ease;
+}
+.block-editor-inserter__panel-header.rcmi-acc-collapsed::after {
+	transform: rotate(-90deg);
+}
+.block-editor-inserter__panel-header.rcmi-acc-done:focus-visible {
+	outline: 2px solid var(--wp-admin-theme-color, #3858e9);
+	outline-offset: -2px;
+	border-radius: 2px;
+}
+.block-editor-inserter__panel-content.rcmi-acc-collapsed {
+	display: none;
+}
+
+/* ---- badges ---- */
+.rcmi-inserter-badge {
+	display: inline-block;
+	font-size: 9px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .4px;
+	line-height: 1;
+	padding: 3px 6px;
+	border-radius: 8px;
+	margin: 0 4px 0 2px;
+	vertical-align: middle;
+	pointer-events: none;
+}
+.rcmi-inserter-badge.is-new {
+	background: var(--wp-admin-theme-color, #00b388);
+	background: #00b388;
+	color: #fff;
+}
+.rcmi-inserter-badge.is-updated {
+	background: #c8102e;
+	color: #fff;
+}

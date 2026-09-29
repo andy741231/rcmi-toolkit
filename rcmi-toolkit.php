@@ -707,29 +707,28 @@ add_filter( 'plugin_row_meta', 'rcmi_toolkit_add_commit_meta', 10, 2 );
  * @return array
  */
 function rcmi_toolkit_category( $categories ) {
+	// RCMI categories go first so they lead the block inserter.
 	return array_merge(
-		$categories,
 		array(
-			array(
-				'slug'  => 'rcmi-stories',
-				'title' => __( 'Story Sections', 'rcmi-toolkit' ),
-				'icon'  => 'book-alt',
-			),
 			array(
 				'slug'  => 'rcmi-sections',
 				'title' => __( 'RCMI Sections', 'rcmi-toolkit' ),
 				'icon'  => 'layout',
 			),
-		)
+			array(
+				'slug'  => 'rcmi-stories',
+				'title' => __( 'Story Sections', 'rcmi-toolkit' ),
+				'icon'  => 'book-alt',
+			),
+		),
+		$categories
 	);
 }
-add_filter( 'block_categories_all', 'rcmi_toolkit_category' );
+// PHP_INT_MAX so we run after Spectra, which prepends its own category at 9999999.
+add_filter( 'block_categories_all', 'rcmi_toolkit_category', PHP_INT_MAX );
 
 function rcmi_toolkit_post_story_blocks( $allowed_block_types, $editor_context ) {
-	if ( empty( $editor_context->post ) || 'post' !== $editor_context->post->post_type ) {
-		return $allowed_block_types;
-	}
-	return array(
+	$story_blocks = array(
 		'rcmi/story-featured-image',
 		'rcmi/story-text',
 		'rcmi/story-image',
@@ -737,6 +736,17 @@ function rcmi_toolkit_post_story_blocks( $allowed_block_types, $editor_context )
 		'rcmi/story-quote',
 		'rcmi/story-immersive',
 	);
+	if ( empty( $editor_context->post ) ) {
+		return $allowed_block_types;
+	}
+	if ( 'post' === $editor_context->post->post_type ) {
+		return $story_blocks;
+	}
+	// Story Sections are post-only: exclude them everywhere else (pages, etc.).
+	if ( true === $allowed_block_types || ! is_array( $allowed_block_types ) ) {
+		$allowed_block_types = array_keys( WP_Block_Type_Registry::get_instance()->get_all_registered() );
+	}
+	return array_values( array_diff( $allowed_block_types, $story_blocks ) );
 }
 add_filter( 'allowed_block_types_all', 'rcmi_toolkit_post_story_blocks', 20, 2 );
 
@@ -928,8 +938,59 @@ function rcmi_toolkit_editor_assets() {
 		'window.rcmiToolkitHeroPreset = ' . wp_json_encode( $preset ) . ';',
 		'before'
 	);
+
+	// Inserter UI: category accordion + New/Updated badges on RCMI blocks.
+	wp_enqueue_script(
+		'rcmi-inserter-ui',
+		RCMI_TOOLKIT_URL . 'assets/js/rcmi-inserter-ui.js',
+		array( 'wp-dom-ready' ),
+		RCMI_TOOLKIT_VERSION,
+		true
+	);
+	wp_enqueue_style(
+		'rcmi-inserter-ui',
+		RCMI_TOOLKIT_URL . 'assets/css/rcmi-inserter-ui.css',
+		array(),
+		RCMI_TOOLKIT_VERSION
+	);
+	// Per-block lifecycle dates for the inserter badges. Update 'updated'
+	// when a block's code changes and 'added' when a new block ships.
+	wp_add_inline_script(
+		'rcmi-inserter-ui',
+		'window.rcmiBlockMeta = ' . wp_json_encode( rcmi_toolkit_block_meta() ) . ';',
+		'before'
+	);
 }
 add_action( 'enqueue_block_editor_assets', 'rcmi_toolkit_editor_assets' );
+
+/**
+ * Per-block lifecycle dates (added / last-updated) driving the inserter's
+ * New and Updated badges. A block is "new" for 2 months after `added`;
+ * "updated" for 2 months after `updated`. Bump `updated` when shipping a
+ * meaningful change to that block.
+ */
+function rcmi_toolkit_block_meta() {
+	return array(
+		'rcmi/section'              => array( 'added' => '2026-09-16', 'updated' => '2026-09-16' ),
+		'rcmi/quote-block'          => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
+		'rcmi/cta-band'             => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
+		'rcmi/impact-stats-block'   => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
+		'rcmi/role-selector-block'  => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
+		'rcmi/impact-strip-block'   => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
+		'rcmi/slide'                => array( 'added' => '2026-08-13', 'updated' => '2026-09-29' ),
+		'rcmi/slide-block'          => array( 'added' => '2026-08-13', 'updated' => '2026-09-29' ),
+		'rcmi/parallax'             => array( 'added' => '2026-07-29', 'updated' => '2026-09-29' ),
+		'rcmi/table'                => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
+		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
+		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
+		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-text'           => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-split'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-quote'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-immersive'      => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+	);
+}
 
 /**
  * Register server-side render callbacks for RCMI blocks.
