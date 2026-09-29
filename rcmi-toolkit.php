@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RCMI_TOOLKIT_VERSION', '1.4.1' );
+define( 'RCMI_TOOLKIT_VERSION', '1.4.2' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
@@ -959,6 +959,18 @@ function rcmi_toolkit_editor_assets() {
 		'rcmi-inserter-ui',
 		'window.rcmiBlockMeta = ' . wp_json_encode( rcmi_toolkit_block_meta() ) . ';',
 		'before'
+	);
+
+	// Keep Gutenberg's "Paste styles" consistent on Spectra blocks: core only
+	// copies the `style`/color attributes, while Spectra renders from its
+	// per-device `responsiveControls`, so pasted border/spacing/typography
+	// would show in the preview but revert on the frontend and after reload.
+	wp_enqueue_script(
+		'rcmi-spectra-paste',
+		RCMI_TOOLKIT_URL . 'assets/js/rcmi-spectra-paste.js',
+		array( 'wp-data', 'wp-blocks', 'wp-dom-ready' ),
+		RCMI_TOOLKIT_VERSION,
+		true
 	);
 }
 add_action( 'enqueue_block_editor_assets', 'rcmi_toolkit_editor_assets' );
