@@ -983,12 +983,12 @@ function rcmi_toolkit_block_meta() {
 		'rcmi/table'                => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
 		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
 		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
-		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 		'rcmi/story-text'           => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
-		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
-		'rcmi/story-split'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
+		'rcmi/story-split'          => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 		'rcmi/story-quote'          => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
-		'rcmi/story-immersive'      => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
+		'rcmi/story-immersive'      => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 	);
 }
 

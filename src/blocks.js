@@ -2175,8 +2175,13 @@
 						el( 'img', { src: attrs.bgImageUrl, alt: __( 'Slide background', 'rcmi-toolkit' ) } ),
 						el( wp.components.Button, { onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true }, __( 'Remove image', 'rcmi-toolkit' ) )
 					) : null,
-					el( RangeControl, { label: __( 'Background Position X (%)', 'rcmi-toolkit' ), value: attrs.bgPositionX, onChange: function ( v ) { setAttributes( { bgPositionX: v } ); }, min: 0, max: 100, step: 1 } ),
-					el( RangeControl, { label: __( 'Background Position Y (%)', 'rcmi-toolkit' ), value: attrs.bgPositionY, onChange: function ( v ) { setAttributes( { bgPositionY: v } ); }, min: 0, max: 100, step: 1 } ),
+					attrs.bgImageUrl ? el( FocalPointPicker, {
+						label: __( 'Background focal point', 'rcmi-toolkit' ),
+						url: attrs.bgImageUrl,
+						value: { x: attrs.bgPositionX / 100, y: attrs.bgPositionY / 100 },
+						onChange: function ( f ) { setAttributes( { bgPositionX: rcmiDirFocalToPct( f.x ), bgPositionY: rcmiDirFocalToPct( f.y ) } ); },
+						help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
+					} ) : null,
 					el( RangeControl, { label: __( 'Background Scale (%)', 'rcmi-toolkit' ), value: attrs.bgScale, onChange: function ( v ) { setAttributes( { bgScale: v } ); }, min: 100, max: 300, step: 5 } )
 				),
 				// Mobile background image
@@ -2195,8 +2200,13 @@
 					attrs.bgMobileImageUrl ? el( wp.components.Button, { onClick: function () { setAttributes( { bgMobileImageId: 0, bgMobileImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove mobile image', 'rcmi-toolkit' ) ) : null,
 					attrs.bgMobileImageUrl ? el( Fragment, null,
 						el( RangeControl, { label: __( 'Mobile Scale (%)', 'rcmi-toolkit' ), value: attrs.bgMobileScale, onChange: function ( v ) { setAttributes( { bgMobileScale: v } ); }, min: 25, max: 300, step: 5 } ),
-						el( RangeControl, { label: __( 'Mobile Position X', 'rcmi-toolkit' ), value: attrs.bgMobilePositionX, onChange: function ( v ) { setAttributes( { bgMobilePositionX: v } ); }, min: 0, max: 100 } ),
-						el( RangeControl, { label: __( 'Mobile Position Y', 'rcmi-toolkit' ), value: attrs.bgMobilePositionY, onChange: function ( v ) { setAttributes( { bgMobilePositionY: v } ); }, min: 0, max: 100 } )
+						el( FocalPointPicker, {
+							label: __( 'Mobile focal point', 'rcmi-toolkit' ),
+							url: attrs.bgMobileImageUrl,
+							value: { x: attrs.bgMobilePositionX / 100, y: attrs.bgMobilePositionY / 100 },
+							onChange: function ( f ) { setAttributes( { bgMobilePositionX: rcmiDirFocalToPct( f.x ), bgMobilePositionY: rcmiDirFocalToPct( f.y ) } ); },
+							help: __( 'Drag the point to choose which part of the mobile image stays in view.', 'rcmi-toolkit' )
+						} )
 					) : null
 				),
 				// Gradient scrim
@@ -2626,20 +2636,13 @@
 										max: 300,
 										help: __( 'Image size on mobile. 100% = fills section, higher = zoom in.', 'rcmi-toolkit' )
 									} ),
-									el( RangeControl, {
-										label: __( 'Mobile position X', 'rcmi-toolkit' ),
-										value: attrs[ mobilePosXKey ],
-										onChange: function ( v ) { var u = {}; u[ mobilePosXKey ] = v; setAttributes( u ); },
-										min: 0,
-										max: 100
-									} ),
-									el( RangeControl, {
-										label: __( 'Mobile position Y', 'rcmi-toolkit' ),
-										value: attrs[ mobilePosYKey ],
-										onChange: function ( v ) { var u = {}; u[ mobilePosYKey ] = v; setAttributes( u ); },
-										min: 0,
-										max: 100
-									} )
+									( attrs[ mobileUrlKey ] || attrs[ urlKey ] ) ? el( FocalPointPicker, {
+										label: __( 'Mobile focal point', 'rcmi-toolkit' ),
+										url: attrs[ mobileUrlKey ] || attrs[ urlKey ],
+										value: { x: ( attrs[ mobilePosXKey ] || 50 ) / 100, y: ( 100 - ( attrs[ mobilePosYKey ] ?? 50 ) ) / 100 },
+										onChange: function ( f ) { var u = {}; u[ mobilePosXKey ] = rcmiDirFocalToPct( f.x ); u[ mobilePosYKey ] = 100 - rcmiDirFocalToPct( f.y ); setAttributes( u ); },
+										help: __( 'Drag the point to choose which part of the mobile image stays in view.', 'rcmi-toolkit' )
+									} ) : null
 								)
 							);
 						}
@@ -2680,24 +2683,13 @@
 									step: 0.05,
 									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign.', 'rcmi-toolkit' )
 								} ),
-								el( RangeControl, {
-									label: __( 'Horizontal position', 'rcmi-toolkit' ),
-									value: attrs[ posXKey ],
-									onChange: function ( v ) { var u = {}; u[ posXKey ] = v; setAttributes( u ); },
-									min: 0,
-									max: 200,
-									step: 1,
-									help: __( '0% = left, 50% = center, 100% = right', 'rcmi-toolkit' )
-								} ),
-								el( RangeControl, {
-									label: __( 'Vertical position', 'rcmi-toolkit' ),
-									value: attrs[ posYKey ],
-									onChange: function ( v ) { var u = {}; u[ posYKey ] = v; setAttributes( u ); },
-									min: 0,
-									max: 200,
-									step: 1,
-									help: __( '0% = bottom, 50% = center, 100% = top', 'rcmi-toolkit' )
-								} ),
+								attrs[ urlKey ] ? el( FocalPointPicker, {
+									label: __( 'Focal point', 'rcmi-toolkit' ),
+									url: attrs[ urlKey ],
+									value: { x: ( attrs[ posXKey ] || 50 ) / 100, y: ( 100 - ( attrs[ posYKey ] ?? 50 ) ) / 100 },
+									onChange: function ( f ) { var u = {}; u[ posXKey ] = rcmiDirFocalToPct( f.x ); u[ posYKey ] = 100 - rcmiDirFocalToPct( f.y ); setAttributes( u ); },
+									help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
+								} ) : null,
 								el( RangeControl, {
 									label: __( 'Scale (%)', 'rcmi-toolkit' ),
 									value: attrs[ scaleKey ],
@@ -2849,20 +2841,13 @@
 								isDestructive: true
 							}, __( 'Remove image', 'rcmi-toolkit' ) )
 						) : null,
-						el( RangeControl, {
-							label: __( 'Horizontal position', 'rcmi-toolkit' ),
-							value: attrs.bgPositionX,
-							onChange: function ( v ) { setAttributes( { bgPositionX: v } ); },
-							min: 0, max: 200, step: 1,
-							help: __( '0% = left, 50% = center, 100% = right', 'rcmi-toolkit' )
-						} ),
-						el( RangeControl, {
-							label: __( 'Vertical position', 'rcmi-toolkit' ),
-							value: attrs.bgPositionY,
-							onChange: function ( v ) { setAttributes( { bgPositionY: v } ); },
-							min: 0, max: 200, step: 1,
-							help: __( '0% = bottom, 50% = center, 100% = top', 'rcmi-toolkit' )
-						} ),
+						attrs.bgImageUrl ? el( FocalPointPicker, {
+							label: __( 'Focal point', 'rcmi-toolkit' ),
+							url: attrs.bgImageUrl,
+							value: { x: ( attrs.bgPositionX || 50 ) / 100, y: ( 100 - ( attrs.bgPositionY ?? 50 ) ) / 100 },
+							onChange: function ( f ) { setAttributes( { bgPositionX: rcmiDirFocalToPct( f.x ), bgPositionY: 100 - rcmiDirFocalToPct( f.y ) } ); },
+							help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
+						} ) : null,
 						el( RangeControl, {
 							label: __( 'Scale (%)', 'rcmi-toolkit' ),
 							value: attrs.bgScale,
@@ -3149,6 +3134,20 @@
 		return { objectPosition: attrs.positionX + '% ' + attrs.positionY + '%' };
 	}
 
+	function storyFocalPicker( props ) {
+		var attrs = props.attributes;
+		if ( ! attrs.imageUrl ) { return null; }
+		return el( FocalPointPicker, {
+			label: __( 'Focal point', 'rcmi-toolkit' ),
+			url: attrs.imageUrl,
+			value: { x: attrs.positionX / 100, y: attrs.positionY / 100 },
+			onChange: function ( f ) {
+				props.setAttributes( { positionX: rcmiDirFocalToPct( f.x ), positionY: rcmiDirFocalToPct( f.y ) } );
+			},
+			help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
+		} );
+	}
+
 	function storyCaption( attrs ) {
 		if ( ! attrs.caption && ! attrs.credit ) { return null; }
 		return el( 'figcaption', { className: 'rcmi-story-caption' },
@@ -3202,8 +3201,7 @@
 							{ label: __( 'Editorial (4:3)', 'rcmi-toolkit' ), value: 'editorial' },
 							{ label: __( 'Portrait (3:4)', 'rcmi-toolkit' ), value: 'portrait' }
 						], onChange: function ( value ) { props.setAttributes( { aspect: value } ); } } ),
-						el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
-						el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+						storyFocalPicker( props ),
 						el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 					)
 				),
@@ -3287,8 +3285,7 @@
 						{ label: __( 'Wide', 'rcmi-toolkit' ), value: 'wide' },
 						{ label: __( 'Full width', 'rcmi-toolkit' ), value: 'full' }
 					], onChange: function ( value ) { props.setAttributes( { size: value } ); } } ),
-					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
-					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+					storyFocalPicker( props ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
 				el( 'figure', useBlockProps( { className: 'rcmi-story-image rcmi-story-image-' + attrs.size } ),
@@ -3333,8 +3330,7 @@
 					el( SelectControl, { label: __( 'Layout style', 'rcmi-toolkit' ), value: attrs.layout, options: [ { label: __( 'Standard split', 'rcmi-toolkit' ), value: 'standard' }, { label: __( 'One-third image', 'rcmi-toolkit' ), value: 'third' }, { label: __( 'Floating image', 'rcmi-toolkit' ), value: 'float' } ], onChange: function ( value ) { props.setAttributes( { layout: value } ); } } ),
 					el( SelectControl, { label: __( 'Image position', 'rcmi-toolkit' ), value: attrs.imageSide, options: [ { label: __( 'Left', 'rcmi-toolkit' ), value: 'left' }, { label: __( 'Right', 'rcmi-toolkit' ), value: 'right' } ], onChange: function ( value ) { props.setAttributes( { imageSide: value } ); } } ),
 					el( SelectControl, { label: __( 'Color treatment', 'rcmi-toolkit' ), value: attrs.tone, options: [ { label: __( 'Light', 'rcmi-toolkit' ), value: 'light' }, { label: __( 'Dark', 'rcmi-toolkit' ), value: 'dark' }, { label: __( 'Brand red', 'rcmi-toolkit' ), value: 'red' } ], onChange: function ( value ) { props.setAttributes( { tone: value } ); } } ),
-					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
-					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+					storyFocalPicker( props ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
 				el( 'section', useBlockProps( { className: 'rcmi-story-split is-image-' + attrs.imageSide + layoutClass + ' is-tone-' + attrs.tone } ), attrs.layout !== 'standard' || attrs.imageSide === 'left' ? image : copy, attrs.layout !== 'standard' || attrs.imageSide === 'left' ? copy : image )
@@ -3391,8 +3387,7 @@
 					el( RangeControl, { label: __( 'Section height (vh)', 'rcmi-toolkit' ), value: attrs.height, min: 50, max: 100, onChange: function ( value ) { props.setAttributes( { height: value } ); } } ),
 					el( SelectControl, { label: __( 'Text position', 'rcmi-toolkit' ), value: attrs.contentPosition, options: [ { label: __( 'Bottom left', 'rcmi-toolkit' ), value: 'bottom-left' }, { label: __( 'Center', 'rcmi-toolkit' ), value: 'center' }, { label: __( 'Top left', 'rcmi-toolkit' ), value: 'top-left' } ], onChange: function ( value ) { props.setAttributes( { contentPosition: value } ); } } ),
 					el( RangeControl, { label: __( 'Overlay strength', 'rcmi-toolkit' ), value: attrs.scrim, min: 20, max: 90, onChange: function ( value ) { props.setAttributes( { scrim: value } ); } } ),
-					el( RangeControl, { label: __( 'Horizontal focus', 'rcmi-toolkit' ), value: attrs.positionX, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionX: value } ); } } ),
-					el( RangeControl, { label: __( 'Vertical focus', 'rcmi-toolkit' ), value: attrs.positionY, min: 0, max: 100, onChange: function ( value ) { props.setAttributes( { positionY: value } ); } } ),
+					storyFocalPicker( props ),
 					el( TextControl, { label: __( 'Alternative text', 'rcmi-toolkit' ), value: attrs.imageAlt, onChange: function ( value ) { props.setAttributes( { imageAlt: value } ); } } )
 				) ),
 				el( 'section', useBlockProps( { className: 'rcmi-story-immersive is-position-' + attrs.contentPosition, style: { minHeight: attrs.height + 'vh', '--rcmi-story-scrim': attrs.scrim / 100 } } ),
