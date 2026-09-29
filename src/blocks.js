@@ -2577,6 +2577,41 @@
 			var switchToMobilePreview = function () { switchToDevicePreview( 'Mobile' ); };
 			var switchToDesktopPreview = function () { switchToDevicePreview( 'Desktop' ); };
 
+			// Transient focal position while a FocalPointPicker drag is in
+			// progress. The picker only fires onChange on release, so without
+			// this the layer preview would not follow the pointer. onDrag
+			// updates this state (no attribute write per pointermove, so undo
+			// history stays clean); onChange commits and clears it.
+			var focalDragState = useState( null );
+			var focalDrag = focalDragState[0]; // { xKey, yKey, posX, posY } in stored units
+			var setFocalDrag = focalDragState[1];
+
+			// Stored posX/posY are pan amounts, not focal positions:
+			// high posX slides the image right (revealing its LEFT edge),
+			// high posY slides it up (revealing the BOTTOM). The picker dot
+			// marks which part stays in view, so X inverts but Y does not.
+			var focalValue = function ( posX, posY ) {
+				return { x: ( 100 - posX ) / 100, y: posY / 100 };
+			};
+			var focalHandlers = function ( xKey, yKey ) {
+				return {
+					onDrag: function ( f ) {
+						setFocalDrag( {
+							xKey: xKey, yKey: yKey,
+							posX: 100 - rcmiDirFocalToPct( f.x ),
+							posY: rcmiDirFocalToPct( f.y )
+						} );
+					},
+					onChange: function ( f ) {
+						var u = {};
+						u[ xKey ] = 100 - rcmiDirFocalToPct( f.x );
+						u[ yKey ] = rcmiDirFocalToPct( f.y );
+						setAttributes( u );
+						setFocalDrag( null );
+					}
+				};
+			};
+
 			// Layer picker for parallax mode. Each layer panel uses a
 			// TabPanel to split Desktop and Mobile controls so only the
 			// relevant breakpoint's settings are visible at a time.
@@ -2636,13 +2671,12 @@
 										max: 300,
 										help: __( 'Image size on mobile. 100% = fills section, higher = zoom in.', 'rcmi-toolkit' )
 									} ),
-									( attrs[ mobileUrlKey ] || attrs[ urlKey ] ) ? el( FocalPointPicker, {
+									( attrs[ mobileUrlKey ] || attrs[ urlKey ] ) ? el( FocalPointPicker, Object.assign( {
 										label: __( 'Mobile focal point', 'rcmi-toolkit' ),
 										url: attrs[ mobileUrlKey ] || attrs[ urlKey ],
-										value: { x: ( attrs[ mobilePosXKey ] || 50 ) / 100, y: ( 100 - ( attrs[ mobilePosYKey ] ?? 50 ) ) / 100 },
-										onChange: function ( f ) { var u = {}; u[ mobilePosXKey ] = rcmiDirFocalToPct( f.x ); u[ mobilePosYKey ] = 100 - rcmiDirFocalToPct( f.y ); setAttributes( u ); },
+										value: focalValue( attrs[ mobilePosXKey ] ?? 50, attrs[ mobilePosYKey ] ?? 50 ),
 										help: __( 'Drag the point to choose which part of the mobile image stays in view.', 'rcmi-toolkit' )
-									} ) : null
+									}, focalHandlers( mobilePosXKey, mobilePosYKey ) ) ) : null
 								)
 							);
 						}
@@ -2683,13 +2717,12 @@
 									step: 0.05,
 									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign.', 'rcmi-toolkit' )
 								} ),
-								attrs[ urlKey ] ? el( FocalPointPicker, {
+								attrs[ urlKey ] ? el( FocalPointPicker, Object.assign( {
 									label: __( 'Focal point', 'rcmi-toolkit' ),
 									url: attrs[ urlKey ],
-									value: { x: ( attrs[ posXKey ] || 50 ) / 100, y: ( 100 - ( attrs[ posYKey ] ?? 50 ) ) / 100 },
-									onChange: function ( f ) { var u = {}; u[ posXKey ] = rcmiDirFocalToPct( f.x ); u[ posYKey ] = 100 - rcmiDirFocalToPct( f.y ); setAttributes( u ); },
+									value: focalValue( attrs[ posXKey ] ?? 50, attrs[ posYKey ] ?? 50 ),
 									help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
-								} ) : null,
+								}, focalHandlers( posXKey, posYKey ) ) ) : null,
 								el( RangeControl, {
 									label: __( 'Scale (%)', 'rcmi-toolkit' ),
 									value: attrs[ scaleKey ],
@@ -2752,19 +2785,28 @@
 			// scale, and position. Tablet uses the tablet scale multiplier
 			// with interpolated pan matching the 768px responsive boundary
 			// (panFactor ≈ 0 at tablet width, per frontend.js interpolation).
-			var previewLayer = function ( url, mobileUrl, label, zIndex, posX, posY, scale, mobilePosX, mobilePosY, mobileScale, hasMobile ) {
+			var previewLayer = function ( url, mobileUrl, label, zIndex, posXKey, posYKey, scale, mobilePosXKey, mobilePosYKey, mobileScale, hasMobile ) {
 				var isMobilePreview = deviceType === 'Mobile';
 				var isTabletPreview = deviceType === 'Tablet';
 				var previewUrl = isMobilePreview && mobileUrl ? mobileUrl : url;
 				var previewScale = scale;
-				var previewPosX = posX;
-				var previewPosY = posY;
+				// In-progress focal drags override the committed attributes so
+				// the preview tracks the pointer before onChange fires.
+				var posOf = function ( xKey, yKey ) {
+					return focalDrag && focalDrag.xKey === xKey && focalDrag.yKey === yKey
+						? [ focalDrag.posX, focalDrag.posY ]
+						: [ attrs[ xKey ] ?? 50, attrs[ yKey ] ?? 50 ];
+				};
+				var dPos = posOf( posXKey, posYKey );
+				var mPos = posOf( mobilePosXKey, mobilePosYKey );
+				var previewPosX = dPos[0];
+				var previewPosY = dPos[1];
 				var previewFit = 'contain';
 
 				if ( isMobilePreview ) {
 					previewScale = mobileScale;
-					previewPosX = mobilePosX;
-					previewPosY = mobilePosY;
+					previewPosX = mPos[0];
+					previewPosY = mPos[1];
 					previewFit = hasMobile ? 'contain' : 'cover';
 				} else if ( isTabletPreview ) {
 					// Tablet: scale × tabletMult, pan interpolated to ~0
@@ -2841,13 +2883,12 @@
 								isDestructive: true
 							}, __( 'Remove image', 'rcmi-toolkit' ) )
 						) : null,
-						attrs.bgImageUrl ? el( FocalPointPicker, {
+						attrs.bgImageUrl ? el( FocalPointPicker, Object.assign( {
 							label: __( 'Focal point', 'rcmi-toolkit' ),
 							url: attrs.bgImageUrl,
-							value: { x: ( attrs.bgPositionX || 50 ) / 100, y: ( 100 - ( attrs.bgPositionY ?? 50 ) ) / 100 },
-							onChange: function ( f ) { setAttributes( { bgPositionX: rcmiDirFocalToPct( f.x ), bgPositionY: 100 - rcmiDirFocalToPct( f.y ) } ); },
+							value: focalValue( attrs.bgPositionX ?? 50, attrs.bgPositionY ?? 50 ),
 							help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
-						} ) : null,
+						}, focalHandlers( 'bgPositionX', 'bgPositionY' ) ) ) : null,
 						el( RangeControl, {
 							label: __( 'Scale (%)', 'rcmi-toolkit' ),
 							value: attrs.bgScale,
@@ -2988,15 +3029,15 @@
 			if ( isParallax ) {
 				previewChildren.push(
 					el( 'div', { className: 'rcmi-parallax-layers' },
-						previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, attrs.bgPositionX, attrs.bgPositionY, attrs.bgScale, attrs.bgMobilePositionX, attrs.bgMobilePositionY, attrs.bgMobileScale, !! attrs.bgMobileImageUrl ),
-						previewLayer( attrs.midImageUrl, attrs.midMobileImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex, attrs.midPositionX, attrs.midPositionY, attrs.midScale, attrs.midMobilePositionX, attrs.midMobilePositionY, attrs.midMobileScale, !! attrs.midMobileImageUrl ),
-						previewLayer( attrs.fgImageUrl, attrs.fgMobileImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex, attrs.fgPositionX, attrs.fgPositionY, attrs.fgScale, attrs.fgMobilePositionX, attrs.fgMobilePositionY, attrs.fgMobileScale, !! attrs.fgMobileImageUrl )
+						previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale, !! attrs.bgMobileImageUrl ),
+						previewLayer( attrs.midImageUrl, attrs.midMobileImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex, 'midPositionX', 'midPositionY', attrs.midScale, 'midMobilePositionX', 'midMobilePositionY', attrs.midMobileScale, !! attrs.midMobileImageUrl ),
+						previewLayer( attrs.fgImageUrl, attrs.fgMobileImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex, 'fgPositionX', 'fgPositionY', attrs.fgScale, 'fgMobilePositionX', 'fgMobilePositionY', attrs.fgMobileScale, !! attrs.fgMobileImageUrl )
 					)
 				);
 			} else {
 				// Static mode: single background image with position + scale.
 				previewChildren.push(
-					previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, attrs.bgPositionX, attrs.bgPositionY, attrs.bgScale, attrs.bgMobilePositionX, attrs.bgMobilePositionY, attrs.bgMobileScale, !! attrs.bgMobileImageUrl )
+					previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale, !! attrs.bgMobileImageUrl )
 				);
 			}
 
