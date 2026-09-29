@@ -32,6 +32,7 @@
 	var Button = wp.components.Button;
 	var __ = wp.i18n.__;
 	var addFilter = wp.hooks.addFilter;
+	var RcmiTableCellEditor = window.RcmiTableCellEditor;
 
 	addFilter( 'blocks.registerBlockType', 'rcmi-toolkit/blog-hero-height-attributes', function ( settings, name ) {
 		if ( name !== 'core/group' ) {
@@ -3827,6 +3828,8 @@
 
 		var selState = useState( null );
 		var sel = selState[ 0 ], setSel = selState[ 1 ];
+		var cellEditState = useState( null );
+		var cellEdit = cellEditState[ 0 ], setCellEdit = cellEditState[ 1 ];
 		var dragging = useRef( false );
 		var shiftPicking = useRef( false );
 
@@ -4062,15 +4065,28 @@
 			if ( attrs.colHeader && c === 0 ) {
 				tag = 'th';
 			}
+			var structured = RcmiTableCellEditor && RcmiTableCellEditor.isStructured( cell.content );
 			return el( tag, cellProps,
-				el( RichText, {
-					tagName: 'div',
-					className: 'rcmi-td-inner',
-					value: cell.content,
-					onChange: function ( v ) { updateCell( r, c, v ); },
-					placeholder: isHeaderCell ? __( 'Header…', 'rcmi-toolkit' ) : __( 'Cell…', 'rcmi-toolkit' ),
-					allowedFormats: cellFormats
-				} )
+				structured
+					? el( 'div', {
+						className: 'rcmi-td-inner rcmi-td-structured',
+						onClick: function () { setSel( { anchor: { r: r, c: c }, head: { r: r, c: c } } ); }
+					},
+						RcmiTableCellEditor.renderPreview( cell.content ),
+						el( Button, {
+							variant: 'secondary',
+							className: 'rcmi-td-edit-btn',
+							onClick: function () { setCellEdit( { r: r, c: c } ); }
+						}, __( 'Edit content', 'rcmi-toolkit' ) )
+					)
+					: el( RichText, {
+						tagName: 'div',
+						className: 'rcmi-td-inner',
+						value: cell.content,
+						onChange: function ( v ) { updateCell( r, c, v ); },
+						placeholder: isHeaderCell ? __( 'Header…', 'rcmi-toolkit' ) : __( 'Cell…', 'rcmi-toolkit' ),
+						allowedFormats: cellFormats
+					} )
 			);
 		};
 
@@ -4081,6 +4097,14 @@
 		} );
 
 		return el( Fragment, null,
+			cellEdit && RcmiTableCellEditor ? el( RcmiTableCellEditor.Component, {
+				content: rows[ cellEdit.r ][ cellEdit.c ].content || '',
+				onClose: function () { setCellEdit( null ); },
+				onApply: function ( html ) {
+					updateCell( cellEdit.r, cellEdit.c, html );
+					setCellEdit( null );
+				}
+			} ) : null,
 			el( BlockControls, null,
 				el( ToolbarGroup, null,
 					el( ToolbarButton, {
@@ -4092,7 +4116,16 @@
 						label: __( 'Split merged cell', 'rcmi-toolkit' ),
 						onClick: splitSelection,
 						disabled: ! canSplit
-					}, __( 'Split', 'rcmi-toolkit' ) )
+					}, __( 'Split', 'rcmi-toolkit' ) ),
+					el( ToolbarButton, {
+						label: __( 'Edit cell content', 'rcmi-toolkit' ),
+						onClick: function () {
+							if ( selRoot ) {
+								setCellEdit( { r: selRoot[ 0 ], c: selRoot[ 1 ] } );
+							}
+						},
+						disabled: ! selCell
+					}, __( 'Edit cell content', 'rcmi-toolkit' ) )
 				),
 				el( ToolbarItem, null,
 					function ( toggleProps ) {

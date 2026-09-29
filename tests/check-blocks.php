@@ -165,6 +165,121 @@ rcmi_check( strpos( $mid_head, 'rcmi-head-row' ) > strpos( $mid_head, '</thead>'
 rcmi_check( false !== strpos( $mid_head, '>a</td>' ), 'table(mid): row between headers should stay a body cell' );
 
 // ---------------------------------------------------------------------------
+// rcmi/table — structured cell content (lists, indented p, nested table)
+// ---------------------------------------------------------------------------
+
+$nested_cell = '<ul><li>alpha</li><li><ol><li>deep</li></ol></li></ul>'
+	. '<p style="margin-left:2em">indented</p>'
+	. '<table class="rcmi-cell-table"><caption>Inner cap</caption>'
+	. '<thead><tr><th scope="col">IH</th></tr></thead>'
+	. '<tbody><tr><td colspan="2">cell</td></tr></tbody></table>';
+
+$structured = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array( $cell( $nested_cell ), $cell( 'plain' ) ),
+	),
+) );
+
+rcmi_check( false !== strpos( $structured, '<ul><li>alpha</li>' ), 'cell: nested list markup missing' );
+rcmi_check( false !== strpos( $structured, '<ol><li>deep</li></ol>' ), 'cell: nested ordered list missing' );
+rcmi_check( false !== strpos( $structured, 'margin-left:2em' ), 'cell: indented paragraph style stripped' );
+rcmi_check( false !== strpos( $structured, 'rcmi-cell-table-scroll' ), 'cell: nested table scroll wrapper missing' );
+rcmi_check( false !== strpos( $structured, 'role="region"' ), 'cell: scroll wrapper region role missing' );
+rcmi_check( false !== strpos( $structured, 'tabindex="0"' ), 'cell: scroll wrapper tabindex missing' );
+rcmi_check( false !== strpos( $structured, '<caption>Inner cap</caption>' ), 'cell: inner table caption missing' );
+rcmi_check( false !== strpos( $structured, '<th scope="col">IH</th>' ), 'cell: inner table header scope missing' );
+rcmi_check( false !== strpos( $structured, 'colspan="2"' ), 'cell: inner table colspan missing' );
+// The inner table must sit inside its wrapper, inside the outer cell.
+$inner_table_pos = strpos( $structured, '<table class="rcmi-cell-table">' );
+rcmi_check( false !== $inner_table_pos, 'cell: inner table keeps rcmi-cell-table class' );
+rcmi_check( $inner_table_pos > strpos( $structured, 'rcmi-cell-table-scroll' ), 'cell: inner table not inside scroll wrapper' );
+rcmi_check( $inner_table_pos < strpos( $structured, '</td>' ), 'cell: inner table escaped the outer cell' );
+
+// Unsafe markup must be stripped before output.
+$unsafe = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array(
+			$cell( '<p>ok</p><script>alert(1)</script><img src="x" onerror="pwn()"><a href="javascript:go()">x</a>' ),
+		),
+	),
+) );
+rcmi_check( false === strpos( $unsafe, '<script' ), 'cell: script tag survived sanitize' );
+rcmi_check( false === strpos( $unsafe, 'onerror' ), 'cell: onerror attribute survived sanitize' );
+rcmi_check( false === strpos( $unsafe, 'javascript:' ), 'cell: javascript: url survived sanitize' );
+
+// A table pasted without the class still gets wrapped and classed.
+$bare = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array( array( $cell( '<table><tr><td>b</td></tr></table>' ) ) ),
+) );
+rcmi_check( false !== strpos( $bare, 'rcmi-cell-table-scroll' ), 'cell: bare pasted table not wrapped' );
+rcmi_check( false !== strpos( $bare, '<table class="rcmi-cell-table">' ), 'cell: bare pasted table missing class' );
+
+// Outer merge spans and inner table spans coexist and stay valid. A 2x2
+// merge covers exactly three hidden slots; the other cells stay visible.
+$mix = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array(
+			array( 'content' => $nested_cell, 'colSpan' => 2, 'rowSpan' => 2, 'hidden' => false ),
+			array( 'content' => '', 'colSpan' => 1, 'rowSpan' => 1, 'hidden' => true ),
+			$cell( 'edge' ),
+		),
+		array(
+			array( 'content' => '', 'colSpan' => 1, 'rowSpan' => 1, 'hidden' => true ),
+			array( 'content' => '', 'colSpan' => 1, 'rowSpan' => 1, 'hidden' => true ),
+			$cell( 'x' ),
+		),
+		array( $cell( 'a' ), $cell( 'b' ), $cell( 'c' ) ),
+	),
+) );
+rcmi_check( false !== strpos( $mix, '<td colspan="2" rowspan="2">' ), 'cell: outer merge spans missing' );
+rcmi_check( false !== strpos( $mix, 'rcmi-cell-table-scroll' ), 'cell: inner table inside merged cell not wrapped' );
+rcmi_check( 1 === substr_count( $mix, 'colspan="2" rowspan="2"' ), 'cell: outer merge rendered wrong' );
+rcmi_check( false !== strpos( $mix, '>edge<' ), 'cell: third-column cell should stay visible outside the merge' );
+rcmi_check( false !== strpos( $mix, '>x<' ), 'cell: second-row third column should stay visible' );
+
+// Quote-aware table scan: a literal '>' inside an attribute value must
+// not truncate the tag token or confuse the depth scan. Tested on the
+// wrapper directly — wp_kses_post may drop arbitrary data-* attrs first.
+$quoted_in  = '<table data-note="a>b" class="mine"><tbody><tr><td>q</td></tr></tbody></table>';
+$quoted_out = rcmi_table_wrap_cell_tables( $quoted_in );
+rcmi_check( false !== strpos( $quoted_out, 'data-note="a>b"' ), 'cell: quoted > attribute mangled' );
+rcmi_check( false !== strpos( $quoted_out, 'rcmi-cell-table-scroll' ), 'cell: quoted-attr table not wrapped' );
+rcmi_check( false !== strpos( $quoted_out, 'class="mine rcmi-cell-table"' ), 'cell: quoted-attr table missing appended class' );
+rcmi_check( 1 === substr_count( $quoted_out, '</table>' ), 'cell: quoted-attr close tag mismatched' );
+
+// Uppercase tags and pre-existing classes both normalize.
+$upper = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array( $cell( '<TABLE CLASS="mine"><TBODY><TR><TD>u</TD></TR></TBODY></TABLE>' ) ),
+	),
+) );
+rcmi_check( false !== strpos( $upper, 'rcmi-cell-table-scroll' ), 'cell: uppercase TABLE not wrapped' );
+rcmi_check( 1 === preg_match( '/class="mine rcmi-cell-table"/i', $upper ), 'cell: existing class not extended (uppercase)' );
+
+// Sibling tables each get their own wrapper.
+$siblings = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array( $cell( '<table><tbody><tr><td>1</td></tr></tbody></table><p>mid</p><table><tbody><tr><td>2</td></tr></tbody></table>' ) ),
+	),
+) );
+rcmi_check( 2 === substr_count( $siblings, 'rcmi-cell-table-scroll' ), 'cell: sibling tables should each be wrapped' );
+
+// Imported content that already carries the wrapper is not double-wrapped.
+$already = rcmi_render( 'rcmi/table', array(
+	'hasHeader' => false,
+	'rows'      => array(
+		array( $cell( '<div class="rcmi-cell-table-scroll"><table class="rcmi-cell-table"><tbody><tr><td>w</td></tr></tbody></table></div>' ) ),
+	),
+) );
+rcmi_check( 1 === substr_count( $already, 'rcmi-cell-table-scroll' ), 'cell: already-wrapped table double-wrapped' );
+
+// ---------------------------------------------------------------------------
 // rcmi/directory — card render
 // ---------------------------------------------------------------------------
 

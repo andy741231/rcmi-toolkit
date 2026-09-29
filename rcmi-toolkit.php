@@ -921,10 +921,22 @@ function rcmi_hero_preset() {
 function rcmi_toolkit_editor_assets() {
 	$ver = file_exists( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) ? filemtime( RCMI_TOOLKIT_PATH . 'src/blocks.js' ) : RCMI_TOOLKIT_VERSION;
 
+	// The rcmi/table cell editor uses WP's bundled TinyMCE in a modal.
+	wp_enqueue_editor();
+
+	$cell_editor_path = RCMI_TOOLKIT_PATH . 'assets/js/rcmi-table-cell-editor.js';
+	wp_register_script(
+		'rcmi-table-cell-editor',
+		RCMI_TOOLKIT_URL . 'assets/js/rcmi-table-cell-editor.js',
+		array( 'wp-element', 'wp-components', 'wp-i18n', 'wp-editor' ),
+		file_exists( $cell_editor_path ) ? filemtime( $cell_editor_path ) : RCMI_TOOLKIT_VERSION,
+		true
+	);
+
 	wp_enqueue_script(
 		'rcmi-toolkit-editor',
 		RCMI_TOOLKIT_URL . 'src/blocks.js',
-		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-hooks', 'wp-server-side-render', 'wp-api-fetch' ),
+		array( 'wp-blocks', 'wp-block-editor', 'wp-element', 'wp-components', 'wp-i18n', 'wp-data', 'wp-hooks', 'wp-server-side-render', 'wp-api-fetch', 'rcmi-table-cell-editor' ),
 		$ver,
 		true
 	);
@@ -2677,6 +2689,74 @@ function rcmi_table_normalize( $rows ) {
 }
 
 /**
+ * Wrap each table inside cell content in a scrollable, focusable region so
+ * nested tables stay usable on narrow viewports. Works on the serialized
+ * HTML string — no DOMDocument — by scanning <table> tag offsets and
+ * wrapping only tables that are not inside another table. Ensures the
+ * rcmi-cell-table class so inner tables pick up cell-table styles.
+ *
+ * @param string $html Sanitized cell markup.
+ * @return string
+ */
+function rcmi_table_wrap_cell_tables( $html ) {
+	if ( false === stripos( $html, '<table' ) ) {
+		return $html;
+	}
+	// Tag token tolerates a literal '>' inside quoted attribute values.
+	if ( ! preg_match_all( '~</?table\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>~i', $html, $m, PREG_OFFSET_CAPTURE ) ) {
+		return $html;
+	}
+	$depth   = 0;
+	$stack   = array();
+	$wraps   = array();
+	foreach ( $m[0] as $t ) {
+		$tag = $t[0];
+		$pos = $t[1];
+		if ( '</' === substr( $tag, 0, 2 ) ) {
+			if ( $stack ) {
+				$start = array_pop( $stack );
+				$depth--;
+				if ( 0 === $depth ) {
+					$wraps[] = array( $start, $pos + strlen( $tag ) );
+				}
+			}
+			continue;
+		}
+		$stack[] = $pos;
+		$depth++;
+	}
+	foreach ( array_reverse( $wraps ) as $w ) {
+		$table_html = substr( $html, $w[0], $w[1] - $w[0] );
+		if ( ! preg_match( '~^<table\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*>~i', $table_html, $open ) ) {
+			continue;
+		}
+		$open_tag = $open[0];
+		if ( ! preg_match( '~\bclass\s*=~i', $open_tag ) ) {
+			$new_open = preg_replace( '~/?>$~', ' class="rcmi-cell-table">', $open_tag, 1 );
+			$table_html = $new_open . substr( $table_html, strlen( $open_tag ) );
+		} elseif ( ! preg_match( '~\bclass\s*=\s*(["\'])[^"\']*\brcmi-cell-table\b~i', $open_tag ) ) {
+			$new_open   = preg_replace( '~\bclass\s*=\s*"([^"]*)"~i', 'class="$1 rcmi-cell-table"', $open_tag, 1 );
+			if ( $new_open === $open_tag ) {
+				$new_open = preg_replace( "~\bclass\s*=\s*'([^']*)'~i", "class='$1 rcmi-cell-table'", $open_tag, 1 );
+			}
+			$table_html = $new_open . substr( $table_html, strlen( $open_tag ) );
+		}
+		// Idempotent: a table already inside our scroll wrapper is only
+		// (re)classed, not wrapped a second time.
+		$before = substr( $html, 0, $w[0] );
+		if ( preg_match( '~<div\b[^>]*\bclass\s*=\s*(["\'])[^"\']*\brcmi-cell-table-scroll\b[^"\']*\1[^>]*>\s*$~i', $before ) ) {
+			$html = substr( $html, 0, $w[0] ) . $table_html . substr( $html, $w[1] );
+			continue;
+		}
+		$wrapped = '<div class="rcmi-cell-table-scroll" tabindex="0" role="region" aria-label="'
+			. esc_attr( __( 'Nested table', 'rcmi-toolkit' ) ) . '">'
+			. $table_html . '</div>';
+		$html = substr( $html, 0, $w[0] ) . $wrapped . substr( $html, $w[1] );
+	}
+	return $html;
+}
+
+/**
  * Render callback for rcmi/table.
  *
  * @param array $attrs Block attributes.
@@ -2770,7 +2850,7 @@ function rcmi_render_table_block( $attrs ) {
 		if ( $cell['rowSpan'] > 1 ) {
 			$span .= ' rowspan="' . $cell['rowSpan'] . '"';
 		}
-		return '<' . $tag . $span . $extra . '>' . wp_kses_post( $cell['content'] ) . '</' . $tag . '>';
+		return '<' . $tag . $span . $extra . '>' . rcmi_table_wrap_cell_tables( wp_kses_post( $cell['content'] ) ) . '</' . $tag . '>';
 	};
 
 	ob_start();

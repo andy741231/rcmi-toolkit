@@ -16,7 +16,7 @@
 	margin: 24px 0;
 }
 .rcmi-table-block .rcmi-table-scroll{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-.rcmi-table-block table{
+.rcmi-table-block .rcmi-table-scroll > table{
 	width:100%;
 	border-collapse:collapse;
 	min-width:var(--rcmi-tbl-min,0);
@@ -24,30 +24,104 @@
 	font-size:.95rem;
 	line-height:1.5;
 }
-.rcmi-table-block th,
-.rcmi-table-block td{
+.rcmi-table-block .rcmi-table-scroll > table > thead > tr > th,
+.rcmi-table-block .rcmi-table-scroll > table > tbody > tr > th,
+.rcmi-table-block .rcmi-table-scroll > table > tbody > tr > td{
 	padding:12px 16px;
 	text-align:var(--rcmi-tbl-align,left);
 	vertical-align:top;
 	border-bottom:1px solid var(--rcmi-tbl-border);
 }
-.rcmi-table-block thead th,
-.rcmi-table-block tbody tr.rcmi-head-row th{
+.rcmi-table-block .rcmi-table-scroll > table > thead > tr > th,
+.rcmi-table-block .rcmi-table-scroll > table > tbody > tr.rcmi-head-row > th{
 	background:var(--rcmi-tbl-head-bg);
 	color:var(--rcmi-tbl-head-text);
 	font-weight:700;
 	/* Header alignment is independent of the body (--rcmi-tbl-align). */
 	text-align:var(--rcmi-tbl-head-align,var(--rcmi-tbl-align,left));
 }
-.rcmi-table-block tbody th[scope="row"]{
+.rcmi-table-block .rcmi-table-scroll > table > tbody > tr > th[scope="row"]{
 	background:var(--rcmi-tbl-head-bg);
 	color:var(--rcmi-tbl-head-text);
 	font-weight:600;
 }
-.rcmi-table-block td{
+.rcmi-table-block .rcmi-table-scroll > table > tbody > tr > td{
 	background:var(--rcmi-tbl-body-bg);
 	color:var(--rcmi-tbl-body-text);
 }
+
+/* ---- Structured cell content: lists, paragraphs, inner tables ---- */
+.rcmi-table-block td ul,
+.rcmi-table-block th ul,
+.rcmi-table-block td ol,
+.rcmi-table-block th ol{
+	list-style:disc;
+	margin:0 0 .5em;
+	padding-left:1.5em;
+}
+.rcmi-table-block td ol,
+.rcmi-table-block th ol{ list-style:decimal; }
+.rcmi-table-block td li > ul,
+.rcmi-table-block td li > ol,
+.rcmi-table-block th li > ul,
+.rcmi-table-block th li > ol{ margin-bottom:0; }
+.rcmi-table-block td p,
+.rcmi-table-block th p{ margin:0 0 .5em; }
+.rcmi-table-block td p:last-child,
+.rcmi-table-block th p:last-child{ margin-bottom:0; }
+
+/* Inner (nested) table rendered inside a cell — one level only. */
+.rcmi-cell-table-scroll{
+	overflow-x:auto;
+	-webkit-overflow-scrolling:touch;
+	max-width:100%;
+	min-width:0;
+	margin:.5em 0;
+}
+.rcmi-cell-table{
+	width:100%;
+	min-width:320px;
+	border-collapse:collapse;
+	font:inherit;
+	font-size:.92em;
+}
+.rcmi-cell-table caption{
+	caption-side:top;
+	font-size:.85em;
+	font-style:italic;
+	color:inherit;
+	opacity:.75;
+	text-align:center;
+	margin:0 0 4px;
+}
+.rcmi-cell-table > thead > tr > th,
+.rcmi-cell-table > tbody > tr > th,
+.rcmi-cell-table > tbody > tr > td,
+.rcmi-cell-table > tr > td,
+.rcmi-cell-table > tr > th{
+	padding:6px 10px;
+	border:1px solid var(--rcmi-tbl-border,#DEE1E2);
+	text-align:left;
+	vertical-align:top;
+}
+/* Explicit colors keep an inner table readable inside a themed outer
+   header cell (which may carry white text on a dark background). */
+.rcmi-cell-table > thead > tr > th,
+.rcmi-cell-table > tbody > tr > th,
+.rcmi-cell-table > tr > th{
+	background:var(--rcmi-tbl-head-bg,#F4F5F5);
+	color:var(--rcmi-tbl-head-text,#111213);
+}
+.rcmi-cell-table > tbody > tr > td,
+.rcmi-cell-table > tr > td{
+	background:var(--rcmi-tbl-body-bg,#FFFFFF);
+	color:var(--rcmi-tbl-body-text,#111213);
+}
+.rcmi-cell-table > thead > tr > th{
+	font-weight:700;
+}
+.rcmi-cell-table p{ margin:0 0 .4em; }
+.rcmi-cell-table p:last-child{ margin:0; }
 .rcmi-table-caption{
 	font-size:.8rem;
 	font-style:italic;
@@ -68,45 +142,52 @@
 .rcmi-table--cream{   --rcmi-tbl-head-bg:#FFF9D9; --rcmi-tbl-head-text:#101112; }
 
 /* ---- Bordered option: full cell borders (default = row separators only) ---- */
-.rcmi-table--bordered th,
-.rcmi-table--bordered td{ border:1px solid var(--rcmi-tbl-border); }
+.rcmi-table--bordered .rcmi-table-scroll > table > thead > tr > th,
+.rcmi-table--bordered .rcmi-table-scroll > table > tbody > tr > th,
+.rcmi-table--bordered .rcmi-table-scroll > table > tbody > tr > td{
+	border:1px solid var(--rcmi-tbl-border);
+}
 
 /* ---- Striped option: alternates body-row background ---- */
-.rcmi-table--striped tbody tr:nth-child(even) td{
+.rcmi-table--striped .rcmi-table-scroll > table > tbody > tr:nth-child(even) > td{
 	background:var(--rcmi-tbl-stripe-bg, rgba(16,17,18,.035));
 }
 /* When supported, derive the stripe tint from the (possibly custom) body bg. */
 @supports (background: color-mix(in srgb, red, blue)){
-	.rcmi-table--striped tbody tr:nth-child(even) td{
+	.rcmi-table--striped .rcmi-table-scroll > table > tbody > tr:nth-child(even) > td{
 		background:color-mix(in srgb, var(--rcmi-tbl-body-bg,#FFFFFF) 94%, #101112);
 	}
 }
 
 /* ---- Stacked mobile mode: each row becomes a labeled card ---- */
 @media (max-width: 700px){
-	.rcmi-table--stack .rcmi-table-scroll{ overflow:visible; }
-	.rcmi-table--stack table{ min-width:0; }
-	.rcmi-table--stack table,
-	.rcmi-table--stack thead,
-	.rcmi-table--stack tbody,
-	.rcmi-table--stack tr,
-	.rcmi-table--stack th,
-	.rcmi-table--stack td{ display:block; width:100%; box-sizing:border-box; }
+	.rcmi-table--stack > .rcmi-table-scroll{ overflow:visible; }
+	.rcmi-table--stack .rcmi-table-scroll > table{ min-width:0; }
+	.rcmi-table--stack .rcmi-table-scroll > table,
+	.rcmi-table--stack .rcmi-table-scroll > table > thead,
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody,
+	.rcmi-table--stack .rcmi-table-scroll > table > thead > tr,
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr,
+	.rcmi-table--stack .rcmi-table-scroll > table > thead > tr > th,
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > th,
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > td{
+		display:block; width:100%; box-sizing:border-box;
+	}
 	/* Keep the header row available to screen readers only — its text also
 	   appears per-cell via data-label. */
-	.rcmi-table--stack thead{
+	.rcmi-table--stack .rcmi-table-scroll > table > thead{
 		position:absolute; width:1px; height:1px;
 		margin:-1px; padding:0; overflow:hidden;
 		clip:rect(0 0 0 0); white-space:nowrap; border:0;
 	}
-	.rcmi-table--stack tbody tr{
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr{
 		border:1px solid var(--rcmi-tbl-border);
 		border-radius:8px;
 		overflow:hidden;
 		margin-bottom:16px;
 		background:var(--rcmi-tbl-body-bg);
 	}
-	.rcmi-table--stack td{
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > td{
 		display:flex;
 		flex-wrap:wrap;
 		justify-content:space-between;
@@ -114,8 +195,8 @@
 		gap:4px 16px;
 		border-bottom:1px solid var(--rcmi-tbl-border);
 	}
-	.rcmi-table--stack tbody tr > td:last-child{ border-bottom:0; }
-	.rcmi-table--stack td[data-label]::before{
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > td:last-child{ border-bottom:0; }
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > td[data-label]::before{
 		content:attr(data-label);
 		flex:0 0 42%;
 		font-weight:700;
@@ -124,7 +205,14 @@
 		text-transform:uppercase;
 		color:var(--color-fg-muted,#54585A);
 	}
-	.rcmi-table--stack tbody th[scope="row"]{
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > td > *,
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > th > *{
+		min-width:0;
+		max-width:100%;
+	}
+	/* A nested table inside a stacked cell keeps its own layout and scrolls. */
+	.rcmi-table--stack .rcmi-cell-table-scroll{ flex:1 1 100%; margin:.4em 0 0; }
+	.rcmi-table--stack .rcmi-table-scroll > table > tbody > tr > th[scope="row"]{
 		background:var(--rcmi-tbl-head-bg);
 		color:var(--rcmi-tbl-head-text);
 		font-weight:700;
@@ -132,7 +220,7 @@
 		border-bottom:1px solid var(--rcmi-tbl-border);
 	}
 	/* Striping is meaningless inside stacked cards. */
-	.rcmi-table--stack.rcmi-table--striped tbody tr:nth-child(even) td{
+	.rcmi-table--stack.rcmi-table--striped .rcmi-table-scroll > table > tbody > tr:nth-child(even) > td{
 		background:var(--rcmi-tbl-body-bg);
 	}
 }
@@ -299,8 +387,9 @@
 /* These classes only exist inside the block editor. */
 
 /* Table: selection + editable cells */
-.editor-styles-wrapper .rcmi-table-block th,
-.editor-styles-wrapper .rcmi-table-block td{
+.editor-styles-wrapper .rcmi-table-block .rcmi-table-scroll > table > thead > tr > th,
+.editor-styles-wrapper .rcmi-table-block .rcmi-table-scroll > table > tbody > tr > th,
+.editor-styles-wrapper .rcmi-table-block .rcmi-table-scroll > table > tbody > tr > td{
 	position:relative;
 	min-width:72px;
 }
@@ -314,6 +403,58 @@
 	outline-offset:-2px;
 }
 .editor-styles-wrapper .rcmi-table-block .rcmi-td-inner{ min-height:1.4em; }
+
+/* Table: structured cell preview (non-editable) + cell editor modal */
+.editor-styles-wrapper .rcmi-table-block .rcmi-td-structured{
+	cursor:default;
+}
+.editor-styles-wrapper .rcmi-table-block .rcmi-td-structured > :first-child{
+	margin-top:0;
+}
+.rcmi-td-edit-btn{
+	display:block;
+	margin-top:8px;
+}
+.rcmi-cell-editor-modal{ max-width:760px; }
+.rcmi-cell-editor-modal .wp-editor-wrap,
+.rcmi-cell-editor-modal iframe{ width:100%; }
+.rcmi-cell-editor-error{ margin:10px 0 0; }
+.rcmi-cell-table-controls{
+	border-top:1px solid #ddd;
+	margin-top:16px;
+	padding-top:12px;
+}
+.rcmi-cell-table-controls h3{
+	font-size:13px;
+	margin:0 0 10px;
+}
+.rcmi-cell-table-row{
+	display:flex;
+	flex-wrap:wrap;
+	gap:6px;
+	margin-bottom:12px;
+}
+.rcmi-cell-table-insert{
+	display:grid;
+	grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+	gap:8px 12px;
+	align-items:end;
+}
+.rcmi-cell-table-insert .components-base-control{ margin-bottom:0; }
+.rcmi-cell-table-note{
+	font-size:12px;
+	color:#757575;
+	margin:8px 0 0;
+	grid-column:1 / -1;
+}
+.rcmi-cell-editor-actions{
+	display:flex;
+	justify-content:flex-end;
+	gap:8px;
+	margin-top:16px;
+	border-top:1px solid #ddd;
+	padding-top:12px;
+}
 
 /* Directory: photo picker + remove button + add-person tile */
 .rcmi-dir-photo-btn{
