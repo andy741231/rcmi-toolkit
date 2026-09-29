@@ -307,7 +307,7 @@
 					mobileScale: parseFloat( layer.getAttribute( 'data-mobile-scale' ) ) || 100,
 					mobilePosX: parseFloat( layer.getAttribute( 'data-mobile-pos-x' ) ) || 50,
 					mobilePosY: parseFloat( layer.getAttribute( 'data-mobile-pos-y' ) ) || 50,
-					origObjectFit: getComputedStyle( layer ).objectFit || 'contain',
+					origObjectFit: layer.style.objectFit || 'cover',
 					origObjectPosition: layer.style.objectPosition || ''
 				} );
 			} );
@@ -396,12 +396,12 @@
 					d.el.style.setProperty( '--pos-x', usePosX + '%' );
 					d.el.style.setProperty( '--pos-y', usePosY + '%' );
 
-					// On mobile: if a dedicated mobile image is set,
-					// use contain (show the full pre-cropped image). If no
-					// mobile image, use cover (fills screen, may crop).
+					// object-fit follows the scale rule at every breakpoint:
+					// cover fills the layer box at scale >= 100 (no gaps at
+					// any aspect ratio); below 100 = windowed mode, contain
+					// keeps the whole image framed.
 					if ( isMobile ) {
-						var hasMobile = d.el.getAttribute( 'data-has-mobile' ) === '1';
-						d.el.style.objectFit = hasMobile ? 'contain' : 'cover';
+						d.el.style.objectFit = useScale >= 100 ? 'cover' : 'contain';
 						d.el.style.objectPosition = useObjectPosition;
 					} else {
 						d.el.style.objectFit = d.origObjectFit;
@@ -866,40 +866,10 @@
 				}
 			} );
 
-			// Mobile background image: swap on resize.
-			var MOBILE_WIDTH = 768;
-			function applyMobileBg() {
-				var isMobile = window.matchMedia( '(max-width: ' + ( MOBILE_WIDTH - 1 ) + 'px)' ).matches;
-				slides.forEach( function ( slide ) {
-					var mobileBg = slide.getAttribute( 'data-mobile-bg' );
-					if ( ! mobileBg ) return;
-					var mobileScale = slide.getAttribute( 'data-mobile-scale' ) || 110;
-					var mobilePosX = slide.getAttribute( 'data-mobile-pos-x' ) || 50;
-					var mobilePosY = slide.getAttribute( 'data-mobile-pos-y' ) || 50;
-					if ( isMobile ) {
-						slide.style.backgroundImage = 'url(' + mobileBg + ')';
-						slide.style.backgroundSize = mobileScale + '%';
-						slide.style.backgroundPosition = mobilePosX + '% ' + mobilePosY + '%';
-					} else {
-						// Restore desktop background from the original style attribute.
-						var origStyle = slide.getAttribute( 'style' ) || '';
-						var bgMatch = origStyle.match( /background-image:url\([^)]+\)/ );
-						if ( bgMatch ) {
-							slide.style.backgroundImage = bgMatch[0].replace( 'background-image:', '' );
-						}
-						var sizeMatch = origStyle.match( /background-size:\d+%/ );
-						if ( sizeMatch ) {
-							slide.style.backgroundSize = sizeMatch[0].replace( 'background-size:', '' );
-						}
-						var posMatch = origStyle.match( /background-position:\d+%\s*\d+%/ );
-						if ( posMatch ) {
-							slide.style.backgroundPosition = posMatch[0].replace( 'background-position:', '' );
-						}
-					}
-				} );
-			}
-			applyMobileBg();
-			window.addEventListener( 'resize', applyMobileBg );
+			// Mobile background images are swapped natively: <source media>
+			// in the slide's <picture> picks the file, and --rcmi-mobile-*
+			// custom props drive scale/position via a media query in
+			// rcmi.css — no JS needed here.
 		} );
 	}
 

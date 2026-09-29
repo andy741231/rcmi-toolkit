@@ -1766,20 +1766,70 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
-			// Background image style.
-			$bg_url = $attrs['bgImageUrl'] ?? '';
-			$bg_style = 'height:80vh;'; // Default height; parent slide-block overrides via regex.
-			if ( $bg_url ) {
-				$bg_scale = intval( $attrs['bgScale'] ?? 120 );
-				$bg_pos_x = intval( $attrs['bgPositionX'] ?? 50 );
-				$bg_pos_y = intval( $attrs['bgPositionY'] ?? 50 );
-				$bg_style .= sprintf(
-					'background-image:url(%s);background-size:%d%%;background-position:%d%% %d%%;background-repeat:no-repeat;',
-					esc_url( $bg_url ),
-					$bg_scale,
-					$bg_pos_x,
-					$bg_pos_y
-				);
+			// Background image — a real <img> element (same formula as the
+			// hero layer renderer): an oversized object-fit:cover box,
+			// centered on the section, panned by object-position + a small
+			// translate within the scale slack. background-size:N% only
+			// scales by element width, so a landscape image on a narrow
+			// phone ended up shorter than the slide — leaving empty bands
+			// top/bottom. cover guarantees the image fills at any aspect.
+			// posX/posY use the plain object-position convention (unlike
+			// the hero's pan amounts), so both axes offset by (50 - pos).
+			$bg_url        = $attrs['bgImageUrl'] ?? '';
+			$bg_mobile_url = $attrs['bgMobileImageUrl'] ?? '';
+			$bg_style      = 'height:80vh;'; // Default height; parent slide-block overrides via regex.
+			$bg_img_html   = '';
+			if ( $bg_url || $bg_mobile_url ) {
+				$img_style_for = function ( $scale, $pos_x, $pos_y ) {
+					$slack = max( 0, $scale - 100 ) / 2;
+					$range = max( 100, $slack );
+					return 'position:absolute;top:50%;left:50%;'
+						. 'width:' . $scale . '%;height:' . $scale . '%;'
+						. 'max-width:none;max-height:none;'
+						. 'object-fit:' . ( $scale >= 100 ? 'cover' : 'contain' ) . ';'
+						. 'object-position:' . $pos_x . '% ' . $pos_y . '%;'
+						. '--pos-x:' . ( ( 50 - $pos_x ) * $range / $scale ) . '%;'
+						. '--pos-y:' . ( ( 50 - $pos_y ) * $range / $scale ) . '%;'
+						. 'transform:translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)));'
+						. 'pointer-events:none;user-select:none;';
+				};
+
+				$bg_scale = max( 25, min( 300, intval( $attrs['bgScale'] ?? 120 ) ) );
+				$m_scale  = max( 25, min( 300, intval( $attrs['bgMobileScale'] ?? 110 ) ) );
+				$m_pos_x  = intval( $attrs['bgMobilePositionX'] ?? 50 );
+				$m_pos_y  = intval( $attrs['bgMobilePositionY'] ?? 50 );
+
+				if ( ! $bg_url ) {
+					// Mobile-only image: hidden on desktop, shown at ≤767px
+					// by the .rcmi-slide-bg[data-mobile-only] media rule.
+					$bg_img_html = '<img class="rcmi-slide-bg" data-mobile-only="1" style="'
+						. esc_attr( $img_style_for( $m_scale, $m_pos_x, $m_pos_y ) ) . '"'
+						. ' src="' . esc_url( $bg_mobile_url ) . '" alt="" aria-hidden="true" decoding="async" />';
+				} else {
+					$img_style  = $img_style_for( $bg_scale, intval( $attrs['bgPositionX'] ?? 50 ), intval( $attrs['bgPositionY'] ?? 50 ) );
+					$source_html = '';
+					$has_mobile  = '';
+					if ( $bg_mobile_url ) {
+						// Optional mobile image — a <source> swaps the file
+						// at ≤767px (no JS, no double download) and custom
+						// properties carry the mobile scale/position to the
+						// media query in rcmi.css.
+						$m_slack = max( 0, $m_scale - 100 ) / 2;
+						$m_range = max( 100, $m_slack );
+						$img_style .= '--rcmi-mobile-scale:' . $m_scale . '%;'
+							. '--rcmi-mobile-pos-x:' . ( ( 50 - $m_pos_x ) * $m_range / $m_scale ) . '%;'
+							. '--rcmi-mobile-pos-y:' . ( ( 50 - $m_pos_y ) * $m_range / $m_scale ) . '%;'
+							. '--rcmi-mobile-object-fit:' . ( $m_scale >= 100 ? 'cover' : 'contain' ) . ';'
+							. '--rcmi-mobile-object-position:' . $m_pos_x . '% ' . $m_pos_y . '%;';
+						$source_html = '<source media="(max-width: 767px)" srcset="' . esc_url( $bg_mobile_url ) . '" />';
+						$has_mobile  = ' data-has-mobile="1"';
+					}
+
+					$bg_img_html = '<picture class="rcmi-slide-bg-wrap" style="display:contents;">' . $source_html
+						. '<img class="rcmi-slide-bg"' . $has_mobile . ' style="' . esc_attr( $img_style ) . '"'
+						. ' src="' . esc_url( $bg_url ) . '" alt="" aria-hidden="true" decoding="async" />'
+						. '</picture>';
+				}
 			}
 
 			// Scrim gradient.
@@ -1800,22 +1850,12 @@ function rcmi_register_server_side_blocks() {
 				$copy_style = 'max-width:570px;margin-left:auto;margin-right:0;';
 			}
 
-			// Mobile background image data attributes.
-			$mobile_bg_attr = '';
-			$bg_mobile_url = $attrs['bgMobileImageUrl'] ?? '';
-			if ( $bg_mobile_url ) {
-				$mobile_bg_attr = ' data-mobile-bg="' . esc_url( $bg_mobile_url ) . '"';
-				$mobile_bg_attr .= ' data-mobile-scale="' . intval( $attrs['bgMobileScale'] ?? 110 ) . '"';
-				$mobile_bg_attr .= ' data-mobile-pos-x="' . intval( $attrs['bgMobilePositionX'] ?? 50 ) . '"';
-				$mobile_bg_attr .= ' data-mobile-pos-y="' . intval( $attrs['bgMobilePositionY'] ?? 50 ) . '"';
-			}
-
 			return sprintf(
-				'<section class="rcmi-slide%s%s" style="%s"%s><div class="rcmi-slide-scrim" aria-hidden="true" style="%s"></div><div class="wrap rcmi-slide-inner"><div class="rcmi-slide-copy" style="%s">%s</div></div></section>',
+				'<section class="rcmi-slide%s%s" style="%s">%s<div class="rcmi-slide-scrim" aria-hidden="true" style="%s"></div><div class="wrap rcmi-slide-inner"><div class="rcmi-slide-copy" style="%s">%s</div></div></section>',
 				esc_attr( ' ' . $align_class ),
 				esc_attr( $color_class ),
 				esc_attr( $bg_style ),
-				$mobile_bg_attr,
+				$bg_img_html, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from escaped parts above
 				esc_attr( $scrim_style ),
 				esc_attr( $copy_style ),
 				$content // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP
@@ -2219,23 +2259,27 @@ function rcmi_register_server_side_blocks() {
 				// so that increasing the slider moves the image up.
 				$pos_offset_y = ( 50 - $pos_y ) * $range / $scale;
 
-				// Desktop/tablet: object-fit:contain (full image visible).
-				// Mobile: object-fit:cover (fills screen, may crop).
-				// The JS in frontend.js handles the switch at ≤768px.
+				// object-fit:cover at scale ≥ 100 so the image always fills
+				// the layer box (contain would letterbox whenever the image
+				// aspect differs from the section aspect — e.g. empty side
+				// bands on ultra-wide screens). Below 100% = deliberate
+				// "windowed" mode, where contain keeps the whole image
+				// framed inside the smaller box.
 				// Mobile values are stored as CSS custom properties so a
 				// single global media-query rule in rcmi.css can apply them
 				// at first paint (before JS runs), preventing the initial
 				// mobile "jump" without per-layer <style> tags.
+				$object_fit = $scale >= 100 ? 'cover' : 'contain';
 				$mobile_slack = max( 0, $mobile_scale - 100 ) / 2;
 				$mobile_range = max( 100, $mobile_slack );
 				$mobile_pos_offset_x = ( $mobile_pos_x - 50 ) * $mobile_range / $mobile_scale;
 				$mobile_pos_offset_y = ( 50 - $mobile_pos_y ) * $mobile_range / $mobile_scale;
-				$mobile_object_fit = $mobile_image_id ? 'contain' : 'cover';
+				$mobile_object_fit = $mobile_scale >= 100 ? 'cover' : 'contain';
 
 				$style = 'position:absolute;top:50%;left:50%;'
 					. 'width:' . $scale . '%;height:' . $scale . '%;'
 					. 'max-width:none;max-height:none;'
-					. 'object-fit:contain;'
+					. 'object-fit:' . $object_fit . ';'
 					. 'object-position:' . $pos_x . '% ' . ( 100 - $pos_y ) . '%;'
 					. '--pos-x:' . $pos_offset_x . '%;'
 					. '--pos-y:' . $pos_offset_y . '%;'

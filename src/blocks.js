@@ -2064,13 +2064,37 @@
 
 			var scrimGradient = buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle );
 
-			// Background style
-			var bgStyle = {};
+			// Background image — an oversized object-fit:cover <img> panned
+			// by object-position + a translate within the scale slack (same
+			// formula as the PHP render). posX/posY are plain object-position
+			// values, so both axes offset by (50 - pos).
+			var bgImg = null;
 			if ( attrs.bgImageUrl ) {
-				bgStyle.backgroundImage = 'url(' + attrs.bgImageUrl + ')';
-				bgStyle.backgroundSize = ( attrs.bgScale || 120 ) + '%';
-				bgStyle.backgroundPosition = ( attrs.bgPositionX || 50 ) + '% ' + ( attrs.bgPositionY || 50 ) + '%';
-				bgStyle.backgroundRepeat = 'no-repeat';
+				var bgScale = attrs.bgScale || 120;
+				var bgPosX = attrs.bgPositionX || 50;
+				var bgPosY = attrs.bgPositionY || 50;
+				var bgSlack = Math.max( 0, bgScale - 100 ) / 2;
+				var bgRange = Math.max( 100, bgSlack );
+				bgImg = el( 'img', {
+					className: 'rcmi-slide-bg',
+					src: attrs.bgImageUrl,
+					alt: '',
+					'aria-hidden': 'true',
+					style: {
+						position: 'absolute',
+						top: '50%',
+						left: '50%',
+						width: bgScale + '%',
+						height: bgScale + '%',
+						maxWidth: 'none',
+						maxHeight: 'none',
+						objectFit: bgScale >= 100 ? 'cover' : 'contain',
+						objectPosition: bgPosX + '% ' + bgPosY + '%',
+						transform: 'translate(calc(-50% + ' + ( ( 50 - bgPosX ) * bgRange / bgScale ) + '%),calc(-50% + ' + ( ( 50 - bgPosY ) * bgRange / bgScale ) + '%))',
+						pointerEvents: 'none',
+						zIndex: 0
+					}
+				} );
 			}
 
 			// Content alignment style
@@ -2225,7 +2249,8 @@
 			return el( Fragment, null,
 				inspector,
 				el( 'div', blockProps,
-					el( 'section', { className: 'rcmi-slide' + colorClass, style: Object.assign( { position: 'relative', display: 'flex', alignItems: 'center' }, bgStyle ) },
+					el( 'section', { className: 'rcmi-slide' + colorClass, style: { position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden' } },
+						bgImg,
 						el( 'div', { className: 'rcmi-slide-scrim', style: { background: scrimGradient } } ),
 						el( 'div', { className: 'wrap rcmi-slide-inner' },
 							el( 'div', { className: 'rcmi-slide-copy', style: copyStyle },
@@ -2745,10 +2770,14 @@
 			// mechanisms: object-position (works at any scale, in the cover-
 			// crop dimension) and transform (works at scale > 100%, both
 			// dimensions). At scale 100%, only object-position works.
-			var layerPreview = function ( url, label, zIndex, posX, posY, scale, objectFit ) {
+			var layerPreview = function ( url, label, zIndex, posX, posY, scale ) {
 				// Matches the PHP render callback: scale% × scale%
-				// of section, centered, object-fit:contain (full image
-				// visible). Position X/Y controls the layer transform (pan).
+				// of section, centered. object-fit:cover at scale >= 100 so
+				// the image always fills the layer box (contain would
+				// letterbox on aspect mismatch, e.g. empty side bands on
+				// ultra-wide screens); below 100 = windowed mode → contain.
+				// Position X/Y controls the layer transform (pan).
+				var objectFit = scale >= 100 ? 'cover' : 'contain';
 				var imgSlack = Math.max( 0, scale - 100 ) / 2;
 				var range = Math.max( 100, imgSlack );
 				var posOffsetX = ( posX - 50 ) * range / scale;
@@ -2766,7 +2795,7 @@
 							height: scale + '%',
 							maxWidth: 'none',
 							maxHeight: 'none',
-							objectFit: objectFit || 'contain',
+							objectFit: objectFit,
 							objectPosition: posX + '% ' + ( 100 - posY ) + '%',
 							'--pos-x': posOffsetX + '%',
 							'--pos-y': posOffsetY + '%',
@@ -2785,7 +2814,7 @@
 			// scale, and position. Tablet uses the tablet scale multiplier
 			// with interpolated pan matching the 768px responsive boundary
 			// (panFactor ≈ 0 at tablet width, per frontend.js interpolation).
-			var previewLayer = function ( url, mobileUrl, label, zIndex, posXKey, posYKey, scale, mobilePosXKey, mobilePosYKey, mobileScale, hasMobile ) {
+			var previewLayer = function ( url, mobileUrl, label, zIndex, posXKey, posYKey, scale, mobilePosXKey, mobilePosYKey, mobileScale ) {
 				var isMobilePreview = deviceType === 'Mobile';
 				var isTabletPreview = deviceType === 'Tablet';
 				var previewUrl = isMobilePreview && mobileUrl ? mobileUrl : url;
@@ -2801,13 +2830,11 @@
 				var mPos = posOf( mobilePosXKey, mobilePosYKey );
 				var previewPosX = dPos[0];
 				var previewPosY = dPos[1];
-				var previewFit = 'contain';
 
 				if ( isMobilePreview ) {
 					previewScale = mobileScale;
 					previewPosX = mPos[0];
 					previewPosY = mPos[1];
-					previewFit = hasMobile ? 'contain' : 'cover';
 				} else if ( isTabletPreview ) {
 					// Tablet: scale × tabletMult, pan interpolated to ~0
 					// at the 768px boundary (matching frontend.js where
@@ -2819,7 +2846,7 @@
 					previewPosY = 50;
 				}
 
-				return layerPreview( previewUrl, label, zIndex, previewPosX, previewPosY, previewScale, previewFit );
+				return layerPreview( previewUrl, label, zIndex, previewPosX, previewPosY, previewScale );
 			};
 
 			// Alignment buttons.
@@ -3029,15 +3056,15 @@
 			if ( isParallax ) {
 				previewChildren.push(
 					el( 'div', { className: 'rcmi-parallax-layers' },
-						previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale, !! attrs.bgMobileImageUrl ),
-						previewLayer( attrs.midImageUrl, attrs.midMobileImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex, 'midPositionX', 'midPositionY', attrs.midScale, 'midMobilePositionX', 'midMobilePositionY', attrs.midMobileScale, !! attrs.midMobileImageUrl ),
-						previewLayer( attrs.fgImageUrl, attrs.fgMobileImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex, 'fgPositionX', 'fgPositionY', attrs.fgScale, 'fgMobilePositionX', 'fgMobilePositionY', attrs.fgMobileScale, !! attrs.fgMobileImageUrl )
+						previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale ),
+						previewLayer( attrs.midImageUrl, attrs.midMobileImageUrl, __( 'Middle', 'rcmi-toolkit' ), attrs.midZIndex, 'midPositionX', 'midPositionY', attrs.midScale, 'midMobilePositionX', 'midMobilePositionY', attrs.midMobileScale ),
+						previewLayer( attrs.fgImageUrl, attrs.fgMobileImageUrl, __( 'Foreground', 'rcmi-toolkit' ), attrs.fgZIndex, 'fgPositionX', 'fgPositionY', attrs.fgScale, 'fgMobilePositionX', 'fgMobilePositionY', attrs.fgMobileScale )
 					)
 				);
 			} else {
 				// Static mode: single background image with position + scale.
 				previewChildren.push(
-					previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale, !! attrs.bgMobileImageUrl )
+					previewLayer( attrs.bgImageUrl, attrs.bgMobileImageUrl, __( 'Background', 'rcmi-toolkit' ), attrs.bgZIndex, 'bgPositionX', 'bgPositionY', attrs.bgScale, 'bgMobilePositionX', 'bgMobilePositionY', attrs.bgMobileScale )
 				);
 			}
 
