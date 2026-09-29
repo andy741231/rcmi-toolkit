@@ -227,12 +227,9 @@
 	//   scroll (default): layers translate based on scroll position
 	//   mouse: layers follow mouse position (parallax tilt effect)
 	//
-	// Speed sign controls direction. The foreground/content layers and
-	// background/middle layers always move in opposite directions to
-	// create depth. The sign of each layer's speed flips which way it
-	// moves:
-	//   positive speed: foreground drifts down, background/middle rise
-	//   negative speed: foreground rises, background/middle drift down
+	// Direction is determined solely by the sign of each layer's speed:
+	//   positive speed: layer drifts down as the section scrolls up
+	//   negative speed: layer rises as the section scrolls up
 	//
 	// SIMPLE ABSOLUTE APPROACH:
 	// Layers stay exactly as PHP renders them: position:absolute, scale% ×
@@ -241,16 +238,56 @@
 	// No fixed positioning, no clip-path, no resizing — so the published
 	// page matches the editor preview by construction.
 	//
-	// The offset range is viewport-height × speed, which is large enough
-	// that the background can drift opposite to the scroll direction
-	// (climbwales.co.uk effect). At scale=100% the layer has no slack, so
-	// movement may reveal gaps at the section edges — this is accepted
-	// (gaps are preferable to cropping the image). Increasing scale adds
-	// slack and eliminates gaps.
+	// Travel is bounded: at scale >= 100% the added offset is clamped so
+	// the layer's edges can never slide inside the section box (no top/
+	// bottom gaps). At scale 100% there is zero slack, so the layer does
+	// not move. Below 100% the layer is deliberately windowed and the
+	// offset is applied unclamped. Focal-point pans consume slack
+	// asymmetrically, so the two bounds are independent.
 	//
 	// Uses requestAnimationFrame + translate3d for GPU-composited 60fps.
 	// Disabled for prefers-reduced-motion.
 	// ============================================================
+
+	// [rcmi-parallax-helpers-start]
+	// Pure math helper — extractable for Node tests.
+	//
+	// Bounds for the parallax Y-offset added on top of the centering/pan
+	// transform. The layer is scale% × scale% of the section, centered,
+	// then translated by panPercent% of its own height. With
+	//   L      = sectionHeight * scale/100   (layer height, px)
+	//   basePan= L * panPercent/100          (existing pan shift, px)
+	//   slack  = (L - sectionHeight)/2       (headroom per edge, px)
+	// keeping the layer covering the section requires
+	//   -slack - basePan <= offset <= slack - basePan
+	// At scale < 100 the layer intentionally windows the section, so the
+	// offset is returned unclamped.
+	function rcmiClampParallaxOffset( offset, sectionHeight, scale, panPercent ) {
+		offset = parseFloat( offset );
+		sectionHeight = parseFloat( sectionHeight );
+		scale = parseFloat( scale );
+		panPercent = parseFloat( panPercent );
+		if ( ! isFinite( offset ) || ! isFinite( sectionHeight ) || ! isFinite( scale ) || ! isFinite( panPercent ) || sectionHeight <= 0 || scale <= 0 ) {
+			return 0;
+		}
+		if ( scale < 100 ) {
+			return offset;
+		}
+		var layerH = sectionHeight * scale / 100;
+		var basePan = layerH * panPercent / 100;
+		var slack = ( layerH - sectionHeight ) / 2;
+		var lo = -slack - basePan;
+		var hi = slack - basePan;
+		if ( offset < lo ) {
+			return lo;
+		}
+		if ( offset > hi ) {
+			return hi;
+		}
+		return offset;
+	}
+	// [rcmi-parallax-helpers-end]
+
 	function initParallax() {
 		var sections = document.querySelectorAll( '.rcmi-parallax' );
 		if ( ! sections.length ) {
@@ -304,9 +341,13 @@
 					posX: layer.style.getPropertyValue( '--pos-x' ) || '0%',
 					posY: layer.style.getPropertyValue( '--pos-y' ) || '0%',
 					scale: parseFloat( layer.style.width ) || 100,
+					// Only image layers carry the cover-the-section contract;
+					// the content layer (rcmi-parallax-copy) keeps free motion.
+					isLayer: layer.classList.contains( 'rcmi-parallax-layer' ),
 					mobileScale: parseFloat( layer.getAttribute( 'data-mobile-scale' ) ) || 100,
-					mobilePosX: parseFloat( layer.getAttribute( 'data-mobile-pos-x' ) ) || 50,
-					mobilePosY: parseFloat( layer.getAttribute( 'data-mobile-pos-y' ) ) || 50,
+					// isNaN (not ||) so a deliberate 0 position survives.
+					mobilePosX: isNaN( parseFloat( layer.getAttribute( 'data-mobile-pos-x' ) ) ) ? 50 : parseFloat( layer.getAttribute( 'data-mobile-pos-x' ) ),
+					mobilePosY: isNaN( parseFloat( layer.getAttribute( 'data-mobile-pos-y' ) ) ) ? 50 : parseFloat( layer.getAttribute( 'data-mobile-pos-y' ) ),
 					origObjectFit: layer.style.objectFit || 'cover',
 					origObjectPosition: layer.style.objectPosition || ''
 				} );
@@ -395,6 +436,10 @@
 					d.el.style.height = useScale + '%';
 					d.el.style.setProperty( '--pos-x', usePosX + '%' );
 					d.el.style.setProperty( '--pos-y', usePosY + '%' );
+					// Cache for the parallax offset clamp — updated here so
+					// scroll/mouse handlers never re-measure the layer.
+					d.activeScale = useScale;
+					d.activePosY = usePosY;
 
 					// object-fit follows the scale rule at every breakpoint:
 					// cover fills the layer box at scale >= 100 (no gaps at
@@ -432,6 +477,11 @@
 							item.layerData.forEach( function ( d ) {
 								d.el.style.transform = d.baseTransform;
 							} );
+						} else {
+							// Re-applying the (clamped) mouse offset when the
+							// section comes back into view keeps the pan
+							// correction in place without needing a mousemove.
+							updateMouse();
 						}
 					}
 				} );
@@ -486,20 +536,24 @@
 					// scrolls up (distFromCenter decreases), the offset
 					// increases (layer moves down on screen).
 					// A negative speed flips the direction.
-					// No clamping — layers move freely at full speed. Gaps
-					// may appear at the section edges when the layer slides
-					// out of view; increase scale to add headroom.
+					// Image-layer offsets are clamped to the scaled layer's
+					// available headroom (rcmiClampParallaxOffset) so at
+					// scale >= 100% the layer can never slide its edges
+					// inside the section. Below 100% the layer is windowed
+					// and moves unclamped. Non-image layers (content) are
+					// never clamped.
 					var offset = -distFromCenter * speed * travelMultiplier;
-
-					// On mobile, the travelMultiplier (mobile intensity) is
-					// the sole dampener. If edges appear at low mobile scale,
-					// increase the layer's mobile scale to add headroom.
+					if ( d.isLayer ) {
+						offset = rcmiClampParallaxOffset( offset, rect.height, d.activeScale, d.activePosY );
+					}
 
 					// Append the parallax offset to the layer's base transform
 					// (which handles centering + panning). The base transform
 					// is translate(calc(-50% + var(--pos-x)), calc(-50% + var(--pos-y))).
 					// We add the parallax Y offset as a second translate.
-					layer.style.transform = d.baseTransform + ' translate3d(0, ' + offset.toFixed( 2 ) + 'px, 0)';
+					// Full precision (no toFixed rounding) so a clamped edge
+					// value can never round a fraction of a pixel out of bounds.
+					layer.style.transform = d.baseTransform + ' translate3d(0, ' + offset + 'px, 0)';
 				} );
 			} );
 		}
@@ -538,8 +592,12 @@
 					var layer = d.el;
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
 					var travelY = rect.height * speed * 0.15 * travelMultiplier;
+					var offset = mouseTargetY * travelY;
+					if ( d.isLayer ) {
+						offset = rcmiClampParallaxOffset( offset, rect.height, d.activeScale, d.activePosY );
+					}
 					layer.style.transform = d.baseTransform
-						+ ' translate3d(0, ' + ( mouseTargetY * travelY ).toFixed( 2 ) + 'px, 0)';
+						+ ' translate3d(0, ' + offset + 'px, 0)';
 				} );
 			} );
 		}
@@ -547,21 +605,31 @@
 		// ---- Init ----
 		if ( items.some( function ( i ) { return i.mode === 'scroll'; } ) ) {
 			window.addEventListener( 'scroll', onScroll, { passive: true } );
-			window.addEventListener( 'resize', function () { applyPanScaling(); onScroll(); } );
 			updateScroll();
-			// Recalculate after layout fully settles (fixed header offset,
-			// web fonts, etc.). Without this, the initial offsets are
-			// calculated before nav.js applies --rcmi-header-offset, causing
-			// the parallax images to jump on the first scroll event.
-			window.addEventListener( 'load', updateScroll );
-		} else {
-			// Mouse-only: still need resize for pan scaling.
-			window.addEventListener( 'resize', applyPanScaling );
 		}
-		// Mouse mode: initialize layers to base transform.
+		// One resize listener for both modes: re-scale/re-pan the layers,
+		// then recompute the current scroll AND mouse offsets so existing
+		// translations are re-clamped against the new geometry even when
+		// no new scroll/mouse event has fired.
+		window.addEventListener( 'resize', function () {
+			applyPanScaling();
+			onScroll();
+			updateMouse();
+		} );
+		// Recalculate after layout fully settles (fixed header offset,
+		// web fonts, etc.). Without this, the initial offsets are
+		// calculated before nav.js applies --rcmi-header-offset, causing
+		// the parallax images to jump on the first scroll event. Mouse
+		// items recompute too so the offset-0 pan correction applies.
+		window.addEventListener( 'load', function () { updateScroll(); updateMouse(); } );
+		// Mouse mode: initialize layers with the clamped zero offset so an
+		// off-center focal pan that exceeds the headroom is corrected back
+		// inside the section box immediately.
 		mouseItems.forEach( function ( item ) {
+			var sectionHeight = item.section.getBoundingClientRect().height;
 			item.layerData.forEach( function ( d ) {
-				d.el.style.transform = d.baseTransform;
+				var offset = d.isLayer ? rcmiClampParallaxOffset( 0, sectionHeight, d.activeScale, d.activePosY ) : 0;
+				d.el.style.transform = d.baseTransform + ' translate3d(0, ' + offset + 'px, 0)';
 			} );
 		} );
 	}

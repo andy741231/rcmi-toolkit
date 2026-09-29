@@ -2741,7 +2741,7 @@
 									min: -2,
 									max: 2,
 									step: 0.05,
-									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign.', 'rcmi-toolkit' )
+									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign. Movement is limited by the image scale and focal position so edges stay filled — increase scale for more travel.', 'rcmi-toolkit' )
 								} ),
 								attrs[ urlKey ] ? el( FocalPointPicker, Object.assign( {
 									label: __( 'Focal point', 'rcmi-toolkit' ),
@@ -2964,7 +2964,7 @@
 						min: 0,
 						max: 2,
 						step: 0.05,
-						help: __( '0 = no parallax on mobile, 1 = normal intensity, 2 = double intensity. If edges appear, increase the layer mobile scale for headroom.', 'rcmi-toolkit' )
+						help: __( '0 = no parallax on mobile, 1 = normal intensity, 2 = double intensity. Movement is limited to available image headroom; increase mobile scale for more travel.', 'rcmi-toolkit' )
 					} ),
 					el( RangeControl, {
 						label: __( 'Tablet scale multiplier', 'rcmi-toolkit' ),
