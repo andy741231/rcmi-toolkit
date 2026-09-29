@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RCMI_TOOLKIT_VERSION', '1.4.0' );
+define( 'RCMI_TOOLKIT_VERSION', '1.4.1' );
 define( 'RCMI_TOOLKIT_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RCMI_TOOLKIT_URL', plugin_dir_url( __FILE__ ) );
 define( 'RCMI_TOOLKIT_GITHUB_USER', 'andy741231' );
