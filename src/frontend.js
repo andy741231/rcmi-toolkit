@@ -659,22 +659,11 @@
 				slides.forEach( function ( s, i ) {
 					s.classList.toggle( 'is-active', i === currentIdx );
 				} );
-				dots.forEach( function ( d, i ) {
-					d.classList.toggle( 'is-active', i === currentIdx );
-				} );
+				updateDots( currentIdx );
 			}
 
 			function cleanup( oldSlide, newSlide ) {
 				var gsapProps = 'opacity,transform,display,position,top,left,right,zIndex,clipPath,transformOrigin';
-				console.log('[slide] cleanup START', {
-					newDisplay: getComputedStyle(newSlide).display,
-					newPosition: getComputedStyle(newSlide).position,
-					newOffsetH: newSlide.offsetHeight,
-					oldDisplay: oldSlide ? getComputedStyle(oldSlide).display : 'n/a',
-					oldPosition: oldSlide ? getComputedStyle(oldSlide).position : 'n/a',
-					trackMinH: track.style.minHeight,
-					trackOffsetH: track.offsetHeight
-				} );
 				// Clear the new slide FIRST so it returns to static position
 				// and display:flex (from .is-active CSS) before we remove
 				// the track's minHeight. This prevents a white flash caused
@@ -682,34 +671,31 @@
 				// minHeight and the new slide taking up space in flow.
 				gsap.set( newSlide, { clearProps: gsapProps } );
 				newSlide.classList.add( 'is-active' );
-				console.log('[slide] cleanup: newSlide clearProps done', { display: getComputedStyle(newSlide).display, position: getComputedStyle(newSlide).position, offsetH: newSlide.offsetHeight } );
 				if ( oldSlide ) {
 					gsap.set( oldSlide, { clearProps: gsapProps } );
 					oldSlide.classList.remove( 'is-active' );
-					console.log('[slide] cleanup: oldSlide clearProps done', { display: getComputedStyle(oldSlide).display, position: getComputedStyle(oldSlide).position, isActive: oldSlide.classList.contains('is-active') } );
 				}
 				track.classList.remove( 'is-animating' );
 				track.style.height = '';
 				track.style.overflow = '';
-				console.log('[slide] cleanup: track height cleared', { trackOffsetH: track.offsetHeight, newOffsetH: newSlide.offsetHeight } );
 				isAnimating = false;
 			}
 
-			function updateDots() {
+			function updateDots( activeIdx ) {
 				dots.forEach( function ( d, i ) {
-					d.classList.toggle( 'is-active', i === currentIdx );
+					d.classList.toggle( 'is-active', i === activeIdx );
 				} );
 			}
 
 			function goTo( newIdx, dir ) {
-				if ( isAnimating ) { console.log('[slide] goTo blocked: isAnimating'); return; }
-				if ( newIdx === currentIdx ) { console.log('[slide] goTo blocked: same idx', newIdx); return; }
+				if ( isAnimating ) { return; }
+				if ( newIdx === currentIdx ) { return; }
 				if ( newIdx < 0 ) {
-					if ( ! loop ) { console.log('[slide] goTo blocked: no loop, <0'); return; }
+					if ( ! loop ) { return; }
 					newIdx = slides.length - 1;
 				}
 				if ( newIdx >= slides.length ) {
-					if ( ! loop ) { console.log('[slide] goTo blocked: no loop, >=len'); return; }
+					if ( ! loop ) { return; }
 					newIdx = 0;
 				}
 				if ( dir === undefined ) {
@@ -719,16 +705,13 @@
 				var oldSlide = slides[ currentIdx ];
 				var newSlide = slides[ newIdx ];
 
-				console.log('[slide] goTo start', { from: currentIdx, to: newIdx, dir: dir, transition: transition } );
-				console.log('[slide] oldSlide', { offsetHeight: oldSlide ? oldSlide.offsetHeight : 0, display: oldSlide ? getComputedStyle(oldSlide).display : 'n/a', position: oldSlide ? getComputedStyle(oldSlide).position : 'n/a', height: oldSlide ? getComputedStyle(oldSlide).height : 'n/a' } );
-				console.log('[slide] newSlide', { offsetHeight: newSlide.offsetHeight, display: getComputedStyle(newSlide).display, position: getComputedStyle(newSlide).position, height: getComputedStyle(newSlide).height } );
-				console.log('[slide] track', { offsetHeight: track.offsetHeight, minHeight: getComputedStyle(track).minHeight, height: getComputedStyle(track).height } );
-
-				updateDots();
+				// Reflect the incoming slide on the dots right away — the
+				// previous call site ran before currentIdx updated, leaving
+				// the active dot one step behind.
+				updateDots( newIdx );
 
 				if ( ! transition || transition === 'none' || reducedMotion || ! hasGsap || ! slideTransitions[ transition ] ) {
 					// Instant switch.
-					console.log('[slide] instant switch (no gsap/none/reduced)');
 					slides.forEach( function ( s, i ) {
 						s.classList.toggle( 'is-active', i === newIdx );
 					} );
@@ -744,7 +727,6 @@
 					track.style.height = panelHeight + 'px';
 					track.style.overflow = 'hidden';
 				}
-				console.log('[slide] set track height =', panelHeight + 'px');
 
 				// Pre-set opacity:0 and position:absolute BEFORE adding is-active.
 				// This prevents the new slide from entering the flow for one frame
@@ -758,51 +740,12 @@
 				newSlide.style.left = '0';
 				newSlide.style.right = '0';
 				newSlide.classList.add( 'is-active' );
-				console.log('[slide] newSlide is-active added, opacity=0, position=absolute', { display: getComputedStyle(newSlide).display, position: getComputedStyle(newSlide).position } );
 
 				var tl = slideTransitions[ transition ]( oldSlide, newSlide, dir );
-				console.log('[slide] timeline created, duration =', tl.duration() );
- 
-				// Log during transition (after 1 frame) to see intermediate state
-				requestAnimationFrame( function () {
-					console.log('[slide] 1 frame after start', {
-						oldDisplay: getComputedStyle(oldSlide).display,
-						oldOpacity: getComputedStyle(oldSlide).opacity,
-						oldPosition: getComputedStyle(oldSlide).position,
-						oldHeight: oldSlide.offsetHeight,
-						newDisplay: getComputedStyle(newSlide).display,
-						newOpacity: getComputedStyle(newSlide).opacity,
-						newPosition: getComputedStyle(newSlide).position,
-						newHeight: newSlide.offsetHeight,
-						trackMinHeight: track.style.minHeight,
-						trackOffsetHeight: track.offsetHeight
-					} );
-				} );
 
 				tl.eventCallback( 'onComplete', function () {
-					console.log('[slide] timeline onComplete FIRED');
-					console.log('[slide] BEFORE cleanup', {
-						oldDisplay: oldSlide ? getComputedStyle(oldSlide).display : 'n/a',
-						oldOpacity: oldSlide ? getComputedStyle(oldSlide).opacity : 'n/a',
-						oldPosition: oldSlide ? getComputedStyle(oldSlide).position : 'n/a',
-						newDisplay: getComputedStyle(newSlide).display,
-						newOpacity: getComputedStyle(newSlide).opacity,
-						newPosition: getComputedStyle(newSlide).position,
-						trackMinHeight: track.style.minHeight,
-						trackOffsetHeight: track.offsetHeight
-					} );
 					cleanup( oldSlide, newSlide );
-					console.log('[slide] AFTER cleanup', {
-						oldDisplay: oldSlide ? getComputedStyle(oldSlide).display : 'n/a',
-						oldIsActive: oldSlide ? oldSlide.classList.contains('is-active') : 'n/a',
-						newDisplay: getComputedStyle(newSlide).display,
-						newPosition: getComputedStyle(newSlide).position,
-						newIsActive: newSlide.classList.contains('is-active'),
-						trackMinHeight: track.style.minHeight,
-						trackOffsetHeight: track.offsetHeight
-					} );
 					currentIdx = newIdx;
-					console.log('[slide] goTo done, currentIdx =', currentIdx);
 				} );
 			}
 
