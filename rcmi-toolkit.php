@@ -1695,7 +1695,7 @@ function rcmi_register_server_side_blocks() {
 
 			// Background image style.
 			$bg_url = $attrs['bgImageUrl'] ?? '';
-			$bg_style = 'height:80vh;'; // Default height; parent slide-block overrides via regex.
+			$bg_style = 'min-height:80vh;'; // Default height; parent slide-block overrides via regex.
 			if ( $bg_url ) {
 				$bg_scale = intval( $attrs['bgScale'] ?? 120 );
 				$bg_pos_x = intval( $attrs['bgPositionX'] ?? 50 );

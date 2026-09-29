@@ -2215,7 +2215,7 @@
 			return el( Fragment, null,
 				inspector,
 				el( 'div', blockProps,
-					el( 'section', { className: 'rcmi-slide' + colorClass, style: Object.assign( { minHeight: '320px', position: 'relative', display: 'flex', alignItems: 'center' }, bgStyle ) },
+					el( 'section', { className: 'rcmi-slide' + colorClass, style: Object.assign( { position: 'relative', display: 'flex', alignItems: 'center' }, bgStyle ) },
 						el( 'div', { className: 'rcmi-slide-scrim', style: { background: scrimGradient } } ),
 						el( 'div', { className: 'wrap rcmi-slide-inner' },
 							el( 'div', { className: 'rcmi-slide-copy', style: copyStyle },
