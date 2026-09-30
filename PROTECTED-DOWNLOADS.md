@@ -120,10 +120,14 @@ All three must hold before the master switch will stay on:
   `RCMI at University of Houston <uhrcmi@uh.edu>` (per-message `From:`
   header, so other site mail is unaffected). Override with the
   `rcmi_pd_mail_from` filter; returning an empty string restores the
-  `wp_mail()` default. Caveat: an SMTP plugin or relay locked to a fixed
-  sending account may rewrite the header — verify what recipients
-  actually see when you test mail delivery, and confirm the sender
-  address is permitted by the domain's SPF/DKIM setup.
+  `wp_mail()` default. Caveat: anything that rewrites the sender after
+  `wp_mail()` parses headers wins — a `phpmailer_init` callback, an SMTP
+  plugin with "force From" enabled, or the relay itself. On this stack
+  the `rcmi-tickets` plugin stamps `donotreply@uh.edu` site-wide via
+  `phpmailer_init`; it only applies that default when no explicit
+  `From:` header was given, so this plugin's sender survives. Verify
+  what recipients actually see when you test mail delivery, and confirm
+  the sender address is permitted by the domain's SPF/DKIM setup.
 - **Privacy notice** — required plain-text statement shown on the form.
   There is no marketing-consent field.
 - **Valid storage root** — see section 1.

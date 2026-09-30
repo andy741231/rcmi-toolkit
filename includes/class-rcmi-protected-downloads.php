@@ -755,7 +755,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			$email = sanitize_email( $email );
 			$url   = self::url_token( $raw );
 
-			$subject = sprintf( 'Your download link: %s', '' !== $title ? $title : 'dataset' );
+			$subject = sprintf( 'RCMI at UH download link: %s', '' !== $title ? $title : 'dataset' );
 			$lines   = array(
 				'' !== $name ? "Hello {$name}," : 'Hello,',
 				'',

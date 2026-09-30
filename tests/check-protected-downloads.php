@@ -323,6 +323,7 @@ rcmi_pd_check( 1 === count( $sent_mail ), 'wp_mail not called once' );
 $mail = $sent_mail[0];
 rcmi_pd_check( $PD_EMAIL_A === $mail['to'], 'mail recipient wrong' );
 rcmi_pd_check( false === strpos( $mail['subject'], "\n" ) && false === strpos( $mail['subject'], "\r" ), 'subject contains newline' );
+rcmi_pd_check( 0 === strpos( $mail['subject'], 'RCMI at UH' ), 'subject missing "RCMI at UH" prefix' );
 rcmi_pd_check( false !== strpos( $mail['message'], 'rcmi_download_token=' ), 'mail body missing token URL' );
 rcmi_pd_check( ! empty( $mail['headers'] ) && false !== stripos( implode( ' ', (array) $mail['headers'] ), 'text/plain' ), 'mail not plain text' );
 rcmi_pd_check( false !== stripos( implode( ' ', (array) $mail['headers'] ), 'From: RCMI at University of Houston <uhrcmi@uh.edu>' ), 'mail From header missing/wrong' );
