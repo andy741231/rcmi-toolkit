@@ -287,6 +287,46 @@
 		return offset;
 	}
 
+	// Scroll-mode offset for image layers, normalized through the
+	// section's transit of the viewport. The raw -dist*speed*travel px
+	// mapping reaches the headroom bound long before the section leaves
+	// view (e.g. slack ~25px vs dist ±500px), so the layer would sit
+	// pinned at the bound with no visible motion. Instead, the transit is
+	// expressed as progress in [-1, 1]: 0 when the section is centered,
+	// ±1 when it just exits the viewport. That progress is scaled by the
+	// direction's available headroom — lo for negative, hi for positive —
+	// so the layer moves the whole time the section is visible and stops
+	// exactly at the bound. Sign of the result still follows
+	// -dist*speed*travel, so direction mapping is unchanged. speed 0 or
+	// intensity 0 => 0 (unless the stored pan itself was over the bound,
+	// in which case the final clamp still corrects it). scale 100 => no
+	// headroom => 0. scale < 100 => legacy raw px offset, unclamped.
+	function rcmiParallaxScrollOffset( distFromCenter, sectionHeight, viewportHeight, scale, panPercent, speed, travelMultiplier ) {
+		distFromCenter = parseFloat( distFromCenter );
+		sectionHeight = parseFloat( sectionHeight );
+		viewportHeight = parseFloat( viewportHeight );
+		scale = parseFloat( scale );
+		panPercent = parseFloat( panPercent );
+		speed = parseFloat( speed );
+		travelMultiplier = parseFloat( travelMultiplier );
+		if ( ! isFinite( distFromCenter ) || ! isFinite( sectionHeight ) || ! isFinite( viewportHeight )
+			|| ! isFinite( scale ) || ! isFinite( panPercent ) || ! isFinite( speed ) || ! isFinite( travelMultiplier )
+			|| sectionHeight <= 0 || viewportHeight <= 0 || scale <= 0 ) {
+			return 0;
+		}
+		if ( scale < 100 ) {
+			return -distFromCenter * speed * travelMultiplier;
+		}
+		var layerH = sectionHeight * scale / 100;
+		var basePan = layerH * panPercent / 100;
+		var slack = ( layerH - sectionHeight ) / 2;
+		var lo = -slack - basePan;
+		var hi = slack - basePan;
+		var progress = Math.max( -1, Math.min( 1, -distFromCenter / ( ( viewportHeight + sectionHeight ) / 2 ) * speed * travelMultiplier ) );
+		var desired = progress >= 0 ? progress * Math.max( 0, hi ) : -progress * Math.min( 0, lo );
+		return rcmiClampParallaxOffset( desired, sectionHeight, scale, panPercent );
+	}
+
 	// Bounds for the BASE pan (focal-position transform) on image layers —
 	// the units are % of the image's own size, matching --pos-x/--pos-y in
 	// translate(calc(-50% + var(--pos-x))…). A layer at scale% of the
@@ -546,12 +586,15 @@
 
 				// Distance of the section's center from the viewport's center.
 				// As you scroll down, the section moves up, so this value
-				// decreases. The offset changes at exactly `speed` px per
-				// px scrolled, making the parallax rate directly proportional
-				// to speed (not diluted by the scroll-progress formula).
-				//   At speed=1: layer is locked to viewport (net 0 movement)
-				//   At speed=2: layer moves down 1px per px scrolled (visible)
-				//   At speed<1: layer drifts up slowly (subtle depth)
+				// decreases. For image layers it is normalized into a
+				// [-1,1] transit progress and mapped onto the direction's
+				// available headroom (rcmiParallaxScrollOffset), so the
+				// layer keeps moving while the section is visible instead
+				// of saturating the clamp at the first pixels of scroll.
+				//   At speed=1: layer sweeps its full headroom across the
+				//               transit (while still scrolling with the page)
+				//   At speed>1: faster sweep — saturates before exit
+				//   At speed<1: partial sweep (subtle depth)
 				// Negative speed reverses the direction.
 				var sectionCenter = rect.top + rect.height / 2;
 				var viewportCenter = viewportHeight / 2;
@@ -561,21 +604,20 @@
 					var layer = d.el;
 					var speed = parseFloat( layer.getAttribute( 'data-speed' ) ) || 0;
 
-					// Offset = -distFromCenter × speed × travelMultiplier.
 					// The negative sign makes the layer move opposite to the
 					// section's scroll direction (for speed>0): as the section
 					// scrolls up (distFromCenter decreases), the offset
 					// increases (layer moves down on screen).
 					// A negative speed flips the direction.
-					// Image-layer offsets are clamped to the scaled layer's
-					// available headroom (rcmiClampParallaxOffset) so at
-					// scale >= 100% the layer can never slide its edges
-					// inside the section. Below 100% the layer is windowed
-					// and moves unclamped. Non-image layers (content) are
-					// never clamped.
+					// Image-layer offsets use the normalized transit mapping
+					// which can never slide an edge inside the section at
+					// scale >= 100%. Below 100% the layer is windowed and
+					// gets the raw px offset unclamped, same as before.
+					// Non-image layers (content) keep the raw px offset and
+					// are never clamped.
 					var offset = -distFromCenter * speed * travelMultiplier;
 					if ( d.isLayer ) {
-						offset = rcmiClampParallaxOffset( offset, rect.height, d.activeScale, d.activePosY );
+						offset = rcmiParallaxScrollOffset( distFromCenter, rect.height, viewportHeight, d.activeScale, d.activePosY, speed, travelMultiplier );
 					}
 
 					// Append the parallax offset to the layer's base transform

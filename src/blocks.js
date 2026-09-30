@@ -2810,7 +2810,7 @@
 									min: -2,
 									max: 2,
 									step: 0.05,
-									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign. Movement is limited by the image scale and focal position so edges stay filled — increase scale for more travel.', 'rcmi-toolkit' )
+									help: __( 'Positive = layer drifts down on scroll, negative = layer rises. 0 = static. Direction is solely determined by the sign. Speed controls how quickly the available travel is used — 1 sweeps it fully across the section transit, larger values reach the cap sooner. Travel itself is capped by image scale and focal position so edges stay filled — increase scale for more travel.', 'rcmi-toolkit' )
 								} ),
 								attrs[ urlKey ] ? el( FocalPointPicker, Object.assign( {
 									label: __( 'Focal point', 'rcmi-toolkit' ),

@@ -27,31 +27,52 @@ the same bound with the mobile scale.
 
 ## 2. Motion cap (parallax mode)
 
-The parallax Y-offset added on top of the pan transform is clamped so the
-layer's edges can never slide inside the section:
+The parallax Y-offset added on top of the pan transform can never slide
+the layer's edges inside the section. For **scroll** mode the offset is
+no longer raw pixels: a raw `−distance × speed` reaches the headroom
+bound within the first ~25 px of scroll and then stays pinned, so the
+hero looked frozen. Instead, the section's transit through the viewport
+is normalized to a progress in `[−1, 1]` — 0 when the section is
+centered, ±1 when it just exits — and multiplied by the headroom
+available in that direction:
 
 - `L` = layer height = `sectionHeight × scale%`
 - `slack` = `(L − sectionHeight) / 2` — headroom available per edge
 - `basePan` = `L × panPercent%` — the (already bounded) focal pan
-- allowed added offset: `−slack − basePan` … `+slack − basePan`
+- allowed offset range: `lo = −slack − basePan` … `hi = slack − basePan`
+- `progress = clamp(−dist × speed × intensity / ((V + H)/2), −1, 1)`
+- `offset = progress × hi` (when positive) or `|progress| × lo` (when
+  negative) — asymmetric travel for off-center focal points
+
+So the layer glides the whole time the section crosses the viewport and
+saturates exactly at the bound — visible motion *and* no gaps. Speed is
+now an amplitude-of-transit control: 1 sweeps the full headroom by the
+time the section exits; >1 saturates sooner; <1 uses part of it; 0 is
+static; negative reverses direction.
 
 - **Scale 100%**: no headroom — the layer does not move.
-- **Scale below 100%**: intentionally *windowed* — offsets pass through
-  unclamped and edge gaps are expected by design.
-- **Off-center focal points**: the pan consumes slack asymmetrically, so
-  the caps differ per edge and a resting `0` can be corrected inward.
+- **Scale below 100%**: intentionally *windowed* — the legacy raw px
+  offset is applied unclamped and edge gaps are expected by design.
+- **Off-center focal points**: a focal position already at one image
+  edge can have **zero travel remaining in the outward direction** — the
+  layer then only moves inward. That is intentional: forcing outward
+  travel would open a gap.
+- **Mouse mode** is unchanged (continuous target scaled by travel, still
+  bounded by the same lo/hi).
 
-`rcmiClampParallaxOffset` (scroll + mouse paths, resize, IO re-entry) is
-unit-tested by `tests/check-parallax-helpers.js`;
-`rcmiClampImagePanPercent` (JS copies in `blocks.js`/`frontend.js`) by
-`tests/check-image-pan-helpers.js`, and the PHP render by
-`tests/check-image-position.php`. All motion is skipped under
-`prefers-reduced-motion`.
+`rcmiParallaxScrollOffset` + `rcmiClampParallaxOffset` are unit-tested by
+`tests/check-parallax-helpers.js`; `rcmiClampImagePanPercent` (JS copies
+in `blocks.js`/`frontend.js`) by `tests/check-image-pan-helpers.js`, and
+the PHP render by `tests/check-image-position.php`. All motion is skipped
+under `prefers-reduced-motion`.
 
 ## For editors
 
 - More parallax travel = increase the layer's **Scale** (or **Mobile
-  scale** on small screens).
+  scale** on small screens); **Parallax speed** controls how quickly that
+  travel is used while the section crosses the viewport.
+- A focal position pushed to one edge leaves no travel in that direction
+  — the layer can only drift the other way.
 - At 100% scale the hero image is static — that is correct, not a bug.
 - Extreme focal positions now stop at the image edge instead of opening
   a gap — nudge the position inward if you wanted the edge crop.
