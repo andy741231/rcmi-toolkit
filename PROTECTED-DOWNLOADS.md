@@ -116,6 +116,14 @@ All three must hold before the master switch will stay on:
   that it was delivered. Requests whose send fails are listed with
   `mail failed` in the admin log and the visitor sees a generic
   "could not be sent" message.
+- **From address** — request emails are sent as
+  `RCMI at University of Houston <uhrcmi@uh.edu>` (per-message `From:`
+  header, so other site mail is unaffected). Override with the
+  `rcmi_pd_mail_from` filter; returning an empty string restores the
+  `wp_mail()` default. Caveat: an SMTP plugin or relay locked to a fixed
+  sending account may rewrite the header — verify what recipients
+  actually see when you test mail delivery, and confirm the sender
+  address is permitted by the domain's SPF/DKIM setup.
 - **Privacy notice** — required plain-text statement shown on the form.
   There is no marketing-consent field.
 - **Valid storage root** — see section 1.
@@ -193,8 +201,8 @@ per-visitor.
 
 ## 6. Privacy, retention, lifecycle
 
-- Daily cron prunes request rows older than **retention_days** (default 90,
-  bounded 1–365), clears expired token/grant material on surviving rows,
+- Daily cron prunes request rows older than **retention_days** (default
+  1825 = 5 years, matching the grant period; bounded 1–1825), clears expired token/grant material on surviving rows,
   and drops expired rate buckets. WP Cron only fires on site traffic — for
   a guaranteed schedule, point a real scheduler (Windows Task Scheduler /
   cron) at `wp-cron.php` or WP-CLI `wp cron event run rcmi_pd_prune`.

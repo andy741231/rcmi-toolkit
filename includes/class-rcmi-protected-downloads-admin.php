@@ -582,7 +582,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 							</tr>
 							<tr>
 								<th scope="row"><label for="rcmi_pd_retention">Retention (days)</label></th>
-								<td><input type="number" id="rcmi_pd_retention" name="rcmi_pd[retention_days]" value="<?php echo esc_attr( $s['retention_days'] ); ?>" min="1" max="365" /> <span class="description">Request records are pruned after this many days (1–365, default 90).</span></td>
+								<td><input type="number" id="rcmi_pd_retention" name="rcmi_pd[retention_days]" value="<?php echo esc_attr( $s['retention_days'] ); ?>" min="1" max="1825" /> <span class="description">Request records are pruned after this many days (1–1825; default 1825 = 5 years, matching the grant period).</span></td>
 							</tr>
 							<tr>
 								<th scope="row"><label for="rcmi_pd_notice">Privacy notice</label></th>

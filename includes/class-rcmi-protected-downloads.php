@@ -64,7 +64,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			return array(
 				'enabled'        => 0,   // master switch — off until configured.
 				'mail_ready'     => 0,   // admin acknowledgment that wp_mail works.
-				'retention_days' => 90,
+				'retention_days' => 1825, // 5 years — matches the grant period.
 				'privacy_notice' => '',
 			);
 		}
@@ -86,8 +86,8 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			$clean = array();
 			$clean['enabled']        = ! empty( $raw['enabled'] ) ? 1 : 0;
 			$clean['mail_ready']     = ! empty( $raw['mail_ready'] ) ? 1 : 0;
-			$days                    = isset( $raw['retention_days'] ) ? absint( $raw['retention_days'] ) : 90;
-			$clean['retention_days'] = max( 1, min( 365, $days ) );
+			$days                    = isset( $raw['retention_days'] ) ? absint( $raw['retention_days'] ) : 1825;
+			$clean['retention_days'] = max( 1, min( 1825, $days ) );
 			$notice                  = isset( $raw['privacy_notice'] ) && is_scalar( $raw['privacy_notice'] ) ? (string) $raw['privacy_notice'] : '';
 			$clean['privacy_notice'] = substr( trim( $notice ), 0, 4000 );
 
@@ -766,7 +766,14 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				'',
 				'If you did not make this request, you can ignore this email.',
 			);
-			return (bool) wp_mail( $email, $subject, implode( "\r\n", $lines ), array( 'Content-Type: text/plain; charset=UTF-8' ) );
+			$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+			// Replies to the link mail should reach a monitored mailbox, not a
+			// donotreply address. Filterable; empty restores the WP default.
+			$from = trim( (string) preg_replace( '/[\r\n]+/', ' ', (string) apply_filters( 'rcmi_pd_mail_from', 'RCMI at University of Houston <uhrcmi@uh.edu>' ) ) );
+			if ( '' !== $from ) {
+				$headers[] = 'From: ' . $from;
+			}
+			return (bool) wp_mail( $email, $subject, implode( "\r\n", $lines ), $headers );
 		}
 
 		/**

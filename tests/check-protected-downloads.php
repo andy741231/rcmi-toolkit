@@ -266,7 +266,7 @@ $clean = RCMI_Protected_Downloads::update_settings( array( 'enabled' => 1, 'mail
 rcmi_pd_check( ! is_wp_error( $clean ) && 1 === (int) $clean['enabled'], 'enabled refused despite prerequisites' );
 rcmi_pd_check( true === RCMI_Protected_Downloads::downloads_active(), 'downloads_active false with full config' );
 $clean = RCMI_Protected_Downloads::update_settings( array( 'retention_days' => 99999 ) );
-rcmi_pd_check( ! is_wp_error( $clean ) && 365 === (int) $clean['retention_days'], 'retention not capped at 365' );
+rcmi_pd_check( ! is_wp_error( $clean ) && 1825 === (int) $clean['retention_days'], 'retention not capped at 1825' );
 // update_option returns false on failure AND on unchanged values — only a
 // failed write of a CHANGED value may surface WP_Error. An unchanged
 // write must stay quiet; a broken options table must surface WP_Error.
@@ -325,6 +325,7 @@ rcmi_pd_check( $PD_EMAIL_A === $mail['to'], 'mail recipient wrong' );
 rcmi_pd_check( false === strpos( $mail['subject'], "\n" ) && false === strpos( $mail['subject'], "\r" ), 'subject contains newline' );
 rcmi_pd_check( false !== strpos( $mail['message'], 'rcmi_download_token=' ), 'mail body missing token URL' );
 rcmi_pd_check( ! empty( $mail['headers'] ) && false !== stripos( implode( ' ', (array) $mail['headers'] ), 'text/plain' ), 'mail not plain text' );
+rcmi_pd_check( false !== stripos( implode( ' ', (array) $mail['headers'] ), 'From: RCMI at University of Houston <uhrcmi@uh.edu>' ), 'mail From header missing/wrong' );
 
 // Raw token value never persisted.
 rcmi_pd_check( false === strpos( wp_json_encode( $row ), 'rcmi_download_token=' ), 'raw token leaked into row' );
