@@ -117,17 +117,17 @@ All three must hold before the master switch will stay on:
   `mail failed` in the admin log and the visitor sees a generic
   "could not be sent" message.
 - **From address** — request emails are sent as
-  `RCMI at University of Houston <uhrcmi@uh.edu>` (per-message `From:`
-  header, so other site mail is unaffected). Override with the
+  `RCMI at University of Houston <uhrcmi@uh.edu>`. Override with the
   `rcmi_pd_mail_from` filter; returning an empty string restores the
-  `wp_mail()` default. Caveat: anything that rewrites the sender after
-  `wp_mail()` parses headers wins — a `phpmailer_init` callback, an SMTP
-  plugin with "force From" enabled, or the relay itself. On this stack
-  the `rcmi-tickets` plugin stamps `donotreply@uh.edu` site-wide via
-  `phpmailer_init`; it only applies that default when no explicit
-  `From:` header was given, so this plugin's sender survives. Verify
-  what recipients actually see when you test mail delivery, and confirm
-  the sender address is permitted by the domain's SPF/DKIM setup.
+  `wp_mail()` default. The sender is enforced at `phpmailer_init`
+  (priority 9999, scoped to this send only) — a bare `From:` header is
+  not enough because `wp_mail()` applies `wp_mail_from` **after** header
+  parsing, and global sender stamps (e.g. `rcmi-tickets`' site-wide
+  `donotreply@uh.edu`) otherwise win. Other site mail is unaffected.
+  Caveat: something with an even-later `phpmailer_init` priority or the
+  relay itself could still rewrite it — verify what recipients actually
+  see when you test mail delivery, and confirm the sender address is
+  permitted by the domain's SPF/DKIM setup.
 - **Privacy notice** — required plain-text statement shown on the form.
   There is no marketing-consent field.
 - **Valid storage root** — see section 1.

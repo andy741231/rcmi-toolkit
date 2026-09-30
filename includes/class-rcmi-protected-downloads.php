@@ -769,11 +769,44 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
 			// Replies to the link mail should reach a monitored mailbox, not a
 			// donotreply address. Filterable; empty restores the WP default.
+			// NOTE: a "From:" header alone is NOT a reliable override — wp_mail
+			// applies the wp_mail_from filters AFTER header parsing, and a
+			// global phpmailer_init stamper rewrites From again — so
+			// apply_mail_from() enforces the sender at the final mailer stage,
+			// scoped to this single send via a request global.
 			$from = trim( (string) preg_replace( '/[\r\n]+/', ' ', (string) apply_filters( 'rcmi_pd_mail_from', 'RCMI at University of Houston <uhrcmi@uh.edu>' ) ) );
 			if ( '' !== $from ) {
 				$headers[] = 'From: ' . $from;
+				if ( preg_match( '/^(.*)<([^<>]+)>\s*$/', $from, $m ) ) {
+					$from_name = trim( $m[1], " \t\"'" );
+					$from_addr = trim( $m[2] );
+				} else {
+					$from_name = '';
+					$from_addr = $from;
+				}
+				if ( is_email( $from_addr ) ) {
+					$GLOBALS['rcmi_pd_mail_from']      = $from_addr;
+					$GLOBALS['rcmi_pd_mail_from_name'] = $from_name;
+				}
 			}
-			return (bool) wp_mail( $email, $subject, implode( "\r\n", $lines ), $headers );
+			$sent = (bool) wp_mail( $email, $subject, implode( "\r\n", $lines ), $headers );
+			unset( $GLOBALS['rcmi_pd_mail_from'], $GLOBALS['rcmi_pd_mail_from_name'] );
+			return $sent;
+		}
+
+		/**
+		 * phpmailer_init — enforce the per-send From set by send_token_email().
+		 * Runs at priority 9999 so a global sender stamp (e.g. a plugin that
+		 * rewrites From for all site mail) cannot overwrite ours; a no-op for
+		 * every other message since the flag only exists during our send.
+		 */
+		public static function apply_mail_from( $phpmailer ) {
+			$from = isset( $GLOBALS['rcmi_pd_mail_from'] ) ? (string) $GLOBALS['rcmi_pd_mail_from'] : '';
+			if ( '' === $from ) {
+				return;
+			}
+			$phpmailer->From     = $from;
+			$phpmailer->FromName = isset( $GLOBALS['rcmi_pd_mail_from_name'] ) ? (string) $GLOBALS['rcmi_pd_mail_from_name'] : '';
 		}
 
 		/**
@@ -1607,6 +1640,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			add_action( 'init', array( __CLASS__, 'maybe_install' ), 1 );
 			add_action( 'admin_init', array( __CLASS__, 'ensure_schedule' ) );
 			add_action( 'template_redirect', array( __CLASS__, 'dispatch' ), -10 );
+			add_action( 'phpmailer_init', array( __CLASS__, 'apply_mail_from' ), 9999 );
 			add_action( RCMI_PD_CRON, array( __CLASS__, 'prune' ) );
 		}
 	}

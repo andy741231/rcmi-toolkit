@@ -328,6 +328,41 @@ rcmi_pd_check( false !== strpos( $mail['message'], 'rcmi_download_token=' ), 'ma
 rcmi_pd_check( ! empty( $mail['headers'] ) && false !== stripos( implode( ' ', (array) $mail['headers'] ), 'text/plain' ), 'mail not plain text' );
 rcmi_pd_check( false !== stripos( implode( ' ', (array) $mail['headers'] ), 'From: RCMI at University of Houston <uhrcmi@uh.edu>' ), 'mail From header missing/wrong' );
 
+// The From must survive worst-case site mail config: a global
+// wp_mail_from stamp AND an unconditional phpmailer_init rewrite
+// (wp_mail applies wp_mail_from AFTER header parsing, so a bare "From:"
+// header can be clobbered — apply_mail_from enforces it at 9999).
+$GLOBALS['rcmi_pd_cap'] = '';
+$pd_stamp = function ( $phpmailer ) {
+	$phpmailer->From     = 'donotreply@uh.edu';
+	$phpmailer->FromName = 'Stamped';
+};
+$pd_cap = function ( $phpmailer ) {
+	$GLOBALS['rcmi_pd_cap'] = $phpmailer->From . '|' . $phpmailer->FromName;
+};
+$pd_halt = function () {
+	throw new Exception( 'rcmi-pd-stop-before-send' );
+};
+add_filter( 'wp_mail_from', function () { return 'donotreply@uh.edu'; } );
+add_action( 'phpmailer_init', $pd_stamp, 10 );
+add_action( 'phpmailer_init', $pd_cap, 10000 );
+add_action( 'phpmailer_init', $pd_halt, 10001 );
+remove_all_filters( 'pre_wp_mail' ); // let real wp_mail reach phpmailer
+try {
+	rcmi_pd_private( 'send_token_email', array( RCMI_Protected_Downloads::get_dataset( $dsid ), $PD_EMAIL_A, 'T', str_repeat( 'a', 64 ) ) );
+} catch ( Exception $e ) { /* expected: halted before send */ }
+rcmi_pd_check( 'uhrcmi@uh.edu|RCMI at University of Houston' === $GLOBALS['rcmi_pd_cap'], 'mail From was overwritten: ' . $GLOBALS['rcmi_pd_cap'] );
+// Restore the intercept for everything after this point.
+add_filter(
+	'pre_wp_mail',
+	function ( $short_circuit, $atts ) use ( &$sent_mail ) {
+		$sent_mail[] = $atts;
+		return $GLOBALS['rcmi_pd_mail_result'];
+	},
+	10,
+	2
+);
+
 // Raw token value never persisted.
 rcmi_pd_check( false === strpos( wp_json_encode( $row ), 'rcmi_download_token=' ), 'raw token leaked into row' );
 
