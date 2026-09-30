@@ -70,6 +70,25 @@
 .rcmi-table-block td p:last-child,
 .rcmi-table-block th p:last-child{ margin-bottom:0; }
 
+/* ---- Links inside cells (theme resets a{color:inherit;decoration:none}) ---- */
+.rcmi-table-block td a,
+.rcmi-table-block th a{
+	color:var(--rcmi-tbl-link, var(--color-primary, #C8102E));
+	text-decoration:underline;
+	text-underline-offset:2px;
+}
+.rcmi-table-block td a:hover,
+.rcmi-table-block th a:hover{
+	text-decoration-thickness:2px;
+}
+/* Header cells can carry light text on a colored background — keep the
+   header text color there so the underline alone marks the link. */
+.rcmi-table-block thead th a,
+.rcmi-table-block tbody tr.rcmi-head-row th a,
+.rcmi-table-block tbody th[scope="row"] a{
+	color:inherit;
+}
+
 /* Inner (nested) table rendered inside a cell — one level only. */
 .rcmi-cell-table-scroll{
 	overflow-x:auto;
