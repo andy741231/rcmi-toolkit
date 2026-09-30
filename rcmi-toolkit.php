@@ -329,6 +329,37 @@ function rcmi_toolkit_build_gradient( $stops, $type = 'linear', $angle = 90 ) {
 	return 'linear-gradient(' . intval( $angle ) . 'deg, ' . $stops_str . ')';
 }
 
+/**
+ * Bound a translate-pan percentage so it can never exceed the slack an
+ * oversized image layer has inside its section.
+ *
+ * $pan_percent is a percentage of the image's own size — the units used by
+ * --pos-x/--pos-y inside translate(calc(-50% + var(--pos-x))…). A layer at
+ * scale% of the section has (scale-100)/2% of section slack per edge,
+ * which is 50*(scale-100)/scale percent of the image itself. Pans beyond
+ * that slide an edge inside the section box and reveal a gap.
+ *
+ * Below 100% the layer is intentionally windowed, so the pan passes
+ * through unclamped. Same formula as rcmiClampImagePanPercent() in
+ * src/blocks.js / src/frontend.js — keep all three in sync.
+ *
+ * @param float $pan_percent Requested pan, % of image size.
+ * @param float $scale       Layer scale, % of section size.
+ * @return float Bounded pan percent.
+ */
+function rcmi_clamp_image_pan_percent( $pan_percent, $scale ) {
+	$pan_percent = floatval( $pan_percent );
+	$scale       = floatval( $scale );
+	if ( ! is_finite( $pan_percent ) || ! is_finite( $scale ) || $scale <= 0 ) {
+		return 0.0;
+	}
+	if ( $scale < 100 ) {
+		return $pan_percent;
+	}
+	$limit = 50 * ( $scale - 100 ) / $scale;
+	return max( -$limit, min( $limit, $pan_percent ) );
+}
+
 // ============================================================================
 // GitHub-based auto-update system (commit-based, no tags required)
 // Checks the latest commit on the main branch and surfaces updates in
@@ -1800,8 +1831,11 @@ function rcmi_register_server_side_blocks() {
 						. 'max-width:none;max-height:none;'
 						. 'object-fit:' . ( $scale >= 100 ? 'cover' : 'contain' ) . ';'
 						. 'object-position:' . $pos_x . '% ' . $pos_y . '%;'
-						. '--pos-x:' . ( ( 50 - $pos_x ) * $range / $scale ) . '%;'
-						. '--pos-y:' . ( ( 50 - $pos_y ) * $range / $scale ) . '%;'
+						// Pan is clamped to the slack the scaled image
+						// actually has — otherwise an extreme focal point
+						// slides an edge inside the slide and reveals a gap.
+						. '--pos-x:' . rcmi_clamp_image_pan_percent( ( 50 - $pos_x ) * $range / $scale, $scale ) . '%;'
+						. '--pos-y:' . rcmi_clamp_image_pan_percent( ( 50 - $pos_y ) * $range / $scale, $scale ) . '%;'
 						. 'transform:translate(calc(-50% + var(--pos-x)),calc(-50% + var(--pos-y)));'
 						. 'pointer-events:none;user-select:none;';
 				};
@@ -1829,8 +1863,8 @@ function rcmi_register_server_side_blocks() {
 						$m_slack = max( 0, $m_scale - 100 ) / 2;
 						$m_range = max( 100, $m_slack );
 						$img_style .= '--rcmi-mobile-scale:' . $m_scale . '%;'
-							. '--rcmi-mobile-pos-x:' . ( ( 50 - $m_pos_x ) * $m_range / $m_scale ) . '%;'
-							. '--rcmi-mobile-pos-y:' . ( ( 50 - $m_pos_y ) * $m_range / $m_scale ) . '%;'
+							. '--rcmi-mobile-pos-x:' . rcmi_clamp_image_pan_percent( ( 50 - $m_pos_x ) * $m_range / $m_scale, $m_scale ) . '%;'
+							. '--rcmi-mobile-pos-y:' . rcmi_clamp_image_pan_percent( ( 50 - $m_pos_y ) * $m_range / $m_scale, $m_scale ) . '%;'
 							. '--rcmi-mobile-object-fit:' . ( $m_scale >= 100 ? 'cover' : 'contain' ) . ';'
 							. '--rcmi-mobile-object-position:' . $m_pos_x . '% ' . $m_pos_y . '%;';
 						$source_html = '<source media="(max-width: 767px)" srcset="' . esc_url( $bg_mobile_url ) . '" />';
@@ -2265,11 +2299,14 @@ function rcmi_register_server_side_blocks() {
 				// Position offset as % of the img's own width/height.
 				$img_slack = max( 0, $scale - 100 ) / 2;
 				$range = max( 100, $img_slack );
-				$pos_offset_x = ( $pos_x - 50 ) * $range / $scale;
+				// The transform pan is clamped to the slack the scaled
+				// image actually has — an extreme focal point can otherwise
+				// slide an edge inside the section and reveal a gap.
+				$pos_offset_x = rcmi_clamp_image_pan_percent( ( $pos_x - 50 ) * $range / $scale, $scale );
 				// Y axis is inverted: high pos_y = up. CSS object-position
 				// uses (100 - pos_y) and the transform offset uses (50 - pos_y)
 				// so that increasing the slider moves the image up.
-				$pos_offset_y = ( 50 - $pos_y ) * $range / $scale;
+				$pos_offset_y = rcmi_clamp_image_pan_percent( ( 50 - $pos_y ) * $range / $scale, $scale );
 
 				// object-fit:cover at scale ≥ 100 so the image always fills
 				// the layer box (contain would letterbox whenever the image
@@ -2284,8 +2321,8 @@ function rcmi_register_server_side_blocks() {
 				$object_fit = $scale >= 100 ? 'cover' : 'contain';
 				$mobile_slack = max( 0, $mobile_scale - 100 ) / 2;
 				$mobile_range = max( 100, $mobile_slack );
-				$mobile_pos_offset_x = ( $mobile_pos_x - 50 ) * $mobile_range / $mobile_scale;
-				$mobile_pos_offset_y = ( 50 - $mobile_pos_y ) * $mobile_range / $mobile_scale;
+				$mobile_pos_offset_x = rcmi_clamp_image_pan_percent( ( $mobile_pos_x - 50 ) * $mobile_range / $mobile_scale, $mobile_scale );
+				$mobile_pos_offset_y = rcmi_clamp_image_pan_percent( ( 50 - $mobile_pos_y ) * $mobile_range / $mobile_scale, $mobile_scale );
 				$mobile_object_fit = $mobile_scale >= 100 ? 'cover' : 'contain';
 
 				$style = 'position:absolute;top:50%;left:50%;'
@@ -2385,7 +2422,16 @@ function rcmi_register_server_side_blocks() {
 
 					return '<picture>' . $sources . $img_tag . '</picture>';
 				} elseif ( $fallback_url ) {
-					return '<img class="' . esc_attr( $class ) . '" style="' . esc_attr( $style ) . '" data-speed="' . esc_attr( $speed ) . '" src="' . esc_url( $fallback_url ) . '" alt="" aria-hidden="true" decoding="async" loading="eager" />';
+					// data-mobile-* must be present even without an
+					// attachment — the parallax JS reads them for the
+					// mobile scale/position (missing → falls back to 100/50
+					// and edge-prevention math diverges on small screens).
+					return '<img class="' . esc_attr( $class ) . '" style="' . esc_attr( $style ) . '"'
+						. ' data-speed="' . esc_attr( $speed ) . '"'
+						. ' data-mobile-scale="' . esc_attr( $mobile_scale ) . '"'
+						. ' data-mobile-pos-x="' . esc_attr( $mobile_pos_x ) . '"'
+						. ' data-mobile-pos-y="' . esc_attr( $mobile_pos_y ) . '"'
+						. ' src="' . esc_url( $fallback_url ) . '" alt="" aria-hidden="true" decoding="async" loading="eager" />';
 				}
 				return '';
 			};

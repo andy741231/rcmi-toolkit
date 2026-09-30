@@ -286,6 +286,28 @@
 		}
 		return offset;
 	}
+
+	// Bounds for the BASE pan (focal-position transform) on image layers —
+	// the units are % of the image's own size, matching --pos-x/--pos-y in
+	// translate(calc(-50% + var(--pos-x))…). A layer at scale% of the
+	// section has (scale-100)/2% section slack per edge, which is
+	// 50*(scale-100)/scale percent of the image itself. Pans beyond that
+	// slide an edge inside the section and reveal a gap. Below 100% the
+	// layer is intentionally windowed, so the pan passes through
+	// unclamped. Same formula as rcmi_clamp_image_pan_percent() in PHP and
+	// the copy in src/blocks.js — keep all three in sync.
+	function rcmiClampImagePanPercent( panPercent, scale ) {
+		panPercent = parseFloat( panPercent );
+		scale = parseFloat( scale );
+		if ( ! isFinite( panPercent ) || ! isFinite( scale ) || scale <= 0 ) {
+			return 0;
+		}
+		if ( scale < 100 ) {
+			return panPercent;
+		}
+		var limit = 50 * ( scale - 100 ) / scale;
+		return Math.max( -limit, Math.min( limit, panPercent ) );
+	}
 	// [rcmi-parallax-helpers-end]
 
 	function initParallax() {
@@ -432,6 +454,15 @@
 						useObjectPosition = d.origObjectPosition;
 					}
 
+					// Bound the base pan to the scaled image's actual slack
+					// so an extreme focal position can never slide an edge
+					// inside the section (image layers only — the content
+					// layer keeps free motion).
+					if ( d.isLayer ) {
+						usePosX = rcmiClampImagePanPercent( usePosX, useScale );
+						usePosY = rcmiClampImagePanPercent( usePosY, useScale );
+					}
+
 					d.el.style.width = useScale + '%';
 					d.el.style.height = useScale + '%';
 					d.el.style.setProperty( '--pos-x', usePosX + '%' );
@@ -441,17 +472,17 @@
 					d.activeScale = useScale;
 					d.activePosY = usePosY;
 
-					// object-fit follows the scale rule at every breakpoint:
-					// cover fills the layer box at scale >= 100 (no gaps at
-					// any aspect ratio); below 100 = windowed mode, contain
-					// keeps the whole image framed.
-					if ( isMobile ) {
+					// object-fit follows the ACTIVE scale at every
+					// breakpoint for image layers: cover fills the layer
+					// box at scale >= 100; below 100 = windowed mode,
+					// contain keeps the whole image framed. Non-image
+					// layers keep their original fit.
+					if ( d.isLayer ) {
 						d.el.style.objectFit = useScale >= 100 ? 'cover' : 'contain';
-						d.el.style.objectPosition = useObjectPosition;
 					} else {
-						d.el.style.objectFit = d.origObjectFit;
-						d.el.style.objectPosition = useObjectPosition;
+						d.el.style.objectFit = isMobile ? ( useScale >= 100 ? 'cover' : 'contain' ) : d.origObjectFit;
 					}
+					d.el.style.objectPosition = useObjectPosition;
 				} );
 			} );
 		}

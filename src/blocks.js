@@ -2063,22 +2063,93 @@
 			var attrs = props.attributes, setAttributes = props.setAttributes;
 			var blockProps = useBlockProps( { className: 'rcmi-slide-editor' } );
 
+			// Follow the editor's Desktop/Tablet/Mobile preview so the
+			// background preview can show the dedicated mobile crop when
+			// one is set (matching the <source> swap on the frontend).
+			var deviceTypeState = useState( ( wp.data.select( 'core/editor' ).getDeviceType && wp.data.select( 'core/editor' ).getDeviceType() ) || 'Desktop' );
+			var deviceType = deviceTypeState[0];
+			useEffect( function () {
+				if ( ! wp.data || ! wp.data.subscribe ) {
+					return undefined;
+				}
+				var updateDeviceType = function () {
+					var selector = wp.data.select( 'core/editor' );
+					var next = selector.getDeviceType ? selector.getDeviceType() : 'Desktop';
+					if ( next ) {
+						deviceTypeState[1]( next );
+					}
+				};
+				return wp.data.subscribe( updateDeviceType );
+			}, [] );
+
+			var switchToDevicePreview = function ( device ) {
+				if ( wp.data && wp.data.dispatch && wp.data.dispatch( 'core/editor' ) && wp.data.dispatch( 'core/editor' ).setDeviceType ) {
+					wp.data.dispatch( 'core/editor' ).setDeviceType( device );
+				}
+			};
+
+			// Transient focal position while a FocalPointPicker drag is in
+			// progress — same pattern as the hero block: onDrag updates this
+			// state only (no attribute write per pointermove, so undo history
+			// stays clean); onChange commits the final value once, then
+			// clears the transient.
+			var focalDragState = useState( null );
+			var focalDrag = focalDragState[0]; // { xKey, yKey, posX, posY, isMobile }
+			var setFocalDrag = focalDragState[1];
+
+			// Slide posX/posY are plain object-position values — the picker
+			// maps directly, no inversion. Dragging (or typing in the numeric
+			// fields of) a picker also switches the editor device preview so
+			// the change is immediately visible.
+			var focalHandlers = function ( isMobile ) {
+				var xKey = isMobile ? 'bgMobilePositionX' : 'bgPositionX';
+				var yKey = isMobile ? 'bgMobilePositionY' : 'bgPositionY';
+				var device = isMobile ? 'Mobile' : 'Desktop';
+				return {
+					onDragStart: function () { switchToDevicePreview( device ); },
+					onDrag: function ( f ) {
+						setFocalDrag( {
+							xKey: xKey, yKey: yKey, isMobile: isMobile,
+							posX: rcmiDirFocalToPct( f.x ),
+							posY: rcmiDirFocalToPct( f.y )
+						} );
+					},
+					onChange: function ( f ) {
+						var u = {};
+						u[ xKey ] = rcmiDirFocalToPct( f.x );
+						u[ yKey ] = rcmiDirFocalToPct( f.y );
+						setAttributes( u );
+						setFocalDrag( null );
+						switchToDevicePreview( device );
+					}
+				};
+			};
+
 			var scrimGradient = buildGradientCSS( attrs.scrimStops, attrs.scrimType, attrs.scrimAngle );
 
 			// Background image — an oversized object-fit:cover <img> panned
 			// by object-position + a translate within the scale slack (same
 			// formula as the PHP render). posX/posY are plain object-position
-			// values, so both axes offset by (50 - pos).
+			// values, so both axes offset by (50 - pos). On the Mobile
+			// preview the dedicated mobile image/scale/position is shown
+			// when set — otherwise the desktop image is the fallback,
+			// matching PHP. A mobile-only image only previews on Mobile.
+			var useMobileImg = deviceType === 'Mobile' && !! attrs.bgMobileImageUrl;
 			var bgImg = null;
-			if ( attrs.bgImageUrl ) {
-				var bgScale = attrs.bgScale || 120;
-				var bgPosX = attrs.bgPositionX || 50;
-				var bgPosY = attrs.bgPositionY || 50;
+			if ( useMobileImg || attrs.bgImageUrl ) {
+				var dragFor = focalDrag && focalDrag.isMobile === useMobileImg ? focalDrag : null;
+				var bgScale = useMobileImg ? ( attrs.bgMobileScale ?? 110 ) : ( attrs.bgScale ?? 120 );
+				var bgPosX = dragFor ? dragFor.posX : ( useMobileImg ? ( attrs.bgMobilePositionX ?? 50 ) : ( attrs.bgPositionX ?? 50 ) );
+				var bgPosY = dragFor ? dragFor.posY : ( useMobileImg ? ( attrs.bgMobilePositionY ?? 50 ) : ( attrs.bgPositionY ?? 50 ) );
 				var bgSlack = Math.max( 0, bgScale - 100 ) / 2;
 				var bgRange = Math.max( 100, bgSlack );
+				// Pan offsets are clamped to the scaled image's slack —
+				// matches the PHP render, so the preview can't show a gap.
+				var posOffsetX = rcmiClampImagePanPercent( ( 50 - bgPosX ) * bgRange / bgScale, bgScale );
+				var posOffsetY = rcmiClampImagePanPercent( ( 50 - bgPosY ) * bgRange / bgScale, bgScale );
 				bgImg = el( 'img', {
 					className: 'rcmi-slide-bg',
-					src: attrs.bgImageUrl,
+					src: useMobileImg ? attrs.bgMobileImageUrl : attrs.bgImageUrl,
 					alt: '',
 					'aria-hidden': 'true',
 					style: {
@@ -2091,7 +2162,7 @@
 						maxHeight: 'none',
 						objectFit: bgScale >= 100 ? 'cover' : 'contain',
 						objectPosition: bgPosX + '% ' + bgPosY + '%',
-						transform: 'translate(calc(-50% + ' + ( ( 50 - bgPosX ) * bgRange / bgScale ) + '%),calc(-50% + ' + ( ( 50 - bgPosY ) * bgRange / bgScale ) + '%))',
+						transform: 'translate(calc(-50% + ' + posOffsetX + '%),calc(-50% + ' + posOffsetY + '%))',
 						pointerEvents: 'none',
 						zIndex: 0
 					}
@@ -2200,13 +2271,12 @@
 						el( 'img', { src: attrs.bgImageUrl, alt: __( 'Slide background', 'rcmi-toolkit' ) } ),
 						el( wp.components.Button, { onClick: function () { setAttributes( { bgImageId: 0, bgImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true }, __( 'Remove image', 'rcmi-toolkit' ) )
 					) : null,
-					attrs.bgImageUrl ? el( FocalPointPicker, {
+					attrs.bgImageUrl ? el( FocalPointPicker, Object.assign( {
 						label: __( 'Background focal point', 'rcmi-toolkit' ),
 						url: attrs.bgImageUrl,
-						value: { x: attrs.bgPositionX / 100, y: attrs.bgPositionY / 100 },
-						onChange: function ( f ) { setAttributes( { bgPositionX: rcmiDirFocalToPct( f.x ), bgPositionY: rcmiDirFocalToPct( f.y ) } ); },
+						value: { x: ( attrs.bgPositionX ?? 50 ) / 100, y: ( attrs.bgPositionY ?? 50 ) / 100 },
 						help: __( 'Drag the point to choose which part of the image stays in view.', 'rcmi-toolkit' )
-					} ) : null,
+					}, focalHandlers( false ) ) ) : null,
 					el( RangeControl, { label: __( 'Background Scale (%)', 'rcmi-toolkit' ), value: attrs.bgScale, onChange: function ( v ) { setAttributes( { bgScale: v } ); }, min: 100, max: 300, step: 5 } )
 				),
 				// Mobile background image
@@ -2225,13 +2295,12 @@
 					attrs.bgMobileImageUrl ? el( wp.components.Button, { onClick: function () { setAttributes( { bgMobileImageId: 0, bgMobileImageUrl: '' } ); }, variant: 'tertiary', isDestructive: true, isSmall: true }, __( 'Remove mobile image', 'rcmi-toolkit' ) ) : null,
 					attrs.bgMobileImageUrl ? el( Fragment, null,
 						el( RangeControl, { label: __( 'Mobile Scale (%)', 'rcmi-toolkit' ), value: attrs.bgMobileScale, onChange: function ( v ) { setAttributes( { bgMobileScale: v } ); }, min: 25, max: 300, step: 5 } ),
-						el( FocalPointPicker, {
+						el( FocalPointPicker, Object.assign( {
 							label: __( 'Mobile focal point', 'rcmi-toolkit' ),
 							url: attrs.bgMobileImageUrl,
-							value: { x: attrs.bgMobilePositionX / 100, y: attrs.bgMobilePositionY / 100 },
-							onChange: function ( f ) { setAttributes( { bgMobilePositionX: rcmiDirFocalToPct( f.x ), bgMobilePositionY: rcmiDirFocalToPct( f.y ) } ); },
+							value: { x: ( attrs.bgMobilePositionX ?? 50 ) / 100, y: ( attrs.bgMobilePositionY ?? 50 ) / 100 },
 							help: __( 'Drag the point to choose which part of the mobile image stays in view.', 'rcmi-toolkit' )
-						} )
+						}, focalHandlers( true ) ) )
 					) : null
 				),
 				// Gradient scrim
@@ -2781,10 +2850,13 @@
 				var objectFit = scale >= 100 ? 'cover' : 'contain';
 				var imgSlack = Math.max( 0, scale - 100 ) / 2;
 				var range = Math.max( 100, imgSlack );
-				var posOffsetX = ( posX - 50 ) * range / scale;
+				// Pan offsets are clamped to the scaled image's slack so the
+				// preview matches the bounded PHP/frontend output — an
+				// extreme focal point can no longer slide an edge inside.
+				var posOffsetX = rcmiClampImagePanPercent( ( posX - 50 ) * range / scale, scale );
 				// Y axis inverted: high posY = up. object-position uses
 				// (100 - posY) and transform offset uses (50 - posY).
-				var posOffsetY = ( 50 - posY ) * range / scale;
+				var posOffsetY = rcmiClampImagePanPercent( ( 50 - posY ) * range / scale, scale );
 				if ( url ) {
 					return el( 'img', {
 						className: 'rcmi-parallax-layer-preview',
@@ -4330,6 +4402,30 @@
 			{ imageId: 0, imageUrl: '', imageAlt: '', positionX: 50, positionY: 50, name: 'Maria Garcia', degree: 'MPH', title: 'Community Liaison', bio: '', email: '', phone: '', link: '' }
 		];
 	}
+
+	// [rcmi-image-pan-helpers-start]
+	// Bounds for the BASE pan (focal-position transform) on image layers —
+	// the units are % of the image's own size, matching --pos-x/--pos-y in
+	// translate(calc(-50% + var(--pos-x))…). A layer at scale% of the
+	// section has (scale-100)/2% section slack per edge, which is
+	// 50*(scale-100)/scale percent of the image itself. Pans beyond that
+	// slide an edge inside the section and reveal a gap. Below 100% the
+	// layer is intentionally windowed, so the pan passes through
+	// unclamped. Same formula as rcmi_clamp_image_pan_percent() in PHP and
+	// the copy in src/frontend.js — keep all three in sync.
+	function rcmiClampImagePanPercent( panPercent, scale ) {
+		panPercent = parseFloat( panPercent );
+		scale = parseFloat( scale );
+		if ( ! isFinite( panPercent ) || ! isFinite( scale ) || scale <= 0 ) {
+			return 0;
+		}
+		if ( scale < 100 ) {
+			return panPercent;
+		}
+		var limit = 50 * ( scale - 100 ) / scale;
+		return Math.max( -limit, Math.min( limit, panPercent ) );
+	}
+	// [rcmi-image-pan-helpers-end]
 
 	// Convert a FocalPointPicker value ({x,y} — floats 0–1 or '50%' strings
 	// depending on WP version) into the 0–100 object-position scale we store.
