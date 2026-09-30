@@ -65,8 +65,8 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			);
 		}
 
-		private static function redirect( $args = array() ) {
-			wp_safe_redirect( add_query_arg( array_merge( array( 'page' => self::PAGE_SLUG ), $args ), admin_url( 'admin.php' ) ) );
+		private static function redirect( $args = array(), $fragment = '' ) {
+			wp_safe_redirect( add_query_arg( array_merge( array( 'page' => self::PAGE_SLUG ), $args ), admin_url( 'admin.php' ) ) . $fragment );
 			exit;
 		}
 
@@ -218,7 +218,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			}
 			$title = self::post_text( 'title', 200 );
 			if ( '' === $title ) {
-				self::redirect( array( 'rcmi_pd_err' => 'A dataset title is required.', 'rcmi_pd_edit' => $id ) );
+				self::redirect( array( 'rcmi_pd_err' => 'A dataset title is required.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 			}
 			$ok = $wpdb->update(
 				RCMI_Protected_Downloads::table( 'datasets' ),
@@ -234,9 +234,9 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 				array( '%d' )
 			);
 			if ( false === $ok ) {
-				self::redirect( array( 'rcmi_pd_err' => 'Dataset update failed — no changes were saved.', 'rcmi_pd_edit' => $id ) );
+				self::redirect( array( 'rcmi_pd_err' => 'Dataset update failed — no changes were saved.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 			}
-			self::redirect( array( 'rcmi_pd_msg' => 'Dataset updated.', 'rcmi_pd_edit' => $id ) );
+			self::redirect( array( 'rcmi_pd_msg' => 'Dataset updated.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 		}
 
 		public static function handle_toggle() {
@@ -270,11 +270,11 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 		 */
 		public static function handle_revoke_dataset() {
 			self::guard( 'rcmi_pd_revoke_dataset' );
+			$id = isset( $_POST['dataset_id'] ) ? absint( $_POST['dataset_id'] ) : 0;
 			if ( empty( $_POST['confirm_revoke'] ) ) {
-				self::redirect( array( 'rcmi_pd_err' => 'Tick the confirmation box to revoke all links for this dataset.' ) );
+				self::redirect( array( 'rcmi_pd_err' => 'Tick the confirmation box to revoke all links for this dataset.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 			}
 			global $wpdb;
-			$id = isset( $_POST['dataset_id'] ) ? absint( $_POST['dataset_id'] ) : 0;
 			if ( ! RCMI_Protected_Downloads::get_dataset( $id ) ) {
 				self::redirect( array( 'rcmi_pd_err' => 'Dataset not found — nothing was revoked.' ) );
 			}
@@ -289,9 +289,9 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			);
 			$wpdb->suppress_errors( $quiet );
 			if ( false === $n ) {
-				self::redirect( array( 'rcmi_pd_err' => 'Revoke failed — requests for this dataset were NOT revoked. Try again.' ) );
+				self::redirect( array( 'rcmi_pd_err' => 'Revoke failed — requests for this dataset were NOT revoked. Try again.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 			}
-			self::redirect( array( 'rcmi_pd_msg' => 'Revoked ' . (int) $n . ' request(s) for this dataset.' ) );
+			self::redirect( array( 'rcmi_pd_msg' => 'Revoked ' . (int) $n . ' request(s) for this dataset.', 'rcmi_pd_edit' => $id ), '#rcmi-pd-edit' );
 		}
 
 		public static function handle_revoke_request() {
@@ -618,7 +618,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 								<td><?php echo $d->enabled ? '<span style="color:#007a66;font-weight:600;">Enabled</span>' : '<span style="color:#b32d2e;font-weight:600;">Disabled</span>'; ?></td>
 								<td><input type="text" readonly class="regular-text rcmi-pd-url" aria-label="<?php esc_attr_e( 'Request URL for', 'rcmi-toolkit' ); ?> <?php echo esc_attr( $d->title ); ?>" value="<?php echo esc_attr( RCMI_Protected_Downloads::url_request( $d->id ) ); ?>" onclick="this.select();" /></td>
 								<td>
-									<a class="button button-small" href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&rcmi_pd_edit=' . (int) $d->id ) ); ?>">Edit</a>
+									<a class="button button-small" href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&rcmi_pd_edit=' . (int) $d->id ) . '#rcmi-pd-edit' ); ?>">Edit</a>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
 										<?php wp_nonce_field( 'rcmi_pd_toggle' ); ?>
 										<input type="hidden" name="action" value="rcmi_pd_toggle" />
@@ -634,7 +634,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 				</div>
 
 				<?php if ( $editing ) : ?>
-					<div class="card rcmi-pd-panel">
+					<div class="card rcmi-pd-panel" id="rcmi-pd-edit">
 						<h2>Edit dataset #<?php echo (int) $editing->id; ?></h2>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php wp_nonce_field( 'rcmi_pd_edit' ); ?>
