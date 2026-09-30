@@ -1,0 +1,74 @@
+/**
+ * RCMI Protected Downloads — admin page styles.
+ *
+ * Loaded only on the RCMI → Protected Downloads screen. Everything is
+ * scoped under .rcmi-pd-admin so it cannot leak into other admin pages.
+ * Wide tables scroll inside their own wrapper so the page itself never
+ * overflows the viewport at narrow widths.
+ */
+
+.rcmi-pd-admin .rcmi-pd-panel {
+	max-width: 1100px;
+	margin-top: 0;
+}
+
+.rcmi-pd-admin .rcmi-pd-panel h2 {
+	margin-top: 0;
+}
+
+.rcmi-pd-admin .rcmi-pd-admin-grid {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( min( 100%, 340px ), 1fr ) );
+	gap: 16px;
+	max-width: 1100px;
+	margin-top: 16px;
+}
+
+.rcmi-pd-admin .rcmi-pd-admin-grid .card {
+	margin: 0;
+}
+
+/* Tables scroll horizontally inside their wrapper at narrow widths —
+   the page/document itself stays within the viewport. */
+.rcmi-pd-admin .rcmi-pd-scroll {
+	overflow-x: auto;
+	max-width: 100%;
+}
+
+.rcmi-pd-admin .rcmi-pd-table {
+	max-width: 1100px;
+}
+
+.rcmi-pd-admin .rcmi-pd-datasets {
+	min-width: 600px;
+}
+
+.rcmi-pd-admin .rcmi-pd-requests {
+	min-width: 1000px;
+}
+
+.rcmi-pd-admin .rcmi-pd-url {
+	width: 100%;
+	max-width: 100%;
+}
+
+.rcmi-pd-admin input[type="text"],
+.rcmi-pd-admin input[type="number"],
+.rcmi-pd-admin input[type="file"],
+.rcmi-pd-admin textarea,
+.rcmi-pd-admin select {
+	max-width: 100%;
+}
+
+.rcmi-pd-admin .rcmi-pd-path {
+	word-break: break-all;
+}
+
+.rcmi-pd-admin .rcmi-pd-filters {
+	margin-bottom: 8px;
+}
+
+.rcmi-pd-admin .rcmi-pd-export {
+	display: inline;
+	margin-bottom: 8px;
+}

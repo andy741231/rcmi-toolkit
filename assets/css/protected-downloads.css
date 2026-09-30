@@ -1,0 +1,215 @@
+/**
+ * RCMI Protected Downloads — standalone public pages.
+ *
+ * Self-contained: the request/confirm/success/error pages link ONLY this
+ * file — no theme CSS, no fonts/CDN loads, no scripts at all.
+ * Palette follows the RCMI/UH direction: UH red #C8102E, slate, and a
+ * light grey/cream atmosphere.
+ */
+
+:root {
+	--rcmi-pd-red: #c8102e;
+	--rcmi-pd-red-dark: #960c22;
+	--rcmi-pd-slate: #54585a;
+	--rcmi-pd-slate-dark: #2e3338;
+	--rcmi-pd-cream: #f6f4ee;
+	--rcmi-pd-line: #e2ded6;
+	--rcmi-pd-ink: #22262b;
+	--rcmi-pd-err: #b32d2e;
+	--rcmi-pd-focus: #005950;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body.rcmi-pd {
+	margin: 0;
+	background: var(--rcmi-pd-cream);
+	color: var(--rcmi-pd-ink);
+	font-family: "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	font-size: 16px;
+	line-height: 1.55;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.rcmi-pd-shell {
+	width: 100%;
+	max-width: 720px;
+	margin: 0 auto;
+	padding: 0 20px;
+}
+
+.rcmi-pd-header {
+	background: var(--rcmi-pd-red);
+	padding: 18px 0;
+}
+
+.rcmi-pd-brand {
+	color: #fff;
+	text-decoration: none;
+	font-family: "League Gothic", Georgia, "Times New Roman", serif;
+	font-size: 30px;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	line-height: 1;
+}
+
+.rcmi-pd-brand span {
+	font-family: inherit;
+	font-size: 0.62em;
+	letter-spacing: 0.12em;
+	opacity: 0.92;
+	vertical-align: baseline;
+	text-transform: uppercase;
+}
+
+.rcmi-pd-brand:hover,
+.rcmi-pd-brand:focus-visible {
+	text-decoration: underline;
+}
+
+.rcmi-pd-card {
+	background: #fff;
+	border: 1px solid var(--rcmi-pd-line);
+	border-top: 4px solid var(--rcmi-pd-red);
+	border-radius: 4px;
+	padding: 32px 36px;
+	margin: 40px 0 56px;
+	max-width: 680px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.rcmi-pd-h {
+	font-family: "League Gothic", Georgia, "Times New Roman", serif;
+	font-size: 34px;
+	font-weight: 400;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--rcmi-pd-slate-dark);
+	margin: 0 0 12px;
+	line-height: 1.1;
+}
+
+.rcmi-pd-lede {
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--rcmi-pd-slate-dark);
+	margin: 0 0 14px;
+}
+
+.rcmi-pd-privacy {
+	background: var(--rcmi-pd-cream);
+	border-left: 3px solid var(--rcmi-pd-slate);
+	padding: 10px 14px;
+	font-size: 14px;
+	color: var(--rcmi-pd-slate-dark);
+	margin: 0 0 18px;
+}
+
+.rcmi-pd-field {
+	margin: 0 0 18px;
+}
+
+.rcmi-pd-field label {
+	display: block;
+	font-weight: 600;
+	margin: 0 0 5px;
+	color: var(--rcmi-pd-slate-dark);
+}
+
+.rcmi-pd-field label span {
+	color: var(--rcmi-pd-red);
+}
+
+.rcmi-pd-field input {
+	display: block;
+	width: 100%;
+	min-height: 44px;
+	padding: 9px 12px;
+	border: 1px solid #b9b4a9;
+	border-radius: 3px;
+	font: inherit;
+	color: var(--rcmi-pd-ink);
+	background: #fff;
+}
+
+.rcmi-pd-field input:focus-visible,
+.rcmi-pd-btn:focus-visible,
+.rcmi-pd-brand:focus-visible {
+	outline: 3px solid var(--rcmi-pd-focus);
+	outline-offset: 2px;
+}
+
+.rcmi-pd-field input[aria-invalid="true"] {
+	border-color: var(--rcmi-pd-err);
+}
+
+.rcmi-pd-err {
+	color: var(--rcmi-pd-err);
+	font-size: 14px;
+	font-weight: 600;
+	margin: 5px 0 0;
+}
+
+.rcmi-pd-alert {
+	background: #fcf0f1;
+	border-left: 4px solid var(--rcmi-pd-err);
+	color: var(--rcmi-pd-err);
+	padding: 10px 14px;
+	margin: 0 0 18px;
+	font-weight: 600;
+}
+
+.rcmi-pd-btn {
+	display: inline-block;
+	min-height: 44px;
+	padding: 10px 26px;
+	border: 0;
+	border-radius: 3px;
+	background: var(--rcmi-pd-red);
+	color: #fff;
+	font: inherit;
+	font-weight: 700;
+	font-size: 16px;
+	cursor: pointer;
+	text-transform: none;
+	text-decoration: none;
+}
+
+.rcmi-pd-btn:hover {
+	background: var(--rcmi-pd-red-dark);
+}
+
+.rcmi-pd-note {
+	font-size: 14px;
+	color: var(--rcmi-pd-slate);
+	margin: 16px 0 0;
+}
+
+/* Honeypot — never visible, never focusable, out of the a11y tree. */
+.rcmi-pd-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+@media (max-width: 560px) {
+	.rcmi-pd-card {
+		padding: 22px 18px;
+		margin: 24px 0 40px;
+	}
+
+	.rcmi-pd-h {
+		font-size: 28px;
+	}
+
+	.rcmi-pd-btn {
+		width: 100%;
+		text-align: center;
+	}
+}

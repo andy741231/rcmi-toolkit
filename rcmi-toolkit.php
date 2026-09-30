@@ -27,8 +27,15 @@ require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-analytics-admin.php';
 // Site backup/restore + schedules. See includes/class-rcmi-backup.php.
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-backup.php';
 require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-backup-admin.php';
+
+// Protected downloads (private file store + emailed one-time links).
+// See includes/class-rcmi-protected-downloads.php and PROTECTED-DOWNLOADS.md.
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-protected-downloads.php';
+require_once RCMI_TOOLKIT_PATH . 'includes/class-rcmi-protected-downloads-admin.php';
 register_activation_hook( __FILE__, array( 'RCMI_Analytics', 'activate' ) );
+register_activation_hook( __FILE__, array( 'RCMI_Protected_Downloads', 'activate' ) );
 register_deactivation_hook( __FILE__, array( 'RCMI_Analytics', 'deactivate' ) );
+register_deactivation_hook( __FILE__, array( 'RCMI_Protected_Downloads', 'deactivate' ) );
 
 // ============================================================================
 // Admin menu — top-level "RCMI Toolkit" hub
@@ -162,6 +169,12 @@ function rcmi_toolkit_render_admin_overview() {
 	echo '<h2>Backups</h2>';
 	echo '<p>Database and uploads backups with separate schedules, retention, download, and restore — stored in a protected directory.</p>';
 	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=rcmi-backup' ) ) . '">Open Backups</a></p>';
+	echo '</div>';
+
+	echo '<div class="rcmi-toolkit-card">';
+	echo '<h2>Protected Downloads</h2>';
+	echo '<p>Private datasets served through emailed one-time download links — files live outside the web root, with rate limiting and per-request revoke.</p>';
+	echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=rcmi-downloads' ) ) . '">Open Protected Downloads</a></p>';
 	echo '</div>';
 
 	// The SEO settings page lives in the rcmi theme (inc/seo.php) but joins
