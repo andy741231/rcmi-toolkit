@@ -755,7 +755,9 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			$email = sanitize_email( $email );
 			$url   = self::url_token( $raw );
 
-			$subject = sprintf( 'RCMI at UH download link: %s', '' !== $title ? $title : 'dataset' );
+			$mail    = rcmi_toolkit_mail_settings();
+			$subject = str_replace( '{dataset}', '' !== $title ? $title : 'dataset', $mail['dl_subject'] );
+			$subject = trim( preg_replace( '/[\r\n]+/', ' ', $subject ) );
 			$lines   = array(
 				'' !== $name ? "Hello {$name}," : 'Hello,',
 				'',
@@ -774,7 +776,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			// global phpmailer_init stamper rewrites From again — so
 			// apply_mail_from() enforces the sender at the final mailer stage,
 			// scoped to this single send via a request global.
-			$from = trim( (string) preg_replace( '/[\r\n]+/', ' ', (string) apply_filters( 'rcmi_pd_mail_from', 'RCMI at University of Houston <uhrcmi@uh.edu>' ) ) );
+			$from = trim( (string) preg_replace( '/[\r\n]+/', ' ', (string) apply_filters( 'rcmi_pd_mail_from', $mail['from_header'] ) ) );
 			if ( '' !== $from ) {
 				$headers[] = 'From: ' . $from;
 				if ( preg_match( '/^(.*)<([^<>]+)>\s*$/', $from, $m ) ) {

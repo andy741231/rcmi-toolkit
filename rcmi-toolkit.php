@@ -113,6 +113,68 @@ function rcmi_toolkit_status_badge( $status ) {
 	return '<span class="rcmi-toolkit-status ' . esc_attr( $class ) . '">' . esc_html( $label ) . '</span>';
 }
 
+// ============================================================================
+// Email identity — sender for RCMI Toolkit mail, editable on the hub page
+// ============================================================================
+
+function rcmi_toolkit_mail_defaults() {
+	return array(
+		'from_name'  => 'RCMI at University of Houston',
+		'from_email' => 'uhrcmi@uh.edu',
+		'dl_subject' => 'RCMI at UH download link: {dataset}',
+	);
+}
+
+/**
+ * Effective mail settings (option merged over defaults). 'from_header' is
+ * the ready-to-use "Name <addr>" string. An invalid stored email falls
+ * back to the default — a broken From is never emitted.
+ */
+function rcmi_toolkit_mail_settings() {
+	$stored = get_option( 'rcmi_mail_settings', array() );
+	if ( ! is_array( $stored ) ) {
+		$stored = array();
+	}
+	$s = wp_parse_args( $stored, rcmi_toolkit_mail_defaults() );
+	if ( ! is_email( $s['from_email'] ) ) {
+		$s['from_email'] = rcmi_toolkit_mail_defaults()['from_email'];
+	}
+	$s['from_name']   = trim( preg_replace( '/[\r\n]+/', ' ', wp_strip_all_tags( (string) $s['from_name'] ) ) );
+	$s['dl_subject']  = trim( preg_replace( '/[\r\n]+/', ' ', wp_strip_all_tags( (string) $s['dl_subject'] ) ) );
+	$s['from_header'] = '' !== $s['from_name'] ? $s['from_name'] . ' <' . $s['from_email'] . '>' : $s['from_email'];
+	return $s;
+}
+
+/**
+ * Save handler for the hub-page email form (POST + manage_options + nonce).
+ */
+function rcmi_toolkit_handle_mail_settings() {
+	$method = strtoupper( isset( $_SERVER['REQUEST_METHOD'] ) ? (string) $_SERVER['REQUEST_METHOD'] : '' );
+	if ( 'POST' !== $method || ! current_user_can( 'manage_options' ) || ! check_admin_referer( 'rcmi_mail_settings', '_wpnonce', false ) ) {
+		wp_die( 'Unauthorized' );
+	}
+	$in    = isset( $_POST['rcmi_mail'] ) && is_array( $_POST['rcmi_mail'] ) ? wp_unslash( $_POST['rcmi_mail'] ) : array();
+	$email = isset( $in['from_email'] ) ? sanitize_email( $in['from_email'] ) : '';
+	$base  = admin_url( 'admin.php?page=rcmi-toolkit' ) . '#rcmi-mail';
+	if ( '' !== trim( (string) ( isset( $in['from_email'] ) ? $in['from_email'] : '' ) ) && ! is_email( $email ) ) {
+		wp_safe_redirect( add_query_arg( 'rcmi_mail_err', 'Enter a valid From email address.', $base ) );
+		exit;
+	}
+	$defaults = rcmi_toolkit_mail_defaults();
+	$subject  = isset( $in['dl_subject'] ) ? trim( preg_replace( '/[\r\n]+/', ' ', wp_strip_all_tags( (string) $in['dl_subject'] ) ) ) : '';
+	update_option(
+		'rcmi_mail_settings',
+		array(
+			'from_name'  => isset( $in['from_name'] ) ? substr( trim( preg_replace( '/[\r\n]+/', ' ', wp_strip_all_tags( (string) $in['from_name'] ) ) ), 0, 150 ) : '',
+			'from_email' => '' !== $email ? $email : $defaults['from_email'],
+			'dl_subject' => '' !== $subject ? substr( $subject, 0, 200 ) : $defaults['dl_subject'],
+		)
+	);
+	wp_safe_redirect( add_query_arg( 'rcmi_mail_msg', 'Email settings saved.', $base ) );
+	exit;
+}
+add_action( 'admin_post_rcmi_mail_settings', 'rcmi_toolkit_handle_mail_settings' );
+
 /**
  * Render the RCMI hub page: stack component status + links to each tool.
  * Notices flag companion pieces that are missing or inactive, so an admin
@@ -201,6 +263,30 @@ function rcmi_toolkit_render_admin_overview() {
 	echo '</div>';
 
 	echo '</div>'; // .rcmi-toolkit-cards
+
+	// Email identity — sender for toolkit mail (protected-download links).
+	// Ticket mail has its own settings under Tickets → Email.
+	if ( isset( $_GET['rcmi_mail_msg'] ) ) {
+		echo '<div class="notice notice-success inline"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['rcmi_mail_msg'] ) ) ) . '</p></div>';
+	}
+	if ( isset( $_GET['rcmi_mail_err'] ) ) {
+		echo '<div class="notice notice-error inline"><p>' . esc_html( sanitize_text_field( wp_unslash( $_GET['rcmi_mail_err'] ) ) ) . '</p></div>';
+	}
+	$ms = rcmi_toolkit_mail_settings();
+	echo '<div class="card" id="rcmi-mail" style="max-width:640px;margin-top:24px;">';
+	echo '<h2>Email</h2>';
+	echo '<p class="description">Sender for emails this plugin sends (e.g. protected-download request links). Replies land on this mailbox instead of the site default donotreply address. Ticket emails have their own settings under Tickets → Email.</p>';
+	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+	wp_nonce_field( 'rcmi_mail_settings' );
+	echo '<input type="hidden" name="action" value="rcmi_mail_settings" />';
+	echo '<table class="form-table" role="presentation">';
+	echo '<tr><th scope="row"><label for="rcmi_mail_from_name">From name</label></th><td><input type="text" id="rcmi_mail_from_name" name="rcmi_mail[from_name]" class="regular-text" maxlength="150" value="' . esc_attr( $ms['from_name'] ) . '" /></td></tr>';
+	echo '<tr><th scope="row"><label for="rcmi_mail_from_email">From email</label></th><td><input type="email" id="rcmi_mail_from_email" name="rcmi_mail[from_email]" class="regular-text" maxlength="254" value="' . esc_attr( $ms['from_email'] ) . '" /><p class="description">The campus mail relay must accept this sender — use a real @uh.edu mailbox.</p></td></tr>';
+	echo '<tr><th scope="row"><label for="rcmi_mail_dl_subject">Download-link subject</label></th><td><input type="text" id="rcmi_mail_dl_subject" name="rcmi_mail[dl_subject]" class="large-text" maxlength="200" value="' . esc_attr( $ms['dl_subject'] ) . '" /><p class="description"><code>{dataset}</code> is replaced by the dataset title.</p></td></tr>';
+	echo '</table>';
+	submit_button( 'Save email settings' );
+	echo '</form>';
+	echo '</div>';
 
 	// Component inventory table — reference info, kept at the bottom and
 	// collapsed by default; notices above already flag anything missing.

@@ -110,13 +110,14 @@ $REQ            = RCMI_Protected_Downloads::table( 'requests' );
 $DS             = RCMI_Protected_Downloads::table( 'datasets' );
 $RATE           = RCMI_Protected_Downloads::table( 'rate' );
 $saved_settings = get_option( RCMI_Protected_Downloads::OPTION_SETTINGS, null );
+$saved_mail     = get_option( 'rcmi_mail_settings', null );
 
 // ---------------------------------------------------------------------------
 // Cleanup — only fixtures this run created, by id/hash/tag prefix. Defined
 // and registered BEFORE any mutation so a fatal/early exit still cleans up.
 // ---------------------------------------------------------------------------
 $rcmi_pd_cleaned = false;
-$rcmi_pd_cleanup = function () use ( &$rcmi_fixtures, &$rcmi_pd_cleaned, $REQ, $DS, $RATE, $RCMI_PD_TAG, $RCMI_PD_ROOT, $saved_settings ) {
+$rcmi_pd_cleanup = function () use ( &$rcmi_fixtures, &$rcmi_pd_cleaned, $REQ, $DS, $RATE, $RCMI_PD_TAG, $RCMI_PD_ROOT, $saved_settings, $saved_mail ) {
 	global $wpdb;
 	if ( $rcmi_pd_cleaned ) {
 		return;
@@ -147,6 +148,11 @@ $rcmi_pd_cleanup = function () use ( &$rcmi_fixtures, &$rcmi_pd_cleaned, $REQ, $
 		foreach ( glob( $RCMI_PD_ROOT . '/' . $RCMI_PD_TAG . '*' ) ?: array() as $f ) {
 			unlink( $f );
 		}
+	}
+	if ( null !== $saved_mail ) {
+		update_option( 'rcmi_mail_settings', $saved_mail );
+	} else {
+		delete_option( 'rcmi_mail_settings' );
 	}
 	if ( null !== $saved_settings ) {
 		update_option( RCMI_Protected_Downloads::OPTION_SETTINGS, $saved_settings );
@@ -362,6 +368,18 @@ add_filter(
 	10,
 	2
 );
+
+// Mail identity is option-driven (RCMI hub → Email): custom subject
+// template and sender apply without code changes.
+update_option( 'rcmi_mail_settings', array( 'from_name' => 'UH RCMI', 'from_email' => 'rcmi@central.uh.edu', 'dl_subject' => 'Get {dataset} here' ) );
+$GLOBALS['rcmi_pd_mail_result'] = true;
+$res3 = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Opt Tester', $RCMI_PD_TAG . 'opt@example.invalid', 'Dev' );
+rcmi_pd_check( ! is_wp_error( $res3 ), 'option-driven create_request failed' );
+$rcmi_fixtures['requests'][] = is_wp_error( $res3 ) ? 0 : $res3['id'];
+$m3 = end( $sent_mail );
+rcmi_pd_check( 'Get PD Test Dataset here' === $m3['subject'], 'subject template not applied: ' . $m3['subject'] );
+rcmi_pd_check( false !== stripos( implode( ' ', (array) $m3['headers'] ), 'From: UH RCMI <rcmi@central.uh.edu>' ), 'option-driven From not applied' );
+delete_option( 'rcmi_mail_settings' );
 
 // Raw token value never persisted.
 rcmi_pd_check( false === strpos( wp_json_encode( $row ), 'rcmi_download_token=' ), 'raw token leaked into row' );
