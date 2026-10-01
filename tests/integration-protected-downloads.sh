@@ -176,7 +176,9 @@ echo "$H" | grep -q "Cache-Control: private, no-store" && ok "no-store header" |
 echo "$H" | grep -q "X-Robots-Tag: noindex" && ok "noindex header" || bad "noindex missing"
 echo "$H" | grep -q "Referrer-Policy: no-referrer" && ok "referrer-policy" || bad "referrer-policy missing"
 echo "$H" | grep -q 'name="robots" content="noindex' && ok "noindex meta" || bad "noindex meta missing"
-echo "$H" | grep -qiE "google|analytics-events|wp_head|googletag" && bad "tracking/third-party in page" || ok "no third-party/tracking markup"
+# Theme header pulls fonts.googleapis.com — allowed; actual trackers are not.
+echo "$H" | grep -qiE "googletagmanager|google-analytics|analytics-events|wp_head|googletag" && bad "tracking in page" || ok "no tracking markup"
+echo "$H" | grep -q 'class="site-header"' && ok "theme site header rendered" || bad "site header missing"
 echo "$H" | grep -q 'rcmi_dl_website' && ok "honeypot present" || bad "honeypot missing"
 CSRF=$(echo "$H" | grep -o 'name="rcmi_csrf" value="[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
 [ -n "$CSRF" ] && ok "csrf token extracted" || bad "csrf token missing"

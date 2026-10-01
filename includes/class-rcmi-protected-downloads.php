@@ -1482,7 +1482,9 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 		}
 
 		// ====================================================================
-		// Standalone HTML — no wp_head/footer, no analytics, own CSS only.
+		// Standalone HTML — no wp_head/footer, no analytics. Renders the
+		// site's real header when the rcmi theme + its site-header block are
+		// available; otherwise a minimal brand bar is the fallback.
 		// ====================================================================
 
 		/**
@@ -1516,17 +1518,48 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			$ver = file_exists( RCMI_TOOLKIT_PATH . 'assets/css/protected-downloads.css' )
 				? filemtime( RCMI_TOOLKIT_PATH . 'assets/css/protected-downloads.css' )
 				: RCMI_TOOLKIT_VERSION;
+			// Render the site's real header when the rcmi theme is active —
+			// its rcmi/site-header block carries the nav, logo, and CTAs.
+			// That pulls the theme fonts/styles/nav.js onto these pages;
+			// the standalone brand bar is the fallback when unavailable.
+			$theme_header = '';
+			if ( 'rcmi' === get_stylesheet() && WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/site-header' ) ) {
+				$theme_header = do_blocks( '<!-- wp:rcmi/site-header /-->' );
+			}
 			echo '<!DOCTYPE html><html lang="en-US"><head>';
 			echo '<meta charset="utf-8">';
 			echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
 			echo '<meta name="robots" content="noindex, nofollow">';
 			echo '<title>' . esc_html( $title ) . ' — RCMI at University of Houston</title>';
+			if ( $theme_header ) {
+				echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=League+Gothic&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap">';
+				$theme_css = get_template_directory() . '/assets/css/rcmi.css';
+				if ( file_exists( $theme_css ) ) {
+					echo '<link rel="stylesheet" href="' . esc_url( add_query_arg( 'v', (string) filemtime( $theme_css ), get_template_directory_uri() . '/assets/css/rcmi.css' ) ) . '">';
+				}
+				if ( function_exists( 'wp_get_global_stylesheet' ) ) {
+					$global_css = wp_get_global_stylesheet();
+					if ( $global_css ) {
+						echo '<style>' . $global_css . '</style>'; // phpcs:ignore WordPress.Security.EscapeOutput -- core-generated CSS.
+					}
+				}
+			}
 			echo '<link rel="stylesheet" href="' . esc_url( add_query_arg( 'v', $ver, $css ) ) . '">';
 			echo '</head><body class="rcmi-pd">';
-			echo '<header class="rcmi-pd-header"><div class="rcmi-pd-shell">';
-			echo '<a class="rcmi-pd-brand" href="' . esc_url( home_url( '/' ) ) . '">RCMI <span>at University of Houston</span></a>';
-			echo '</div></header>';
+			if ( $theme_header ) {
+				echo $theme_header; // phpcs:ignore WordPress.Security.EscapeOutput -- trusted render_callback markup.
+			} else {
+				echo '<header class="rcmi-pd-header"><div class="rcmi-pd-shell">';
+				echo '<a class="rcmi-pd-brand" href="' . esc_url( home_url( '/' ) ) . '">RCMI <span>at University of Houston</span></a>';
+				echo '</div></header>';
+			}
 			echo '<main class="rcmi-pd-shell"><div class="rcmi-pd-card">' . $body . '</div></main>'; // phpcs:ignore WordPress.Security.EscapeOutput -- $body is pre-escaped markup.
+			if ( $theme_header ) {
+				$nav_js = get_template_directory() . '/assets/js/nav.js';
+				if ( file_exists( $nav_js ) ) {
+					echo '<script src="' . esc_url( add_query_arg( 'v', (string) filemtime( $nav_js ), get_template_directory_uri() . '/assets/js/nav.js' ) ) . '" defer></script>';
+				}
+			}
 			echo '</body></html>';
 			exit;
 		}
