@@ -1519,12 +1519,15 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				? filemtime( RCMI_TOOLKIT_PATH . 'assets/css/protected-downloads.css' )
 				: RCMI_TOOLKIT_VERSION;
 			// Render the site's real header when the rcmi theme is active —
-			// its rcmi/site-header block carries the nav, logo, and CTAs.
+			// block_template_part resolves the 'header' template part,
+			// including any Site Editor customization stored in wp_template_part.
 			// That pulls the theme fonts/styles/nav.js onto these pages;
 			// the standalone brand bar is the fallback when unavailable.
 			$theme_header = '';
-			if ( 'rcmi' === get_stylesheet() && WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/site-header' ) ) {
-				$theme_header = do_blocks( '<!-- wp:rcmi/site-header /-->' );
+			if ( 'rcmi' === get_stylesheet() && function_exists( 'block_template_part' ) ) {
+				ob_start();
+				block_template_part( 'header' );
+				$theme_header = ob_get_clean();
 			}
 			echo '<!DOCTYPE html><html lang="en-US"><head>';
 			echo '<meta charset="utf-8">';

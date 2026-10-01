@@ -189,6 +189,14 @@ body.rcmi-pd {
 	margin: 16px 0 0;
 }
 
+/* The theme site header is position:fixed by design — it overlays the
+ * hero on normal pages. On our standalone pages that would cover the
+ * form card, so switch it to sticky: it still sticks on scroll but
+ * occupies layout space, keeping the card below it. */
+body.rcmi-pd .site-header {
+	position: sticky;
+}
+
 /* Honeypot — never visible, never focusable, out of the a11y tree. */
 .rcmi-pd-hp {
 	position: absolute;
