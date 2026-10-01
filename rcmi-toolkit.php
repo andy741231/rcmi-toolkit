@@ -2586,7 +2586,7 @@ function rcmi_register_server_side_blocks() {
 				$mobile_intensity = max( 0, min( 2, floatval( $attrs['mobileIntensity'] ?? 0.7 ) ) );
 				$tablet_scale_mult = $attrs['tabletScaleMultiplier'] ?? 0.75;
 				?>
-				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-mode="<?php echo esc_attr( $parallax_mode ); ?>" data-mobile-intensity="<?php echo esc_attr( $mobile_intensity ); ?>" data-tablet-scale-mult="<?php echo esc_attr( $tablet_scale_mult ); ?>" style="height: <?php echo $height; ?>vh;min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-mode="<?php echo esc_attr( $parallax_mode ); ?>" data-mobile-intensity="<?php echo esc_attr( $mobile_intensity ); ?>" data-tablet-scale-mult="<?php echo esc_attr( $tablet_scale_mult ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php
 					// Build structured layer arrays for the three parallax layers.
 					$parallax_layers = array(
@@ -2640,7 +2640,7 @@ function rcmi_register_server_side_blocks() {
 					'mobile_scale' => $attrs['bgMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['bgMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['bgMobilePositionY'] ?? 50,
 				) );
 				?>
-				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="height: <?php echo $height; ?>vh;min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
+				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php if ( $bg_img_html ) : ?>
 						<?php echo $bg_img_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<?php else : ?>
