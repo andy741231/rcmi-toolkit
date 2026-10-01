@@ -78,6 +78,27 @@ under `prefers-reduced-motion`.
   a gap — nudge the position inward if you wanted the edge crop.
 - Below 100% the windowed look remains available.
 
+## Section height
+
+The **Section height** (viewport %) setting is the section's *actual*
+height, not a minimum: both the server render (`rcmi-toolkit.php`) and
+the editor preview (`src/blocks.js`) emit `height: Nvh` *and*
+`min-height: Nvh`, and the theme sets `box-sizing: border-box` on
+`.rcmi-parallax` (`.hero` already has it) so the border-box dimension is
+exactly `Nvh` at every viewport — content or image size never changes it.
+
+Consequences:
+
+- **Parallax mode**: `.rcmi-parallax` is `overflow: hidden`, so content
+  taller than the vh height is clipped on the frontend; the editor
+  instead lets `.rcmi-parallax-inner` scroll internally so every block
+  (including its toolbar) stays reachable. If published content clips,
+  raise the Section height or shorten the content.
+- **Static mode** (`.hero`): `overflow: visible`, so oversized content
+  extends below the section rather than being cropped.
+- No `height: auto` fallback below 900px — a shorter mobile viewport
+  means a proportionally shorter section, so keep mobile content brief.
+
 ## Migration
 
 None. Both clamps are runtime limits on existing attributes — no block
