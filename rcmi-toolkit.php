@@ -1135,8 +1135,8 @@ function rcmi_toolkit_block_meta() {
 		'rcmi/slide-block'          => array( 'added' => '2026-08-13', 'updated' => '2026-09-29' ),
 		'rcmi/parallax'             => array( 'added' => '2026-07-29', 'updated' => '2026-09-29' ),
 		'rcmi/table'                => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
-		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
-		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
+		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-10-08' ),
+		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-10-08' ),
 		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 		'rcmi/story-text'           => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
 		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
@@ -2702,13 +2702,19 @@ function rcmi_register_server_side_blocks() {
 	// directories saved before profiles became child blocks.
 	register_block_type( 'rcmi/directory', array(
 		'attributes' => array(
-			'columns'    => array( 'type' => 'number', 'default' => 3 ),
-			'photoStyle' => array( 'type' => 'string', 'default' => 'circle' ),
-			'cardStyle'  => array( 'type' => 'string', 'default' => 'card' ),
-			'linkNewTab' => array( 'type' => 'boolean', 'default' => false ),
-			'people'     => array( 'type' => 'array', 'default' => array() ),
+			'columns'         => array( 'type' => 'number', 'default' => 3 ),
+			'photoStyle'      => array( 'type' => 'string', 'default' => 'circle' ),
+			'cardStyle'       => array( 'type' => 'string', 'default' => 'card' ),
+			'linkNewTab'      => array( 'type' => 'boolean', 'default' => false ),
+			'showProfileLink' => array( 'type' => 'boolean', 'default' => false ),
+			'initialsBg'      => array( 'type' => 'string', 'default' => '' ),
+			'initialsText'    => array( 'type' => 'string', 'default' => '' ),
+			'people'          => array( 'type' => 'array', 'default' => array() ),
 		),
-		'provides_context' => array( 'rcmi/linkNewTab' => 'linkNewTab' ),
+		'provides_context' => array(
+			'rcmi/linkNewTab'      => 'linkNewTab',
+			'rcmi/showProfileLink' => 'showProfileLink',
+		),
 		'supports' => array(
 			'html'   => false,
 			'anchor' => true,
@@ -2732,7 +2738,7 @@ function rcmi_register_server_side_blocks() {
 			'phone'     => array( 'type' => 'string', 'default' => '' ),
 			'link'      => array( 'type' => 'string', 'default' => '' ),
 		),
-		'uses_context'    => array( 'rcmi/linkNewTab' ),
+		'uses_context'    => array( 'rcmi/linkNewTab', 'rcmi/showProfileLink' ),
 		'supports'        => array( 'html' => false ),
 		'render_callback' => 'rcmi_render_directory_person_block',
 	) );
@@ -3081,11 +3087,12 @@ function rcmi_directory_initials( $name ) {
  * Shared by rcmi_render_directory_person_block() and the legacy
  * `people` attribute path in rcmi_render_directory_block().
  *
- * @param array  $p      Person attributes.
- * @param string $target Prebuilt `target="…" rel="…"` string or ''.
+ * @param array  $p         Person attributes.
+ * @param string $target    Prebuilt `target="…" rel="…"` string or ''.
+ * @param bool   $show_link Whether to render the "View profile" link.
  * @return string <article> markup, or '' when the person is empty.
  */
-function rcmi_render_directory_person_card( $p, $target = '' ) {
+function rcmi_render_directory_person_card( $p, $target = '', $show_link = false ) {
 	if ( ! is_array( $p ) ) {
 		return '';
 	}
@@ -3164,7 +3171,7 @@ function rcmi_render_directory_person_card( $p, $target = '' ) {
 	$card .= $title ? '<p class="rcmi-person-title" itemprop="jobTitle">' . wp_kses_post( $title ) . '</p>' : '';
 	$card .= $bio ? '<p class="rcmi-person-bio">' . wp_kses_post( $bio ) . '</p>' : '';
 	$card .= $contact ? '<p class="rcmi-person-contact">' . $contact . '</p>' : '';
-	$card .= $has_link ? '<a class="rcmi-person-link" href="' . esc_url( $link ) . '"' . $target . ' itemprop="url">' . esc_html__( 'View profile', 'rcmi-toolkit' ) . ' ' . $icon_arrow . '</a>' : '';
+	$card .= ( $has_link && $show_link ) ? '<a class="rcmi-person-link" href="' . esc_url( $link ) . '"' . $target . ' itemprop="url">' . esc_html__( 'View profile', 'rcmi-toolkit' ) . ' ' . $icon_arrow . '</a>' : '';
 	$card .= '</div></article>';
 	return $card;
 }
@@ -3178,11 +3185,15 @@ function rcmi_render_directory_person_card( $p, $target = '' ) {
  * @return string
  */
 function rcmi_render_directory_person_block( $attrs, $content = '', $block = null ) {
-	$target = '';
-	if ( $block instanceof WP_Block && ! empty( $block->context['rcmi/linkNewTab'] ) ) {
-		$target = ' target="_blank" rel="noopener noreferrer"';
+	$target    = '';
+	$show_link = false;
+	if ( $block instanceof WP_Block ) {
+		if ( ! empty( $block->context['rcmi/linkNewTab'] ) ) {
+			$target = ' target="_blank" rel="noopener noreferrer"';
+		}
+		$show_link = ! empty( $block->context['rcmi/showProfileLink'] );
 	}
-	return rcmi_render_directory_person_card( $attrs, $target );
+	return rcmi_render_directory_person_card( $attrs, $target, $show_link );
 }
 
 /**
@@ -3201,12 +3212,26 @@ function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 	$photo_style = in_array( $attrs['photoStyle'] ?? '', array( 'circle', 'rounded', 'portrait' ), true ) ? $attrs['photoStyle'] : 'circle';
 	$card_style  = in_array( $attrs['cardStyle'] ?? '', array( 'card', 'plain' ), true ) ? $attrs['cardStyle'] : 'card';
 	$target      = ! empty( $attrs['linkNewTab'] ) ? ' target="_blank" rel="noopener noreferrer"' : '';
+	$show_link   = ! empty( $attrs['showProfileLink'] );
 
 	$classes = 'rcmi-directory rcmi-directory--cols-' . $cols . ' rcmi-directory--photo-' . $photo_style . ' rcmi-directory--' . $card_style;
 	if ( ! empty( $attrs['align'] ) ) {
 		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
 	}
 	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
+
+	// No-photo placeholder colors as CSS custom properties (inherited by cards).
+	$vars = '';
+	foreach ( array(
+		'initialsBg'   => '--rcmi-dir-initials-bg',
+		'initialsText' => '--rcmi-dir-initials-text',
+	) as $key => $var ) {
+		$v = $attrs[ $key ] ?? '';
+		if ( $v && sanitize_hex_color( $v ) ) {
+			$vars .= $var . ':' . sanitize_hex_color( $v ) . ';';
+		}
+	}
+	$style_attr = $vars ? ' style="' . esc_attr( $vars ) . '"' : '';
 
 	$cards = '';
 	if ( $block instanceof WP_Block ) {
@@ -3219,7 +3244,7 @@ function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 	if ( '' === $cards ) {
 		// Legacy path: profiles stored in the `people` attribute.
 		foreach ( (array) ( $attrs['people'] ?? array() ) as $p ) {
-			$cards .= rcmi_render_directory_person_card( $p, $target );
+			$cards .= rcmi_render_directory_person_card( $p, $target, $show_link );
 		}
 	}
 
@@ -3227,7 +3252,7 @@ function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 		return '';
 	}
 
-	return '<div class="' . esc_attr( $classes ) . '"' . $id_attr . '>' . $cards . '</div>';
+	return '<div class="' . esc_attr( $classes ) . '"' . $id_attr . $style_attr . '>' . $cards . '</div>';
 }
 
 /**

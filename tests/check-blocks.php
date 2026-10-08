@@ -349,6 +349,77 @@ rcmi_check( false !== strpos( $both, 'Real Person' ), 'directory(inner): child b
 rcmi_check( false === strpos( $both, 'Ghost Person' ), 'directory(inner): legacy people attr should be ignored when children exist' );
 
 // ---------------------------------------------------------------------------
+// rcmi/directory — showProfileLink toggle + initials placeholder colors
+// ---------------------------------------------------------------------------
+
+// showProfileLink=false hides only the "View profile" element — the photo
+// and name links stay clickable.
+$no_vpl = rcmi_render( 'rcmi/directory', array(
+	'showProfileLink' => false,
+	'people'          => array(
+		array( 'name' => 'Link Person', 'link' => 'https://example.edu/x' ),
+	),
+) );
+rcmi_check( false === strpos( $no_vpl, 'class="rcmi-person-link"' ), 'directory: showProfileLink=false should hide the View profile link' );
+rcmi_check( false !== strpos( $no_vpl, 'rcmi-person-photo-link' ), 'directory: photo link should remain when showProfileLink=false' );
+rcmi_check( false !== strpos( $no_vpl, 'rcmi-person-name" itemprop="name"><a href="https://example.edu/x"' ), 'directory: name link should remain when showProfileLink=false' );
+
+// The link is opt-in: off by default, rendered when showProfileLink=true.
+$default_vpl = rcmi_render( 'rcmi/directory', array(
+	'people' => array(
+		array( 'name' => 'Link Person', 'link' => 'https://example.edu/x' ),
+	),
+) );
+rcmi_check( false === strpos( $default_vpl, 'class="rcmi-person-link"' ), 'directory: View profile link should be hidden by default' );
+
+$yes_vpl = rcmi_render( 'rcmi/directory', array(
+	'showProfileLink' => true,
+	'people'          => array(
+		array( 'name' => 'Link Person', 'link' => 'https://example.edu/x' ),
+	),
+) );
+rcmi_check( false !== strpos( $yes_vpl, 'class="rcmi-person-link"' ), 'directory: showProfileLink=true should render the View profile link' );
+
+// Placeholder colors emit CSS custom properties on the wrapper.
+$ph = rcmi_render( 'rcmi/directory', array(
+	'initialsBg'   => '#005950',
+	'initialsText' => '#FFF9D9',
+	'people'       => array( array( 'name' => 'No Photo' ) ),
+) );
+rcmi_check( false !== strpos( $ph, '--rcmi-dir-initials-bg:#005950' ), 'directory: initialsBg var missing' );
+rcmi_check( false !== strpos( $ph, '--rcmi-dir-initials-text:#FFF9D9' ), 'directory: initialsText var missing' );
+
+// Invalid colors are dropped, and no style attr renders when unset.
+$ph_bad = rcmi_render( 'rcmi/directory', array(
+	'initialsBg' => 'bogus',
+	'people'     => array( array( 'name' => 'No Photo' ) ),
+) );
+rcmi_check( false === strpos( $ph_bad, 'initials-bg' ), 'directory: invalid initialsBg should be dropped' );
+
+// showProfileLink context reaches inner blocks.
+$nested_nolink = do_blocks(
+	'<!-- wp:rcmi/directory {"showProfileLink":false} -->'
+	. '<!-- wp:rcmi/directory-person {"name":"Ctx Person","link":"https://example.edu/ctx"} /-->'
+	. '<!-- /wp:rcmi/directory -->'
+);
+rcmi_check( false === strpos( $nested_nolink, 'class="rcmi-person-link"' ), 'directory(inner): showProfileLink context did not reach child' );
+rcmi_check( false !== strpos( $nested_nolink, 'rcmi-person-photo-link' ), 'directory(inner): photo link should remain' );
+
+$nested_default = do_blocks(
+	'<!-- wp:rcmi/directory -->'
+	. '<!-- wp:rcmi/directory-person {"name":"Ctx Person","link":"https://example.edu/ctx"} /-->'
+	. '<!-- /wp:rcmi/directory -->'
+);
+rcmi_check( false === strpos( $nested_default, 'class="rcmi-person-link"' ), 'directory(inner): View profile link should be hidden by default' );
+
+$nested_link = do_blocks(
+	'<!-- wp:rcmi/directory {"showProfileLink":true} -->'
+	. '<!-- wp:rcmi/directory-person {"name":"Ctx Person","link":"https://example.edu/ctx"} /-->'
+	. '<!-- /wp:rcmi/directory -->'
+);
+rcmi_check( false !== strpos( $nested_link, 'class="rcmi-person-link"' ), 'directory(inner): showProfileLink=true should render the View profile link' );
+
+// ---------------------------------------------------------------------------
 // rcmi/directory — empty people list renders nothing
 // ---------------------------------------------------------------------------
 

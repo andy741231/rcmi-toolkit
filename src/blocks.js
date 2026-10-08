@@ -4455,6 +4455,7 @@
 	var RcmiDirectoryPersonEdit = function ( props ) {
 		var attrs = props.attributes, setAttributes = props.setAttributes;
 		var initials = rcmiDirInitials( attrs.name );
+		var showProfileLink = !!( props.context && props.context[ 'rcmi/showProfileLink' ] );
 		var posX = attrs.positionX == null ? 50 : attrs.positionX;
 		var posY = attrs.positionY == null ? 50 : attrs.positionY;
 		var blockProps = useBlockProps( { className: 'rcmi-person' } );
@@ -4569,7 +4570,7 @@
 							allowedFormats: rcmiDirNameFormats
 						} )
 					),
-					attrs.link ? el( 'span', { className: 'rcmi-person-link' }, __( 'View profile →', 'rcmi-toolkit' ) ) : null
+					( attrs.link && showProfileLink ) ? el( 'span', { className: 'rcmi-person-link' }, __( 'View profile →', 'rcmi-toolkit' ) ) : null
 				)
 			)
 		);
@@ -4579,6 +4580,27 @@
 		var attrs = props.attributes, setAttributes = props.setAttributes;
 		var cols = attrs.columns || 3;
 		var clientId = props.clientId;
+
+		var editorColors = useSelect( function ( select ) {
+			var settings = select( 'core/block-editor' ).getSettings() || {};
+			return ( settings.color && settings.color.palette ) || settings.colors || [];
+		}, [] );
+		var dirColors = editorColors && editorColors.length ? editorColors : UH_COLORS;
+
+		var dirColorField = function ( label, attrKey ) {
+			return el( BaseControl, { label: label, className: 'rcmi-color-field' },
+				el( ColorPalette, {
+					colors: dirColors,
+					value: attrs[ attrKey ] || '',
+					clearable: true,
+					onChange: function ( v ) {
+						var u = {};
+						u[ attrKey ] = v || '';
+						setAttributes( u );
+					}
+				} )
+			);
+		};
 
 		var personCount = useSelect( function ( select ) {
 			var block = select( 'core/block-editor' ).getBlock( clientId );
@@ -4607,7 +4629,11 @@
 		var blockProps = useBlockProps( {
 			className: 'rcmi-directory rcmi-directory--cols-' + cols
 				+ ' rcmi-directory--photo-' + ( attrs.photoStyle || 'circle' )
-				+ ' rcmi-directory--' + ( attrs.cardStyle || 'card' )
+				+ ' rcmi-directory--' + ( attrs.cardStyle || 'card' ),
+			style: {
+				'--rcmi-dir-initials-bg': attrs.initialsBg || undefined,
+				'--rcmi-dir-initials-text': attrs.initialsText || undefined
+			}
 		} );
 
 		return el( Fragment, null,
@@ -4654,10 +4680,20 @@
 						onChange: function ( v ) { setAttributes( { cardStyle: v } ); }
 					} ),
 					el( ToggleControl, {
+						label: __( 'Show "View profile" link', 'rcmi-toolkit' ),
+						checked: !! attrs.showProfileLink,
+						onChange: function ( v ) { setAttributes( { showProfileLink: v } ); }
+					} ),
+					el( ToggleControl, {
 						label: __( 'Open profile links in a new tab', 'rcmi-toolkit' ),
 						checked: attrs.linkNewTab,
 						onChange: function ( v ) { setAttributes( { linkNewTab: v } ); }
 					} )
+				),
+				el( PanelBody, { title: __( 'Photo Placeholder', 'rcmi-toolkit' ), initialOpen: false },
+					el( 'p', { className: 'rcmi-color-help' }, __( 'Shown when a profile has no photo. Defaults to a slate background with white initials — clear a color to return to the default.', 'rcmi-toolkit' ) ),
+					dirColorField( __( 'Placeholder background', 'rcmi-toolkit' ), 'initialsBg' ),
+					dirColorField( __( 'Initials color', 'rcmi-toolkit' ), 'initialsText' )
 				)
 			),
 			el( 'div', blockProps,
@@ -4684,6 +4720,7 @@
 		category: 'rcmi-sections',
 		icon: 'id',
 		parent: [ 'rcmi/directory' ],
+		usesContext: [ 'rcmi/linkNewTab', 'rcmi/showProfileLink' ],
 		supports: {
 			html: false
 		},
@@ -4708,13 +4745,20 @@
 			align: [ 'wide', 'full' ]
 		},
 		attributes: {
-			columns:    { type: 'number', default: 3 },
-			photoStyle: { type: 'string', default: 'circle' },
-			cardStyle:  { type: 'string', default: 'card' },
-			linkNewTab: { type: 'boolean', default: false },
+			columns:         { type: 'number', default: 3 },
+			photoStyle:      { type: 'string', default: 'circle' },
+			cardStyle:       { type: 'string', default: 'card' },
+			linkNewTab:      { type: 'boolean', default: false },
+			showProfileLink: { type: 'boolean', default: false },
+			initialsBg:      { type: 'string', default: '' },
+			initialsText:    { type: 'string', default: '' },
 			// Legacy: pre-InnerBlocks directories stored profiles in this
 			// attribute; the edit component migrates them to person blocks.
-			people:     { type: 'array', default: [] }
+			people:          { type: 'array', default: [] }
+		},
+		providesContext: {
+			'rcmi/linkNewTab': 'linkNewTab',
+			'rcmi/showProfileLink': 'showProfileLink'
 		},
 		edit: RcmiDirectoryEdit,
 		save: function () {
