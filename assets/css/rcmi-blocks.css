@@ -352,7 +352,6 @@
 	font-size:.72rem;
 	font-weight:700;
 	letter-spacing:.08em;
-	text-transform:uppercase;
 	color:var(--teal-dark,#007A5E);
 	margin:4px 0 0;
 }
