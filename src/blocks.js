@@ -953,6 +953,7 @@
 		},
 		attributes: {
 			bg:           { type: 'string', default: 'none' },
+			bgCustom:     { type: 'string', default: '' },
 			paddingY:     { type: 'string', default: 'normal' },
 			contentWidth: { type: 'string', default: 'wide' },
 		},
@@ -960,13 +961,22 @@
 			var attrs = props.attributes;
 			var setAttributes = props.setAttributes;
 			var sectionClasses = [ 'rcmi-section' ];
-			if ( attrs.bg !== 'none' ) sectionClasses.push( 'bg-' + attrs.bg );
+			if ( attrs.bg === 'alt' || attrs.bg === 'primary' ) sectionClasses.push( 'bg-' + attrs.bg );
 			if ( attrs.paddingY === 'tight' ) sectionClasses.push( '-tight' );
 			if ( attrs.paddingY === 'none' ) sectionClasses.push( '-flat' );
 			var wrapClasses = [ 'wrap' ];
 			if ( attrs.contentWidth === 'narrow' ) wrapClasses.push( '-narrow' );
 			if ( attrs.contentWidth === 'full' ) wrapClasses.push( '-full' );
-			var blockProps = useBlockProps( { className: sectionClasses.join( ' ' ) + ' rcmi-section-editor' } );
+			var blockProps = useBlockProps( {
+				className: sectionClasses.join( ' ' ) + ' rcmi-section-editor',
+				style: ( attrs.bg === 'custom' && attrs.bgCustom ) ? { backgroundColor: attrs.bgCustom } : undefined
+			} );
+			// Theme palette for the custom-background ColorPalette.
+			var sectionColors = useSelect( function ( select ) {
+				var settings = select( 'core/block-editor' ).getSettings() || {};
+				return ( settings.color && settings.color.palette ) || settings.colors || [];
+			}, [] );
+			var bgPalette = sectionColors && sectionColors.length ? sectionColors : UH_COLORS;
 			// Only seed the placeholder template when the block has no inner
 			// blocks yet — same remount-safety pattern as quote-block/cta-band.
 			var hasInnerBlocks = useSelect( function ( select ) {
@@ -983,9 +993,21 @@
 								{ label: __( 'None (white)', 'rcmi-toolkit' ), value: 'none' },
 								{ label: __( 'Light gray', 'rcmi-toolkit' ), value: 'alt' },
 								{ label: __( 'UH Red', 'rcmi-toolkit' ), value: 'primary' },
+								{ label: __( 'Custom color', 'rcmi-toolkit' ), value: 'custom' },
 							],
 							onChange: function ( value ) { setAttributes( { bg: value } ); }
 						} ),
+						attrs.bg === 'custom' ? el( Fragment, null,
+							el( BaseControl, { label: __( 'Custom background', 'rcmi-toolkit' ), className: 'rcmi-color-field' },
+								el( ColorPalette, {
+									colors: bgPalette,
+									value: attrs.bgCustom,
+									clearable: true,
+									onChange: function ( v ) { setAttributes( { bgCustom: v || '' } ); }
+								} )
+							),
+							el( 'p', { className: 'rcmi-color-help' }, __( 'Paints a flat background only — inner blocks keep their own text colors.', 'rcmi-toolkit' ) )
+						) : null,
 						el( SelectControl, {
 							label: __( 'Vertical padding', 'rcmi-toolkit' ),
 							value: attrs.paddingY,

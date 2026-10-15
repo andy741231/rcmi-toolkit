@@ -49,8 +49,33 @@ function rcmi_render( $name, $attrs ) {
 // ---------------------------------------------------------------------------
 
 rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/table' ), 'rcmi/table is not registered' );
+rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/section' ), 'rcmi/section is not registered' );
 rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/directory' ), 'rcmi/directory is not registered' );
 rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/directory-person' ), 'rcmi/directory-person is not registered' );
+
+// ---------------------------------------------------------------------------
+// rcmi/section — background modes
+// ---------------------------------------------------------------------------
+
+$sec_alt = rcmi_render( 'rcmi/section', array( 'bg' => 'alt' ) );
+rcmi_check( false !== strpos( $sec_alt, 'rcmi-section bg-alt' ), 'section: bg-alt class missing' );
+rcmi_check( false === strpos( $sec_alt, 'style=' ), 'section: preset bg should not emit inline style' );
+
+$sec_red = rcmi_render( 'rcmi/section', array( 'bg' => 'primary' ) );
+rcmi_check( false !== strpos( $sec_red, 'bg-primary' ), 'section: bg-primary class missing' );
+
+$sec_custom = rcmi_render( 'rcmi/section', array( 'bg' => 'custom', 'bgCustom' => '#005950' ) );
+rcmi_check( false !== strpos( $sec_custom, 'background-color:#005950' ), 'section: custom bg style missing' );
+rcmi_check( false === strpos( $sec_custom, 'bg-alt' ) && false === strpos( $sec_custom, 'bg-primary' ) && false === strpos( $sec_custom, 'bg-custom' ), 'section: custom mode should not emit a preset class' );
+
+$sec_empty = rcmi_render( 'rcmi/section', array( 'bg' => 'custom' ) );
+rcmi_check( false === strpos( $sec_empty, 'background-color' ), 'section: empty bgCustom should render as none' );
+
+$sec_bad = rcmi_render( 'rcmi/section', array( 'bg' => 'custom', 'bgCustom' => 'bogus' ) );
+rcmi_check( false === strpos( $sec_bad, 'background-color' ), 'section: invalid custom color should be dropped' );
+
+$sec_bogus = rcmi_render( 'rcmi/section', array( 'bg' => 'bogus' ) );
+rcmi_check( false === strpos( $sec_bogus, 'bg-bogus' ), 'section: unknown bg value should render as none' );
 
 // ---------------------------------------------------------------------------
 // rcmi/table — basic render

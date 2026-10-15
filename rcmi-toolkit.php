@@ -1125,7 +1125,7 @@ add_action( 'enqueue_block_editor_assets', 'rcmi_toolkit_editor_assets' );
  */
 function rcmi_toolkit_block_meta() {
 	return array(
-		'rcmi/section'              => array( 'added' => '2026-09-16', 'updated' => '2026-09-16' ),
+		'rcmi/section'              => array( 'added' => '2026-09-16', 'updated' => '2026-10-15' ),
 		'rcmi/quote-block'          => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
 		'rcmi/cta-band'             => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
 		'rcmi/impact-stats-block'   => array( 'added' => '2026-07-29', 'updated' => '2026-07-29' ),
@@ -1392,6 +1392,7 @@ function rcmi_register_server_side_blocks() {
 	register_block_type( 'rcmi/section', array(
 		'attributes' => array(
 			'bg'           => array( 'type' => 'string', 'default' => 'none' ),
+			'bgCustom'     => array( 'type' => 'string', 'default' => '' ),
 			'paddingY'     => array( 'type' => 'string', 'default' => 'normal' ),
 			'contentWidth' => array( 'type' => 'string', 'default' => 'wide' ),
 		),
@@ -1401,12 +1402,25 @@ function rcmi_register_server_side_blocks() {
 			'align'  => array( 'wide', 'full' ),
 		),
 		'render_callback' => function ( $attrs, $content = '' ) {
-			$bg    = in_array( $attrs['bg'] ?? '', array( 'alt', 'primary' ), true ) ? $attrs['bg'] : 'none';
+			$bg    = in_array( $attrs['bg'] ?? '', array( 'alt', 'primary', 'custom' ), true ) ? $attrs['bg'] : 'none';
 			$pad   = in_array( $attrs['paddingY'] ?? '', array( 'tight', 'none' ), true ) ? $attrs['paddingY'] : 'normal';
 			$width = in_array( $attrs['contentWidth'] ?? '', array( 'narrow', 'full' ), true ) ? $attrs['contentWidth'] : 'wide';
 
+			// Custom mode paints a flat background-color (bgCustom hex); an
+			// empty/invalid color renders as 'none'. Presets keep their
+			// semantic classes (bg-primary also whites text + buttons).
+			$bg_style = '';
+			if ( 'custom' === $bg ) {
+				$hex = sanitize_hex_color( $attrs['bgCustom'] ?? '' );
+				if ( $hex ) {
+					$bg_style = 'background-color:' . $hex . ';';
+				} else {
+					$bg = 'none';
+				}
+			}
+
 			$section_classes = 'rcmi-section'
-				. ( 'none' !== $bg ? ' bg-' . $bg : '' )
+				. ( 'alt' === $bg || 'primary' === $bg ? ' bg-' . $bg : '' )
 				. ( 'tight' === $pad ? ' -tight' : '' )
 				. ( 'none' === $pad ? ' -flat' : '' );
 			$wrap_classes = 'wrap' . ( 'wide' !== $width ? ' -' . $width : '' );
@@ -1415,7 +1429,7 @@ function rcmi_register_server_side_blocks() {
 
 			ob_start();
 			?>
-			<section class="<?php echo esc_attr( $section_classes ); ?>"<?php echo $anchor; ?>>
+			<section class="<?php echo esc_attr( $section_classes ); ?>"<?php echo $anchor; ?><?php echo $bg_style ? ' style="' . esc_attr( $bg_style ) . '"' : ''; ?>>
 				<div class="<?php echo esc_attr( $wrap_classes ); ?>">
 					<?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- inner blocks are already escaped by WP ?>
 				</div>
