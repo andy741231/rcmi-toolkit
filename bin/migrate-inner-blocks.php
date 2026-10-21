@@ -346,10 +346,12 @@ foreach ( $posts as $post ) {
 			$new_len = strlen( $new_content );
 			WP_CLI::log( sprintf( '  Content length: %d -> %d bytes', $old_len, $new_len ) );
 		} else {
-			wp_update_post( array(
+			// wp_update_post() unslashes its input — wrap in wp_slash() so
+			//  escapes in serialized block attrs aren't stripped.
+			wp_update_post( wp_slash( array(
 				'ID'           => $post->ID,
 				'post_content' => $new_content,
-			) );
+			) ) );
 			WP_CLI::log( '  Saved.' );
 		}
 

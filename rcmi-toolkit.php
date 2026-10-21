@@ -1933,7 +1933,7 @@ function rcmi_register_server_side_blocks() {
 			// the hero's pan amounts), so both axes offset by (50 - pos).
 			$bg_url        = $attrs['bgImageUrl'] ?? '';
 			$bg_mobile_url = $attrs['bgMobileImageUrl'] ?? '';
-			$bg_style      = 'height:80vh;'; // Default height; parent slide-block overrides via regex.
+			$bg_style      = 'min-height:80vh;'; // Default minimum height; parent slide-block overrides via regex.
 			$bg_img_html   = '';
 			if ( $bg_url || $bg_mobile_url ) {
 				$img_style_for = function ( $scale, $pos_x, $pos_y ) {
@@ -2088,11 +2088,11 @@ function rcmi_register_server_side_blocks() {
 				$color_style = 'color: ' . sanitize_hex_color( $attrs['style']['color']['text'] ) . ';';
 			}
 
-			// Apply global height to all slide sections.
-			// Replace height in style attributes of <section class="rcmi-slide..."> elements.
+			// Apply global minimum height to all slide sections.
+			// Replace min-height in style attributes of <section class="rcmi-slide..."> elements.
 			$content = preg_replace(
-				'/(<section class="rcmi-slide[^"]*" style="[^"]*?)(height:[^;]+;)/',
-				'$1height:' . $global_height . 'vh;min-height:' . $global_height . 'vh;',
+				'/(<section class="rcmi-slide[^"]*" style="[^"]*?)(min-height:[^;]+;)/',
+				'$1min-height:' . $global_height . 'vh;',
 				$content
 			);
 
@@ -2600,7 +2600,7 @@ function rcmi_register_server_side_blocks() {
 				$mobile_intensity = max( 0, min( 2, floatval( $attrs['mobileIntensity'] ?? 0.7 ) ) );
 				$tablet_scale_mult = $attrs['tabletScaleMultiplier'] ?? 0.75;
 				?>
-				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-mode="<?php echo esc_attr( $parallax_mode ); ?>" data-mobile-intensity="<?php echo esc_attr( $mobile_intensity ); ?>" data-tablet-scale-mult="<?php echo esc_attr( $tablet_scale_mult ); ?>" style="height: <?php echo $height; ?>vh;min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
+				<section class="rcmi-parallax alignfull <?php echo esc_attr( $align_class . $color_class ); ?>" data-mode="<?php echo esc_attr( $parallax_mode ); ?>" data-mobile-intensity="<?php echo esc_attr( $mobile_intensity ); ?>" data-tablet-scale-mult="<?php echo esc_attr( $tablet_scale_mult ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php
 					// Build structured layer arrays for the three parallax layers.
 					$parallax_layers = array(
@@ -2654,7 +2654,7 @@ function rcmi_register_server_side_blocks() {
 					'mobile_scale' => $attrs['bgMobileScale'] ?? 100, 'mobile_pos_x' => $attrs['bgMobilePositionX'] ?? 50, 'mobile_pos_y' => $attrs['bgMobilePositionY'] ?? 50,
 				) );
 				?>
-				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="height: <?php echo $height; ?>vh;min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
+				<section class="hero -tight <?php echo esc_attr( $align_class . $color_class ); ?>" style="min-height: <?php echo $height; ?>vh;<?php echo esc_attr( $color_style ); ?>">
 					<?php if ( $bg_img_html ) : ?>
 						<?php echo $bg_img_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 					<?php else : ?>

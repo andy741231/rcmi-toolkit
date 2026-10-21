@@ -860,9 +860,11 @@
 					return;
 				}
 
-				// Animated transition.
+				// Animated transition. Pin the track to its CURRENT height
+				// (grid-stacked = tallest slide), not the outgoing slide's
+				// height — pinning to a shorter slide would clip taller ones.
 				isAnimating = true;
-				var panelHeight = oldSlide ? oldSlide.getBoundingClientRect().height : 0;
+				var panelHeight = track.getBoundingClientRect().height;
 				track.classList.add( 'is-animating' );
 				if ( panelHeight ) {
 					track.style.height = panelHeight + 'px';
