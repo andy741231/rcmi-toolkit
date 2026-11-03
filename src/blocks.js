@@ -4790,4 +4790,441 @@
 		}
 	} );
 
+
+	// ============================================================
+	// Blocks: rcmi/feature-cards + rcmi/feature-card
+	// Card grid with two families chosen per grid: 'content' cards
+	// (Bootstrap-style image + text — image-top/overlay/horizontal/
+	// text layouts) and 'hover' cards (Codrops HoverEffectIdeas
+	// ports). A card URL makes the whole card clickable via a
+	// stretched link on the title.
+	// ============================================================
+
+	var rcmiFcEffects = [ 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ];
+	var rcmiFcFormats = [ 'core/bold', 'core/italic' ];
+
+	var rcmiFeatureCardAttributes = {
+		imageId:    { type: 'number', default: 0 },
+		imageUrl:   { type: 'string', default: '' },
+		imageAlt:   { type: 'string', default: '' },
+		positionX:  { type: 'number', default: 50 },
+		positionY:  { type: 'number', default: 50 },
+		eyebrow:    { type: 'string', default: '' },
+		title:      { type: 'string', default: '' },
+		text:       { type: 'string', default: '' },
+		buttonText: { type: 'string', default: '' },
+		url:        { type: 'string', default: '' }
+	};
+
+	var RcmiFeatureCardEdit = function ( props ) {
+		var attrs = props.attributes, setAttributes = props.setAttributes;
+		var ctx = props.context || {};
+		var cardType = ctx[ 'rcmi/fcType' ] === 'hover' ? 'hover' : 'content';
+		var layout = ctx[ 'rcmi/fcLayout' ] || 'image-top';
+		var effect = rcmiFcEffects.indexOf( ctx[ 'rcmi/fcEffect' ] ) !== -1 ? ctx[ 'rcmi/fcEffect' ] : 'lily';
+		var heading = [ 'h2', 'h3', 'h4' ].indexOf( ctx[ 'rcmi/fcHeading' ] ) !== -1 ? ctx[ 'rcmi/fcHeading' ] : 'h3';
+		var newTab = !! ctx[ 'rcmi/fcNewTab' ];
+		var isHover = cardType === 'hover';
+		var showImage = isHover || layout !== 'text';
+		var posX = attrs.positionX == null ? 50 : attrs.positionX;
+		var posY = attrs.positionY == null ? 50 : attrs.positionY;
+		var linked = !! attrs.url;
+		var classes = 'rcmi-fc' + ( isHover ? ' rcmi-fc--effect-' + effect : '' ) + ( linked ? ' rcmi-fc--linked' : '' );
+		var blockProps = useBlockProps( { className: classes } );
+
+		var onSelectImage = function ( media ) {
+			setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || attrs.imageAlt || '' } );
+		};
+
+		var linkProps = {
+			className: 'rcmi-fc-link',
+			href: attrs.url || '#',
+			onClick: function ( e ) { e.preventDefault(); }
+		};
+		if ( newTab ) {
+			linkProps.target = '_blank';
+			linkProps.rel = 'noopener noreferrer';
+		}
+
+		var titleText = el( RichText, {
+			tagName: 'span',
+			value: attrs.title,
+			onChange: function ( v ) { setAttributes( { title: v } ); },
+			placeholder: __( 'Card title…', 'rcmi-toolkit' ),
+			allowedFormats: rcmiFcFormats
+		} );
+		var titleEl = el( heading, { className: 'rcmi-fc-title' },
+			linked ? el( 'a', linkProps, titleText ) : titleText
+		);
+		var bareLabel = ( attrs.buttonText || '' ).replace( /<[^>]*>/g, '' ) || attrs.imageAlt || __( 'Learn more', 'rcmi-toolkit' );
+		var bareLink = ( linked && ! attrs.title ) ? el( 'a', {
+			className: 'rcmi-fc-link rcmi-fc-link--bare',
+			href: attrs.url,
+			'aria-label': bareLabel,
+			onClick: function ( e ) { e.preventDefault(); }
+		} ) : null;
+		var textEl = el( RichText, {
+			tagName: 'p',
+			className: 'rcmi-fc-text',
+			value: attrs.text,
+			onChange: function ( v ) { setAttributes( { text: v } ); },
+			placeholder: __( 'Card text…', 'rcmi-toolkit' ),
+			allowedFormats: rcmiFcFormats
+		} );
+
+		var imageButton = el( MediaUploadCheck, null,
+			el( MediaUpload, {
+				onSelect: onSelectImage,
+				allowedTypes: [ 'image' ],
+				value: attrs.imageId,
+				render: function ( obj ) {
+					return el( 'button', {
+						type: 'button',
+						className: 'rcmi-fc-img-btn',
+						onClick: obj.open,
+						title: attrs.imageUrl ? __( 'Replace image', 'rcmi-toolkit' ) : __( 'Add image', 'rcmi-toolkit' )
+					},
+						attrs.imageUrl
+							? el( 'img', {
+								className: 'rcmi-fc-img',
+								src: attrs.imageUrl,
+								alt: attrs.imageAlt || '',
+								style: ( posX === 50 && posY === 50 ) ? undefined : { objectPosition: posX + '% ' + posY + '%' }
+							} )
+							: el( 'span', { className: 'rcmi-fc-img-hint' }, __( 'Add image', 'rcmi-toolkit' ) )
+					);
+				}
+			} )
+		);
+
+		var URLInput = wp.blockEditor.URLInput;
+		var urlField = URLInput
+			? el( BaseControl, { label: __( 'Card URL', 'rcmi-toolkit' ), className: 'rcmi-color-field' },
+				el( URLInput, {
+					value: attrs.url,
+					onChange: function ( v ) { setAttributes( { url: v || '' } ); }
+				} )
+			)
+			: el( TextControl, {
+				label: __( 'Card URL', 'rcmi-toolkit' ),
+				value: attrs.url,
+				onChange: function ( v ) { setAttributes( { url: v } ); },
+				placeholder: 'https://…'
+			} );
+
+		var inspector = el( InspectorControls, null,
+			el( PanelBody, { title: __( 'Link', 'rcmi-toolkit' ), initialOpen: true },
+				urlField
+			),
+			showImage ? el( PanelBody, { title: __( 'Image', 'rcmi-toolkit' ), initialOpen: false },
+				el( MediaUploadCheck, null,
+					el( MediaUpload, {
+						onSelect: onSelectImage,
+						allowedTypes: [ 'image' ],
+						value: attrs.imageId,
+						render: function ( obj ) {
+							return el( Button, { variant: 'secondary', onClick: obj.open },
+								attrs.imageUrl ? __( 'Replace image', 'rcmi-toolkit' ) : __( 'Select image', 'rcmi-toolkit' )
+							);
+						}
+					} )
+				),
+				attrs.imageUrl ? el( FocalPointPicker, {
+					label: __( 'Focal point', 'rcmi-toolkit' ),
+					url: attrs.imageUrl,
+					value: { x: posX / 100, y: posY / 100 },
+					onChange: function ( f ) {
+						setAttributes( {
+							positionX: rcmiDirFocalToPct( f.x ),
+							positionY: rcmiDirFocalToPct( f.y )
+						} );
+					}
+				} ) : null,
+				attrs.imageUrl ? el( TextControl, {
+					label: __( 'Image alt text', 'rcmi-toolkit' ),
+					value: attrs.imageAlt,
+					onChange: function ( v ) { setAttributes( { imageAlt: v } ); }
+				} ) : null,
+				attrs.imageUrl ? el( Button, {
+					variant: 'secondary',
+					isDestructive: true,
+					onClick: function () { setAttributes( { imageId: 0, imageUrl: '', imageAlt: '' } ); }
+				}, __( 'Remove image', 'rcmi-toolkit' ) ) : null
+			) : null
+		);
+
+		if ( isHover ) {
+			return el( Fragment, null,
+				inspector,
+				el( 'figure', blockProps,
+					bareLink,
+					imageButton,
+					el( 'figcaption', null,
+						el( 'div', { className: 'rcmi-fc-cap' }, titleEl, textEl )
+					)
+				)
+			);
+		}
+
+		return el( Fragment, null,
+			inspector,
+			el( 'article', blockProps,
+				bareLink,
+				showImage ? el( 'div', { className: 'rcmi-fc-media' }, imageButton ) : null,
+				el( 'div', { className: 'rcmi-fc-body' },
+					el( RichText, {
+						tagName: 'p',
+						className: 'rcmi-fc-eyebrow',
+						value: attrs.eyebrow,
+						onChange: function ( v ) { setAttributes( { eyebrow: v } ); },
+						placeholder: __( 'Eyebrow…', 'rcmi-toolkit' ),
+						allowedFormats: rcmiFcFormats
+					} ),
+					titleEl,
+					textEl,
+					linked ? el( 'span', { className: 'rcmi-fc-cta', 'aria-hidden': 'true' },
+						el( RichText, {
+							tagName: 'span',
+							value: attrs.buttonText,
+							onChange: function ( v ) { setAttributes( { buttonText: v } ); },
+							placeholder: __( 'Button text…', 'rcmi-toolkit' ),
+							allowedFormats: rcmiFcFormats
+						} ),
+						' \u2192'
+					) : null
+				)
+			)
+		);
+	};
+
+	var RcmiFeatureCardsEdit = function ( props ) {
+		var attrs = props.attributes, setAttributes = props.setAttributes;
+		var cols = attrs.columns || 3;
+		var clientId = props.clientId;
+		var cardType = attrs.cardType === 'hover' ? 'hover' : 'content';
+		var layout = attrs.layout || 'image-top';
+		var isHover = cardType === 'hover';
+		var showRatio = isHover || ( layout !== 'text' && layout !== 'horizontal' );
+		var showOverlay = isHover || layout === 'overlay';
+
+		var editorColors = useSelect( function ( select ) {
+			var settings = select( 'core/block-editor' ).getSettings() || {};
+			return ( settings.color && settings.color.palette ) || settings.colors || [];
+		}, [] );
+		var fcColors = editorColors && editorColors.length ? editorColors : UH_COLORS;
+
+		var fcColorField = function ( label, attrKey ) {
+			return el( BaseControl, { label: label, className: 'rcmi-color-field' },
+				el( ColorPalette, {
+					colors: fcColors,
+					value: attrs[ attrKey ] || '',
+					clearable: true,
+					onChange: function ( v ) {
+						var u = {};
+						u[ attrKey ] = v || '';
+						setAttributes( u );
+					}
+				} )
+			);
+		};
+
+		var cardCount = useSelect( function ( select ) {
+			var block = select( 'core/block-editor' ).getBlock( clientId );
+			return block && block.innerBlocks ? block.innerBlocks.length : 0;
+		}, [ clientId ] );
+
+		var addCard = function () {
+			wp.data.dispatch( 'core/block-editor' ).insertBlock(
+				wp.blocks.createBlock( 'rcmi/feature-card' ), cardCount, clientId
+			);
+		};
+
+		var blockProps = useBlockProps( {
+			className: 'rcmi-fc-grid rcmi-fc-grid--cols-' + cols
+				+ ' rcmi-fc-grid--' + cardType
+				+ ' rcmi-fc-grid--layout-' + layout
+				+ ' rcmi-fc-grid--ratio-' + ( attrs.imageRatio || '4-3' ),
+			style: {
+				'--rcmi-fc-bg': attrs.cardBg || undefined,
+				'--rcmi-fc-text': attrs.cardText || undefined,
+				'--rcmi-fc-accent': attrs.accentColor || undefined,
+				'--rcmi-fc-overlay': attrs.overlayColor || undefined,
+				'--rcmi-fc-overlay-opacity': ( attrs.overlayOpacity == null ? 50 : attrs.overlayOpacity ) / 100
+			}
+		} );
+
+		return el( Fragment, null,
+			el( BlockControls, null,
+				el( ToolbarGroup, null,
+					el( ToolbarButton, {
+						icon: 'plus',
+						label: __( 'Add card', 'rcmi-toolkit' ),
+						onClick: addCard
+					} )
+				)
+			),
+			el( InspectorControls, null,
+				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: true },
+					el( SelectControl, {
+						label: __( 'Columns', 'rcmi-toolkit' ),
+						value: cols,
+						options: [
+							{ label: '1', value: 1 },
+							{ label: '2', value: 2 },
+							{ label: '3', value: 3 },
+							{ label: '4', value: 4 }
+						],
+						onChange: function ( v ) { setAttributes( { columns: parseInt( v, 10 ) || 3 } ); }
+					} ),
+					el( SelectControl, {
+						label: __( 'Card type', 'rcmi-toolkit' ),
+						value: cardType,
+						options: [
+							{ label: __( 'Content', 'rcmi-toolkit' ), value: 'content' },
+							{ label: __( 'Hover reveal', 'rcmi-toolkit' ), value: 'hover' }
+						],
+						onChange: function ( v ) { setAttributes( { cardType: v } ); }
+					} ),
+					! isHover ? el( SelectControl, {
+						label: __( 'Layout', 'rcmi-toolkit' ),
+						value: layout,
+						options: [
+							{ label: __( 'Image top', 'rcmi-toolkit' ), value: 'image-top' },
+							{ label: __( 'Image overlay', 'rcmi-toolkit' ), value: 'overlay' },
+							{ label: __( 'Horizontal', 'rcmi-toolkit' ), value: 'horizontal' },
+							{ label: __( 'Text only', 'rcmi-toolkit' ), value: 'text' }
+						],
+						onChange: function ( v ) { setAttributes( { layout: v } ); }
+					} ) : null,
+					isHover ? el( SelectControl, {
+						label: __( 'Hover effect', 'rcmi-toolkit' ),
+						value: attrs.effect,
+						options: rcmiFcEffects.map( function ( name ) {
+							return { label: name.charAt( 0 ).toUpperCase() + name.slice( 1 ), value: name };
+						} ),
+						onChange: function ( v ) { setAttributes( { effect: v } ); }
+					} ) : null,
+					showRatio ? el( SelectControl, {
+						label: __( 'Image ratio', 'rcmi-toolkit' ),
+						value: attrs.imageRatio,
+						options: [
+							{ label: '16:9', value: '16-9' },
+							{ label: '4:3', value: '4-3' },
+							{ label: '1:1', value: '1-1' },
+							{ label: '3:4', value: '3-4' }
+						],
+						onChange: function ( v ) { setAttributes( { imageRatio: v } ); }
+					} ) : null,
+					el( SelectControl, {
+						label: __( 'Heading level', 'rcmi-toolkit' ),
+						value: attrs.headingLevel,
+						options: [
+							{ label: 'H2', value: 'h2' },
+							{ label: 'H3', value: 'h3' },
+							{ label: 'H4', value: 'h4' }
+						],
+						onChange: function ( v ) { setAttributes( { headingLevel: v } ); }
+					} ),
+					el( ToggleControl, {
+						label: __( 'Open card links in a new tab', 'rcmi-toolkit' ),
+						checked: attrs.linkNewTab,
+						onChange: function ( v ) { setAttributes( { linkNewTab: v } ); }
+					} )
+				),
+				el( PanelBody, { title: __( 'Colors', 'rcmi-toolkit' ), initialOpen: false },
+					! isHover ? fcColorField( __( 'Card background', 'rcmi-toolkit' ), 'cardBg' ) : null,
+					! isHover ? fcColorField( __( 'Card text', 'rcmi-toolkit' ), 'cardText' ) : null,
+					fcColorField( __( 'Accent', 'rcmi-toolkit' ), 'accentColor' ),
+					showOverlay ? fcColorField( __( 'Overlay color', 'rcmi-toolkit' ), 'overlayColor' ) : null,
+					showOverlay ? el( RangeControl, {
+						label: __( 'Overlay opacity', 'rcmi-toolkit' ),
+						value: attrs.overlayOpacity,
+						onChange: function ( v ) { setAttributes( { overlayOpacity: v } ); },
+						min: 0,
+						max: 90,
+						step: 5
+					} ) : null
+				)
+			),
+			el( 'div', blockProps,
+				el( InnerBlocks, {
+					allowedBlocks: [ 'rcmi/feature-card' ],
+					template: [
+						[ 'rcmi/feature-card', { title: 'Card title', text: 'Short supporting text for this card.' } ],
+						[ 'rcmi/feature-card', { title: 'Card title', text: 'Short supporting text for this card.' } ],
+						[ 'rcmi/feature-card', { title: 'Card title', text: 'Short supporting text for this card.' } ]
+					],
+					templateLock: false,
+					renderAppender: function () {
+						return el( 'button', {
+							type: 'button',
+							className: 'rcmi-fc-add',
+							onClick: addCard
+						}, '+ ' + __( 'Add card', 'rcmi-toolkit' ) );
+					}
+				} )
+			)
+		);
+	};
+
+	registerBlockType( 'rcmi/feature-card', {
+		apiVersion: 3,
+		title: __( 'Feature card', 'rcmi-toolkit' ),
+		description: __( 'A single card inside a Feature cards grid — image, eyebrow, title, text, optional link.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'index-card',
+		parent: [ 'rcmi/feature-cards' ],
+		usesContext: [ 'rcmi/fcType', 'rcmi/fcLayout', 'rcmi/fcEffect', 'rcmi/fcHeading', 'rcmi/fcNewTab' ],
+		supports: {
+			html: false
+		},
+		attributes: rcmiFeatureCardAttributes,
+		edit: RcmiFeatureCardEdit,
+		save: function () {
+			// Server-side rendered (dynamic block).
+			return null;
+		}
+	} );
+
+	registerBlockType( 'rcmi/feature-cards', {
+		apiVersion: 3,
+		title: __( 'RCMI Feature Cards', 'rcmi-toolkit' ),
+		description: __( 'Card grid — content cards (image-top/overlay/horizontal/text) or Codrops-style hover-reveal image cards.', 'rcmi-toolkit' ),
+		category: 'rcmi-sections',
+		icon: 'grid-view',
+		keywords: [ 'feature', 'cards', 'grid', 'hover' ],
+		supports: {
+			html: false,
+			anchor: true,
+			align: [ 'wide', 'full' ]
+		},
+		attributes: {
+			columns:        { type: 'number', default: 3 },
+			cardType:       { type: 'string', default: 'content' },
+			layout:         { type: 'string', default: 'image-top' },
+			effect:         { type: 'string', default: 'lily' },
+			imageRatio:     { type: 'string', default: '4-3' },
+			headingLevel:   { type: 'string', default: 'h3' },
+			linkNewTab:     { type: 'boolean', default: false },
+			cardBg:         { type: 'string', default: '' },
+			cardText:       { type: 'string', default: '' },
+			accentColor:    { type: 'string', default: '' },
+			overlayColor:   { type: 'string', default: '' },
+			overlayOpacity: { type: 'number', default: 50 }
+		},
+		providesContext: {
+			'rcmi/fcType':    'cardType',
+			'rcmi/fcLayout':  'layout',
+			'rcmi/fcEffect':  'effect',
+			'rcmi/fcHeading': 'headingLevel',
+			'rcmi/fcNewTab':  'linkNewTab'
+		},
+		edit: RcmiFeatureCardsEdit,
+		save: function () {
+			// Dynamic block, but InnerBlocks.Content must be returned so the
+			// rcmi/feature-card children are preserved in saved markup.
+			return el( InnerBlocks.Content );
+		}
+	} );
+
 } )( window.wp );

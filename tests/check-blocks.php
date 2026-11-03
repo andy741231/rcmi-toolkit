@@ -454,11 +454,200 @@ $empty = rcmi_render( 'rcmi/directory', array( 'people' => array() ) );
 rcmi_check( is_string( $empty ), 'directory: render should return a string' );
 
 // ---------------------------------------------------------------------------
+// rcmi/feature-cards — registration + render
+// ---------------------------------------------------------------------------
+
+rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/feature-cards' ), 'rcmi/feature-cards is not registered' );
+rcmi_check( WP_Block_Type_Registry::get_instance()->is_registered( 'rcmi/feature-card' ), 'rcmi/feature-card is not registered' );
+
+// Content type, default image-top layout.
+$fc = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"columns":4} -->'
+	. '<!-- wp:rcmi/feature-card {"eyebrow":"News","title":"Card One","text":"Some text","buttonText":"Read more","url":"https://example.edu/one","imageUrl":"https://example.edu/a.jpg","imageAlt":"A"} /-->'
+	. '<!-- wp:rcmi/feature-card {"title":"No Link Card","text":"Body"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--cols-4' ), 'fc: cols class missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--content' ), 'fc: content class missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--layout-image-top' ), 'fc: layout class missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--ratio-4-3' ), 'fc: default ratio class missing' );
+rcmi_check( 2 === substr_count( $fc, '<article class="rcmi-fc' ), 'fc: expected 2 articles' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-media' ), 'fc: media box missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-img' ), 'fc: image missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc-eyebrow' ), 'fc: eyebrow missing' );
+rcmi_check( false !== strpos( $fc, '<h3 class="rcmi-fc-title"><a class="rcmi-fc-link" href="https://example.edu/one"' ), 'fc: stretched link missing' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc--linked' ), 'fc: linked class missing' );
+rcmi_check( false !== strpos( $fc, 'class="rcmi-fc-cta"' ), 'fc: CTA missing' );
+rcmi_check( false !== strpos( $fc, 'Read more &#8594;' ) || false !== strpos( $fc, 'Read more &rarr;' ), 'fc: CTA arrow missing' );
+rcmi_check( 1 === substr_count( $fc, 'class="rcmi-fc-link"' ), 'fc: exactly one stretched link expected (unlinked card should not get one)' );
+rcmi_check( false === strpos( $fc, 'No Link Card</a>' ), 'fc: unlinked card title should not be wrapped in an anchor' );
+
+// All four content layouts emit their class.
+foreach ( array( 'image-top', 'overlay', 'horizontal', 'text' ) as $fc_layout ) {
+	$fl = do_blocks(
+		'<!-- wp:rcmi/feature-cards {"layout":"' . $fc_layout . '"} -->'
+		. '<!-- wp:rcmi/feature-card {"title":"T","imageUrl":"https://example.edu/a.jpg","imageAlt":"A"} /-->'
+		. '<!-- /wp:rcmi/feature-cards -->'
+	);
+	rcmi_check( false !== strpos( $fl, 'rcmi-fc-grid--layout-' . $fc_layout ), 'fc: layout class missing for ' . $fc_layout );
+}
+// text layout drops the media box even when the card has an image.
+$fc_text = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"layout":"text"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","imageUrl":"https://example.edu/a.jpg"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_text, 'rcmi-fc-media' ), 'fc: text layout should not render media' );
+
+// Hover type: each of the 8 curated Codrops effects renders its class.
+foreach ( array( 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ) as $fc_effect ) {
+	$fh = do_blocks(
+		'<!-- wp:rcmi/feature-cards {"cardType":"hover","effect":"' . $fc_effect . '"} -->'
+		. '<!-- wp:rcmi/feature-card {"title":"T","text":"D","url":"https://example.edu/x","imageUrl":"https://example.edu/a.jpg"} /-->'
+		. '<!-- /wp:rcmi/feature-cards -->'
+	);
+	rcmi_check( false !== strpos( $fh, 'rcmi-fc--effect-' . $fc_effect ), 'fc: effect class missing for ' . $fc_effect );
+	rcmi_check( false !== strpos( $fh, '<figure class="rcmi-fc' ), 'fc(hover): figure missing for ' . $fc_effect );
+	rcmi_check( false !== strpos( $fh, '<figcaption>' ), 'fc(hover): figcaption missing for ' . $fc_effect );
+}
+// Hover card with no image still renders the figure.
+$fc_noimg = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardType":"hover"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"NoImg","text":"D"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_noimg, '<figure class="rcmi-fc' ), 'fc(hover): figure should render without an image' );
+rcmi_check( false === strpos( $fc_noimg, 'rcmi-fc-img' ), 'fc(hover): no img tag expected without an image' );
+
+// linkNewTab reaches the stretched link via context.
+$fc_tab = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"linkNewTab":true} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_tab, 'target="_blank" rel="noopener noreferrer"' ), 'fc: linkNewTab did not reach child' );
+
+// Bare link: title empty + url -> labelled covering anchor.
+$fc_bare = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"text":"Body","buttonText":"Go there","url":"https://example.edu/b"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_bare, 'rcmi-fc-link--bare' ), 'fc: bare link missing' );
+rcmi_check( false !== strpos( $fc_bare, 'aria-label="Go there"' ), 'fc: bare link should fall back to buttonText label' );
+$fc_bare2 = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"text":"Body","url":"https://example.edu/b","imageUrl":"https://example.edu/a.jpg","imageAlt":"Alt label"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_bare2, 'aria-label="Alt label"' ), 'fc: bare link should fall back to imageAlt label' );
+$fc_bare3 = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"text":"Body","url":"https://example.edu/b"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_bare3, 'aria-label="Learn more"' ), 'fc: bare link should fall back to Learn more' );
+
+// CTA needs buttonText AND url.
+$fc_cta_nourl = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","url":""} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_cta_nourl, 'rcmi-fc-cta' ), 'fc: CTA should not render without url' );
+$fc_cta_nobtn = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_cta_nobtn, 'rcmi-fc-cta' ), 'fc: CTA should not render without buttonText' );
+
+// javascript: URLs are stripped — no anchor at all.
+$fc_js = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","url":"javascript:alert(1)"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_js, 'javascript:' ), 'fc: javascript: URL should be stripped' );
+rcmi_check( false === strpos( $fc_js, 'rcmi-fc-link' ), 'fc: no anchor expected for a stripped URL' );
+
+// <script> stripped from title while <strong> survives.
+$fc_kses = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"Hi <script>alert(1)</scr' . 'ipt><strong>bold</strong>","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_kses, '<script>' ), 'fc: script tag should be stripped from title' );
+rcmi_check( false !== strpos( $fc_kses, '<strong>bold</strong>' ), 'fc: strong tag should survive in title' );
+
+// Colors: valid hex emits vars, invalid is dropped.
+$fc_col = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardBg":"#005950","cardText":"#FFF9D9","accentColor":"#F6BE00","overlayColor":"#101112"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_col, '--rcmi-fc-bg:#005950' ), 'fc: cardBg var missing' );
+rcmi_check( false !== strpos( $fc_col, '--rcmi-fc-text:#FFF9D9' ), 'fc: cardText var missing' );
+rcmi_check( false !== strpos( $fc_col, '--rcmi-fc-accent:#F6BE00' ), 'fc: accentColor var missing' );
+rcmi_check( false !== strpos( $fc_col, '--rcmi-fc-overlay:#101112' ), 'fc: overlayColor var missing' );
+rcmi_check( false !== strpos( $fc_col, '--rcmi-fc-overlay-opacity:0.5' ), 'fc: default overlay opacity var missing' );
+$fc_colbad = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardBg":"bogus"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_colbad, '--rcmi-fc-bg' ), 'fc: invalid cardBg should be dropped' );
+
+// Enum fallbacks + opacity clamp.
+$fc_bad = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"columns":7,"cardType":"weird","layout":"sideways","effect":"bogus","imageRatio":"9-9","headingLevel":"h5","overlayOpacity":200} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_bad, 'rcmi-fc-grid--cols-3' ), 'fc: invalid columns should fall back to 3' );
+rcmi_check( false !== strpos( $fc_bad, 'rcmi-fc-grid--content' ), 'fc: invalid cardType should fall back to content' );
+rcmi_check( false !== strpos( $fc_bad, 'rcmi-fc-grid--layout-image-top' ), 'fc: invalid layout should fall back to image-top' );
+rcmi_check( false !== strpos( $fc_bad, 'rcmi-fc-grid--ratio-4-3' ), 'fc: invalid ratio should fall back to 4-3' );
+rcmi_check( false !== strpos( $fc_bad, '--rcmi-fc-overlay-opacity:0.9' ), 'fc: overlayOpacity 200 should clamp to 0.9' );
+$fc_badh = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"headingLevel":"h5"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_badh, '<h3 class="rcmi-fc-title"' ), 'fc: invalid headingLevel should fall back to h3' );
+$fc_h = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"headingLevel":"h2"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_h, '<h2 class="rcmi-fc-title"' ), 'fc: headingLevel h2 should reach the title' );
+
+// object-position only when the focal point is not centered.
+$fc_pos = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","imageUrl":"https://example.edu/a.jpg","positionX":20,"positionY":80} /-->'
+	. '<!-- wp:rcmi/feature-card {"title":"T2","imageUrl":"https://example.edu/b.jpg","positionX":50,"positionY":50} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_pos, 'object-position:20% 80%' ), 'fc: object-position missing for shifted image' );
+rcmi_check( false === strpos( $fc_pos, 'object-position:50% 50%' ), 'fc: centered image should not emit object-position' );
+
+// Empty grid renders nothing.
+$fc_empty = do_blocks( '<!-- wp:rcmi/feature-cards /-->' );
+rcmi_check( '' === $fc_empty, 'fc: empty grid should render empty string' );
+$fc_empty2 = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( '' === $fc_empty2, 'fc: grid of empty cards should render empty string' );
+
+// ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------
 
 if ( $GLOBALS['rcmi_errors'] ) {
 	WP_CLI::error( "rcmi-toolkit block checks failed:\n - " . implode( "\n - ", $GLOBALS['rcmi_errors'] ) );
 } else {
-	WP_CLI::success( 'All rcmi/table + rcmi/directory checks passed.' );
+	WP_CLI::success( 'All rcmi block checks passed.' );
 }
