@@ -361,7 +361,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			fputcsv(
 				$out,
 				array(
-					'request_id', 'dataset', 'name', 'email', 'job_title',
+					'request_id', 'dataset', 'name', 'email', 'job_title', 'organization', 'purpose',
 					'requested_at_utc', 'mail_status', 'redeemed_at_utc',
 					'revoked_at_utc', 'download_initiations', 'first_download_at_utc', 'last_download_at_utc',
 				),
@@ -400,7 +400,8 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			$rows  = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT r.id, d.title AS dataset, r.name, r.email, r.job_title,
-					        r.requested_at, r.mail_status, r.redeemed_at, r.revoked_at,
+					        r.organization, r.purpose, r.requested_at, r.mail_status,
+					        r.redeemed_at, r.revoked_at,
 					        r.download_count, r.first_download_at, r.last_download_at
 					 FROM {$req} r LEFT JOIN {$datasets} d ON d.id = r.dataset_id
 					 ORDER BY r.id ASC LIMIT %d OFFSET %d",
@@ -480,6 +481,8 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 						array( 'name' => __( 'Name', 'rcmi-toolkit' ), 'value' => (string) $r->name ),
 						array( 'name' => __( 'Email', 'rcmi-toolkit' ), 'value' => (string) $r->email ),
 						array( 'name' => __( 'Job title', 'rcmi-toolkit' ), 'value' => (string) $r->job_title ),
+						array( 'name' => __( 'Organization', 'rcmi-toolkit' ), 'value' => (string) $r->organization ),
+						array( 'name' => __( 'Purpose', 'rcmi-toolkit' ), 'value' => (string) $r->purpose ),
 						array( 'name' => __( 'Requested at (UTC)', 'rcmi-toolkit' ), 'value' => (string) $r->requested_at ),
 						array( 'name' => __( 'Download initiations', 'rcmi-toolkit' ), 'value' => (int) $r->download_count ),
 					),
@@ -501,7 +504,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			$quiet   = $wpdb->suppress_errors( true );
 			$removed = $wpdb->query(
 				$wpdb->prepare(
-					"UPDATE {$req} SET name = '', email = '', job_title = '', token_hash = NULL, grant_hash = '' WHERE email = %s",
+					"UPDATE {$req} SET name = '', email = '', job_title = '', organization = '', purpose = '', token_hash = NULL, grant_hash = '' WHERE email = %s",
 					$email
 				)
 			);
@@ -770,11 +773,12 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 			<table class="widefat striped rcmi-pd-table rcmi-pd-requests">
 				<thead><tr>
 					<th>Requested (UTC)</th><th>Dataset</th><th>Name</th><th>Email</th><th>Job title</th>
+					<th>Organization</th><th>Purpose</th>
 					<th>Mail</th><th>Redeemed</th><th>Downloads initiated</th><th>Actions</th>
 				</tr></thead>
 				<tbody>
 				<?php if ( ! $rows ) : ?>
-					<tr><td colspan="9">No requests found.</td></tr>
+					<tr><td colspan="11">No requests found.</td></tr>
 				<?php else : ?>
 					<?php foreach ( $rows as $r ) : ?>
 						<tr>
@@ -783,6 +787,14 @@ if ( ! class_exists( 'RCMI_Protected_Downloads_Admin' ) ) {
 							<td><?php echo esc_html( $r->name ); ?></td>
 							<td><?php echo esc_html( $r->email ); ?></td>
 							<td><?php echo esc_html( $r->job_title ); ?></td>
+							<td><?php echo esc_html( $r->organization ); ?></td>
+							<td>
+								<?php if ( '' !== trim( (string) $r->purpose ) ) : ?>
+									<details><summary><?php echo esc_html( wp_trim_words( $r->purpose, 8 ) ); ?></summary><?php echo nl2br( esc_html( $r->purpose ) ); ?></details>
+								<?php else : ?>
+									&mdash;
+								<?php endif; ?>
+							</td>
 							<td><?php echo esc_html( 'sent' === $r->mail_status ? 'accepted' : $r->mail_status ); ?></td>
 							<td><?php echo $r->revoked_at ? 'revoked' : ( $r->redeemed_at ? esc_html( $r->redeemed_at ) : '—' ); ?></td>
 							<td><?php echo (int) $r->download_count; ?></td>

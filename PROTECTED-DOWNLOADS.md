@@ -7,7 +7,8 @@ there is no public URL and no Media Library entry for these files.
 Flow:
 
 1. A visitor fills the request form at `/?rcmi_download=<dataset_id>`
-   (name, email, job title — plus the privacy notice you configure).
+   (name, email, job title, institution/organization, and a
+   research-purpose statement — plus the privacy notice you configure).
 2. WordPress emails them a link (`?rcmi_download_token=<token>`, valid 24 h).
    The request row stores only the SHA-256 hash; the raw token exists in
    the email AND in the initial URL — i.e. it is visible in web-server,
@@ -177,7 +178,7 @@ per-visitor.
 
 ## 5. What is (and isn't) logged
 
-- `wp_rcmi_pd_requests` stores name/email/job title, timestamps, mail
+- `wp_rcmi_pd_requests` stores name/email/job title/organization/purpose, timestamps, mail
   status (`sent` = *accepted by the mailer*), redemption/grant **hashes**,
   and the initiation counter. Raw tokens, raw grants, and IPs are never
   written — request rows hold only derived credential material (hashes),
@@ -214,7 +215,8 @@ per-visitor.
   a guaranteed schedule, point a real scheduler (Windows Task Scheduler /
   cron) at `wp-cron.php` or WP-CLI `wp cron event run rcmi_pd_prune`.
 - WordPress personal-data **exporter** and **eraser** are registered
-  (Tools → Export/Erase Personal Data). Erasure blanks name/email/title and
+  (Tools → Export/Erase Personal Data). Erasure blanks
+  name/email/title/organization/purpose and
   clears token/grant material; files are untouched.
 - Deactivation only unschedules the cron — tables, settings, and files are
   left alone. Admin revoke actions invalidate tokens/grants; they never

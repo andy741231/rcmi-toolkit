@@ -199,6 +199,10 @@ Bcc: evil@example.com" --data-urlencode "rcmi_title=X" --data-urlencode "rcmi_cs
 # Array-typed field rejected.
 ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name[]=a&rcmi_email=$TAG-arr@example.invalid&rcmi_title=X&rcmi_csrf=$CSRF" -o /dev/null
 [ "$(sql "SELECT COUNT(*) FROM wp_rcmi_pd_requests WHERE email LIKE '$TAG%'")" = "0" ] && ok "array field rejected, no row" || bad "array field created a row"
+# Required org/purpose fields enforced.
+H=$(ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Miss&rcmi_email=$TAG-miss@example.invalid&rcmi_title=X&rcmi_csrf=$CSRF")
+echo "$H" | grep -q "is required" && ok "missing org/purpose rejected" || bad "missing org/purpose not rejected"
+[ "$(sql "SELECT COUNT(*) FROM wp_rcmi_pd_requests WHERE email LIKE '$TAG-miss%'")" = "0" ] && ok "no row without org/purpose" || bad "row created without org/purpose"
 # Unsupported methods. NB: PHP's built-in server (php -S) never writes a
 # response back for PATCH — the request is processed (405 logged) but the
 # socket hangs, so PATCH is intentionally not in this list; the method
@@ -218,10 +222,13 @@ CODE=$(ucurl -s -o /dev/null -w "%{http_code}" "$BASE/?rcmi_download[]=1")
 { [ "$CODE" = "404" ] || [ "$CODE" = "200" ]; } && ok "array query param handled ($CODE)" || bad "array query param -> $CODE"
 
 echo "== 4. Valid POST =="
-H=$(ucurl -s -i -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Test+User&rcmi_email=$EMAIL&rcmi_title=Analyst&rcmi_csrf=$CSRF")
+H=$(ucurl -s -i -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Test+User&rcmi_email=$EMAIL&rcmi_title=Analyst&rcmi_org=UH+COP&rcmi_csrf=$CSRF" --data-urlencode "rcmi_purpose=Line one
+Line two")
 echo "$H" | grep -q "If your request can be processed" && ok "generic success text" || bad "success text missing"
 RID=$(sql "SELECT id FROM wp_rcmi_pd_requests WHERE email='$EMAIL'")
 [ -n "$RID" ] && ok "request row created (id=$RID)" || bad "no request row"
+[ "$(sql "SELECT organization FROM wp_rcmi_pd_requests WHERE id=$RID")" = "UH COP" ] && ok "organization stored" || bad "organization not stored"
+sql "SELECT purpose FROM wp_rcmi_pd_requests WHERE id=$RID" | grep -q "Line two" && ok "purpose stored (multiline)" || bad "purpose not stored"
 sleep 1
 TOKEN=$(grep -o 'rcmi_download_token=[0-9a-f]*' "$MAIL" | tail -1 | cut -d= -f2)
 [ ${#TOKEN} -eq 64 ] && ok "token extracted from mail stub" || bad "token missing in mail"
@@ -327,7 +334,7 @@ echo "== 13. Empty file: full 200 (0 bytes) + range 416 =="
 H=$(ucurl -s -b "$JAR" -c "$JAR" "$BASE/?rcmi_download=$DSID_EMPTY")
 ECSRF=$(echo "$H" | grep -o 'name="rcmi_csrf" value="[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
 EEMAIL="$TAG-empty@example.invalid"
-ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID_EMPTY" --data "rcmi_name=E&rcmi_email=$EEMAIL&rcmi_title=X&rcmi_csrf=$ECSRF" -o /dev/null
+ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID_EMPTY" --data "rcmi_name=E&rcmi_email=$EEMAIL&rcmi_title=X&rcmi_org=X&rcmi_purpose=X&rcmi_csrf=$ECSRF" -o /dev/null
 ERID=$(sql "SELECT id FROM wp_rcmi_pd_requests WHERE email='$EEMAIL'")
 ETOKEN=$(grep -o 'rcmi_download_token=[0-9a-f]*' "$MAIL" | tail -1 | cut -d= -f2)
 ucurl -s -b "$JAR" -c "$JAR" "$BASE/?rcmi_download_token=$ETOKEN" -o /dev/null
@@ -377,16 +384,16 @@ echo "== 16. Email cooldown (60s) =="
 # lands inside the 60s window no matter how long earlier sections took.
 H=$(ucurl -s -b "$JAR" -c "$JAR" "$BASE/?rcmi_download=$DSID")
 CSRF=$(echo "$H" | grep -o 'name="rcmi_csrf" value="[0-9a-f]*"' | grep -o '[0-9a-f]\{64\}')
-ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Cool&rcmi_email=$COOLEMAIL&rcmi_title=Dev&rcmi_csrf=$CSRF" -o /dev/null
+ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Cool&rcmi_email=$COOLEMAIL&rcmi_title=Dev&rcmi_org=X&rcmi_purpose=X&rcmi_csrf=$CSRF" -o /dev/null
 RIDA=$(sql "SELECT MAX(id) FROM wp_rcmi_pd_requests WHERE email='$COOLEMAIL'")
 [ -n "$RIDA" ] && ok "cooldown fixture created (id=$RIDA)" || bad "cooldown fixture request missing"
-ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Cool2&rcmi_email=$COOLEMAIL&rcmi_title=Dev&rcmi_csrf=$CSRF" -o /dev/null
+ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Cool2&rcmi_email=$COOLEMAIL&rcmi_title=Dev&rcmi_org=X&rcmi_purpose=X&rcmi_csrf=$CSRF" -o /dev/null
 RIDB=$(sql "SELECT MAX(id) FROM wp_rcmi_pd_requests WHERE email='$COOLEMAIL'")
 [ "$RIDB" = "$RIDA" ] && ok "second same-email request within 60s suppressed" || bad "cooldown admitted a second request (id=$RIDB)"
 
 echo "== 17. Concurrent confirm POST: exactly one wins =="
 TEMAIL="$TAG-third@example.invalid"
-ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Third&rcmi_email=$TEMAIL&rcmi_title=Dev&rcmi_csrf=$CSRF" -o /dev/null
+ucurl -s -b "$JAR" -c "$JAR" -X POST "$BASE/?rcmi_download=$DSID" --data "rcmi_name=Third&rcmi_email=$TEMAIL&rcmi_title=Dev&rcmi_org=X&rcmi_purpose=X&rcmi_csrf=$CSRF" -o /dev/null
 RID3=$(sql "SELECT MAX(id) FROM wp_rcmi_pd_requests WHERE email='$TEMAIL'")
 [ -z "$RID3" ] && { bad "concurrency fixture request missing"; echo "RESULT: $PASS passed, $FAIL failed"; exit 1; }
 TOKEN3=$(grep -o 'rcmi_download_token=[0-9a-f]*' "$MAIL" | tail -1 | cut -d= -f2)

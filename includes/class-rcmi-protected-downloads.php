@@ -32,7 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 
-	define( 'RCMI_PD_DB_VERSION', 1 );
+	define( 'RCMI_PD_DB_VERSION', 2 );
 	define( 'RCMI_PD_TOKEN_TTL', DAY_IN_SECONDS );          // emailed token: 24h.
 	define( 'RCMI_PD_GRANT_TTL', 15 * MINUTE_IN_SECONDS );  // browser grant: 15m.
 	define( 'RCMI_PD_CRON', 'rcmi_pd_prune' );
@@ -322,6 +322,8 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				name              VARCHAR(150)    NOT NULL DEFAULT '',
 				email             VARCHAR(254)    NOT NULL DEFAULT '',
 				job_title         VARCHAR(150)    NOT NULL DEFAULT '',
+				organization      VARCHAR(200)    NOT NULL DEFAULT '',
+				purpose           TEXT            NULL,
 				requested_at      DATETIME        NOT NULL,
 				mail_status       VARCHAR(16)     NOT NULL DEFAULT 'queued',
 				token_hash        CHAR(64)        DEFAULT NULL,
@@ -352,7 +354,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			// the version with critical fields missing.
 			$required = array(
 				$datasets => array( 'id', 'title', 'description', 'stored_name', 'download_name', 'file_size', 'enabled', 'created_at', 'updated_at' ),
-				$requests => array( 'id', 'dataset_id', 'name', 'email', 'job_title', 'requested_at', 'mail_status', 'token_hash', 'expires_at', 'redeemed_at', 'revoked_at', 'grant_hash', 'grant_expires_at', 'first_download_at', 'last_download_at', 'download_count' ),
+				$requests => array( 'id', 'dataset_id', 'name', 'email', 'job_title', 'organization', 'purpose', 'requested_at', 'mail_status', 'token_hash', 'expires_at', 'redeemed_at', 'revoked_at', 'grant_hash', 'grant_expires_at', 'first_download_at', 'last_download_at', 'download_count' ),
 				$rate     => array( 'bucket_hash', 'window_expires', 'count' ),
 			);
 			foreach ( $required as $t => $cols ) {
@@ -815,7 +817,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 		 * Insert a request row + send the token email. Stores only the
 		 * SHA-256 token hash. Returns array(id, mail) or WP_Error.
 		 */
-		public static function create_request( $dataset, $name, $email, $job_title ) {
+		public static function create_request( $dataset, $name, $email, $job_title, $organization = '', $purpose = '' ) {
 			global $wpdb;
 			$raw   = bin2hex( random_bytes( 32 ) );
 			$now   = time();
@@ -831,12 +833,14 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 					'name'         => $name,
 					'email'        => $email,
 					'job_title'    => $job_title,
+					'organization' => $organization,
+					'purpose'      => $purpose,
 					'requested_at' => gmdate( 'Y-m-d H:i:s', $now ),
 					'mail_status'  => 'queued',
 					'token_hash'   => hash( 'sha256', $raw ),
 					'expires_at'   => gmdate( 'Y-m-d H:i:s', $now + RCMI_PD_TOKEN_TTL ),
 				),
-				array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+				array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 			);
 			if ( false === $ok ) {
 				$wpdb->suppress_errors( $quiet );
@@ -1010,7 +1014,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			// O'Reilly is stored without a backslash, trimmed, byte-bounded.
 			$errors = array();
 			$values = array();
-			foreach ( array( 'rcmi_name' => 150, 'rcmi_email' => 254, 'rcmi_title' => 150 ) as $key => $max ) {
+			foreach ( array( 'rcmi_name' => 150, 'rcmi_email' => 254, 'rcmi_title' => 150, 'rcmi_org' => 200, 'rcmi_purpose' => 4000 ) as $key => $max ) {
 				$v = isset( $_POST[ $key ] ) ? $_POST[ $key ] : '';
 				if ( ! is_scalar( $v ) ) {
 					$v = null;
@@ -1026,8 +1030,10 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				}
 				$values[ $key ] = $v;
 			}
-			$name  = $values['rcmi_name'];
-			$job   = $values['rcmi_title'];
+			$name    = $values['rcmi_name'];
+			$job     = $values['rcmi_title'];
+			$org     = $values['rcmi_org'];
+			$purpose = $values['rcmi_purpose'];
 
 			if ( '' === $name ) {
 				$errors['rcmi_name'] = 'Name is required.';
@@ -1045,6 +1051,12 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 			if ( '' === $job ) {
 				$errors['rcmi_title'] = 'Job title is required.';
 			}
+			if ( '' === $org ) {
+				$errors['rcmi_org'] = 'Institution / organization is required.';
+			}
+			if ( '' === $purpose ) {
+				$errors['rcmi_purpose'] = 'Please tell us how this dataset will help you advance health research.';
+			}
 			if ( $errors ) {
 				self::render_request_form( $dataset, $settings, $values, $errors );
 			}
@@ -1054,7 +1066,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				self::render_success();
 			}
 
-			$res = self::create_request( $dataset, $name, $email, $job );
+			$res = self::create_request( $dataset, $name, $email, $job, $org, $purpose );
 			if ( is_wp_error( $res ) ) {
 				self::render_request_form( $dataset, $settings, $values, array( '_global' => 'The request could not be processed right now — please try again later.' ) );
 			}
@@ -1573,7 +1585,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 		 * ever lands in a query string.
 		 */
 		private static function render_request_form( $dataset, $settings, $values = array(), $errors = array() ) {
-			$values = array_merge( array( 'rcmi_name' => '', 'rcmi_email' => '', 'rcmi_title' => '' ), $values );
+			$values = array_merge( array( 'rcmi_name' => '', 'rcmi_email' => '', 'rcmi_title' => '', 'rcmi_org' => '', 'rcmi_purpose' => '' ), $values );
 
 			$b  = '<h1 class="rcmi-pd-h">Request download</h1>';
 			$b .= '<p class="rcmi-pd-lede">' . esc_html( $dataset->title ) . '</p>';
@@ -1592,6 +1604,7 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 					'rcmi_name'  => array( 'Full name', 'text', 'name', 150 ),
 					'rcmi_email' => array( 'Email address', 'email', 'email', 254 ),
 					'rcmi_title' => array( 'Job title', 'text', 'organization-title', 150 ),
+					'rcmi_org'   => array( 'Institution / Organization', 'text', 'organization', 200 ),
 				) as $key => $f
 			) {
 				$b .= '<div class="rcmi-pd-field">';
@@ -1606,6 +1619,18 @@ if ( ! class_exists( 'RCMI_Protected_Downloads' ) ) {
 				}
 				$b .= '</div>';
 			}
+			// Long-text field — rendered separately since the loop emits inputs.
+			$b .= '<div class="rcmi-pd-field">';
+			$b .= '<label for="rcmi_purpose">How will this dataset help you advance health research? <span aria-hidden="true">*</span></label>';
+			$b .= '<textarea id="rcmi_purpose" name="rcmi_purpose" rows="5" maxlength="4000" required';
+			if ( isset( $errors['rcmi_purpose'] ) ) {
+				$b .= ' aria-invalid="true" aria-describedby="rcmi_purpose-err"';
+			}
+			$b .= '>' . esc_textarea( $values['rcmi_purpose'] ) . '</textarea>';
+			if ( isset( $errors['rcmi_purpose'] ) ) {
+				$b .= '<p class="rcmi-pd-err" id="rcmi_purpose-err">' . esc_html( $errors['rcmi_purpose'] ) . '</p>';
+			}
+			$b .= '</div>';
 			// Honeypot: visually hidden, removed from a11y tree + tab order.
 			$b .= '<div class="rcmi-pd-hp" aria-hidden="true"><label>Website <input type="text" name="rcmi_dl_website" value="" tabindex="-1" autocomplete="off" /></label></div>';
 			$b .= '<input type="hidden" name="rcmi_csrf" value="' . esc_attr( self::csrf_token( 'request', $dataset->id ) ) . '" />';

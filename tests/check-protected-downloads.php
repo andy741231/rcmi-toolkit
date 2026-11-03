@@ -317,10 +317,12 @@ add_filter(
 $GLOBALS['rcmi_pd_mail_result'] = true;
 $PD_EMAIL_A = $RCMI_PD_TAG . 'tester@example.invalid';
 $PD_EMAIL_B = $RCMI_PD_TAG . 'two@example.invalid';
-$res = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Test Person', $PD_EMAIL_A, 'Analyst' );
+$res = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Test Person', $PD_EMAIL_A, 'Analyst', 'UH College of Pharmacy', "Line one\nLine two" );
 rcmi_pd_check( ! is_wp_error( $res ) && ! empty( $res['mail'] ), 'create_request failed' );
 $rcmi_fixtures['requests'][] = $res['id'];
 $row = RCMI_Protected_Downloads::get_request( $res['id'] );
+rcmi_pd_check( 'UH College of Pharmacy' === $row->organization, 'organization not stored' );
+rcmi_pd_check( "Line one\nLine two" === $row->purpose, 'purpose not stored with newline' );
 rcmi_pd_check( 'sent' === $row->mail_status, 'mail_status not sent after wp_mail true' );
 rcmi_pd_check( 64 === strlen( $row->token_hash ) && ctype_xdigit( $row->token_hash ), 'token_hash not sha256 hex' );
 rcmi_pd_check( '' === $row->grant_hash, 'grant_hash not empty before redeem' );
@@ -373,7 +375,7 @@ add_filter(
 // template and sender apply without code changes.
 update_option( 'rcmi_mail_settings', array( 'from_name' => 'UH RCMI', 'from_email' => 'rcmi@central.uh.edu', 'dl_subject' => 'Get {dataset} here' ) );
 $GLOBALS['rcmi_pd_mail_result'] = true;
-$res3 = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Opt Tester', $RCMI_PD_TAG . 'opt@example.invalid', 'Dev' );
+$res3 = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Opt Tester', $RCMI_PD_TAG . 'opt@example.invalid', 'Dev', 'UH', 'Testing' );
 rcmi_pd_check( ! is_wp_error( $res3 ), 'option-driven create_request failed' );
 $rcmi_fixtures['requests'][] = is_wp_error( $res3 ) ? 0 : $res3['id'];
 $m3 = end( $sent_mail );
@@ -385,7 +387,7 @@ delete_option( 'rcmi_mail_settings' );
 rcmi_pd_check( false === strpos( wp_json_encode( $row ), 'rcmi_download_token=' ), 'raw token leaked into row' );
 
 $GLOBALS['rcmi_pd_mail_result'] = false;
-$res2 = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Test Two', $PD_EMAIL_B, 'Dev' );
+$res2 = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Test Two', $PD_EMAIL_B, 'Dev', 'UH', 'Testing' );
 $rcmi_fixtures['requests'][] = is_wp_error( $res2 ) ? 0 : $res2['id'];
 rcmi_pd_check( ! is_wp_error( $res2 ) && 'failed' === RCMI_Protected_Downloads::get_request( $res2['id'] )->mail_status, 'mail_status not failed after wp_mail false' );
 
@@ -403,7 +405,7 @@ $upd_breaker = function ( $query ) {
 };
 add_filter( 'query', $upd_breaker );
 try {
-	$failres = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Broken', $RCMI_PD_TAG . 'broken@example.invalid', 'X' );
+	$failres = RCMI_Protected_Downloads::create_request( RCMI_Protected_Downloads::get_dataset( $dsid ), 'Broken', $RCMI_PD_TAG . 'broken@example.invalid', 'X', 'X', 'X' );
 } finally {
 	remove_filter( 'query', $upd_breaker );
 }

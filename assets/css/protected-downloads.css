@@ -124,7 +124,8 @@ body.rcmi-pd {
 	color: var(--rcmi-pd-red);
 }
 
-.rcmi-pd-field input {
+.rcmi-pd-field input,
+.rcmi-pd-field textarea {
 	display: block;
 	width: 100%;
 	min-height: 44px;
@@ -136,14 +137,20 @@ body.rcmi-pd {
 	background: #fff;
 }
 
+.rcmi-pd-field textarea {
+	resize: vertical;
+}
+
 .rcmi-pd-field input:focus-visible,
+.rcmi-pd-field textarea:focus-visible,
 .rcmi-pd-btn:focus-visible,
 .rcmi-pd-brand:focus-visible {
 	outline: 3px solid var(--rcmi-pd-focus);
 	outline-offset: 2px;
 }
 
-.rcmi-pd-field input[aria-invalid="true"] {
+.rcmi-pd-field input[aria-invalid="true"],
+.rcmi-pd-field textarea[aria-invalid="true"] {
 	border-color: var(--rcmi-pd-err);
 }
 
