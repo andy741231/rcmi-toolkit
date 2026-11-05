@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<!--
+	Browser regression for rcmi-inserter-ui.js. The removed inserter DOM
+	re-sorting used to reparent every RCMI item on each MutationObserver
+	pass when its order check never converged (duplicate known block names,
+	stale subheads), producing a mutation amplification loop.
+
+	Open directly: tests/check-inserter-ui.html (loads the shipped script
+	through the relative ../assets path — no server or network needed).
+	To test another build, replace the script src below. Assertions render
+	into #results and set data-status on <body>.
+
+	The guard wraps MutationObserver BEFORE the script loads: a script that
+	still reparents nodes every pass is disconnected at >20 deliveries or a
+	single batch >5000 records — the amplification grows batch sizes
+	exponentially per delivery, so the batch cap must exist too.
+-->
+<html><head><meta charset="utf-8"><title>rcmi inserter-ui regression</title>
+<style>
+	body { font-family: -apple-system, sans-serif; margin: 16px; }
+	.block-editor-inserter__all-blocks, .block-editor-inserter__insertable-blocks-at-selection {
+		border: 1px solid #ddd; padding: 8px; max-width: 460px; margin-bottom: 10px;
+	}
+	.block-editor-block-types-list [role="presentation"] { display: flex; gap: 4px; padding: 2px; }
+	.block-editor-block-types-list__item { display: inline-block; padding: 6px 10px; border: 1px solid #ccc; }
+	.x-draggable { font-size: 10px; color: #999; }
+	.block-editor-inserter__panel-content.rcmi-acc-collapsed { display: none; }
+	.rcmi-inserter-hidden { display: none !important; }
+	.rcmi-searching .block-editor-inserter__panel-content.rcmi-acc-collapsed { display: block; }
+	#results { font: 12px/1.5 monospace; white-space: pre-wrap; }
+	.pass { color: #007a66; } .fail { color: #b32d2e; font-weight: 700; }
+</style>
+</head><body>
+<h1>inserter-ui regression</h1>
+<div class="block-editor-inserter__menu">
+	<div class="block-editor-inserter__main-area">
+		<div class="block-editor-inserter__search"><input type="search" placeholder="Search"></div>
+		<div class="block-editor-inserter__all-blocks">
+			<div class="block-editor-inserter__panel-header"><h2 class="block-editor-inserter__panel-title">RCMI Sections</h2></div>
+			<div class="block-editor-inserter__panel-content">
+				<ul class="block-editor-block-types-list">
+					<div role="presentation" data-row="0">
+						<li class="block-editor-block-types-list__item editor-block-list-item-rcmi-section" data-tid="s1"><span class="block-editor-block-types-list__item-icon"></span>Section</li>
+						<div class="x-draggable" data-tid="c1">chip</div>
+						<li class="block-editor-block-types-list__item editor-block-list-item-rcmi-quote-block" data-tid="q1">Quote</li>
+						<div class="x-draggable" data-tid="c2">chip</div>
+					</div>
+					<div role="presentation" data-row="1">
+						<li class="block-editor-block-types-list__item editor-block-list-item-rcmi-cta-band" data-tid="c3">CTA</li>
+						<div class="x-draggable" data-tid="c4">chip</div>
+						<!-- duplicate known block name: different node, same rcmi/section -->
+						<li class="block-editor-block-types-list__item editor-block-list-item-rcmi-section" data-tid="s2"><span class="block-editor-block-types-list__item-icon"></span>Section dup</li>
+						<div class="x-draggable" data-tid="c5">chip</div>
+						<!-- stale duplicate subheads the old sorter left behind -->
+						<div class="rcmi-inserter-subhead" data-group="Layout" data-tid="h1">Layout</div>
+						<div class="rcmi-inserter-subhead" data-group="Layout" data-tid="h2">Layout</div>
+					</div>
+				</ul>
+			</div>
+		</div>
+		<div class="block-editor-inserter__insertable-blocks-at-selection">context panel</div>
+	</div>
+</div>
+<pre id="results">RUNNING...</pre>
+<script>
+	// Badge dates are relative to today so the fixture stays valid.
+	( function () {
+		var d = function ( daysAgo ) {
+			return new Date( Date.now() - daysAgo * 86400000 ).toISOString().slice( 0, 10 );
+		};
+		window.rcmiBlockMeta = {
+			'rcmi/section': { added: d( 1 ) },
+			'rcmi/quote-block': { updated: d( 1 ) }
+		};
+	} )();
+	window.wp = { domReady: function ( f ) { f(); } };
+
+	// --- guard: budget observer deliveries BEFORE the script under test.
+	window.__deliveries = 0;
+	window.__guard = null;
+	( function () {
+		var Orig = window.MutationObserver;
+		window.MutationObserver = class extends Orig {
+			constructor( cb ) {
+				super( function ( records, observer ) {
+					window.__deliveries++;
+					window.__maxBatch = Math.max( window.__maxBatch || 0, records.length );
+					// Amplification guard: the removed sorter re-organized once
+					// PER added node, so batch size grows ~Nx per delivery —
+					// a batch cap must trip before the delivery count does.
+					if ( window.__deliveries > 20 || records.length > 5000 ) {
+						window.__guard = 'TRIPPED delivery=' + window.__deliveries + ' batch=' + records.length;
+						observer.disconnect();
+						return; // don't invoke the runaway callback further
+					}
+					cb.call( observer, records, observer );
+				} );
+			}
+		};
+	} )();
+
+	// --- snapshot parent row + sibling index before the script loads.
+	window.__before = {};
+	Array.prototype.forEach.call( document.querySelectorAll( '[data-tid]' ), function ( n ) {
+		window.__before[ n.dataset.tid ] = {
+			row: n.closest( '[role="presentation"]' ).dataset.row,
+			idx: Array.prototype.indexOf.call( n.parentElement.children, n )
+		};
+	} );
+</script>
+<script src="../assets/js/rcmi-inserter-ui.js"></script>
+<script>
+	( function () {
+		var out = [];
+		var ok = true;
+		function check( cond, msg ) { out.push( ( cond ? 'PASS' : 'FAIL' ) + ' ' + msg ); if ( ! cond ) { ok = false; } }
+		var sleep = function ( ms ) { return new Promise( function ( r ) { setTimeout( r, ms ); } ); };
+
+		window.addEventListener( 'load', async function () {
+			await sleep( 4000 ); // settle window; runaway batches grow ~Nx per delivery
+
+			// Node ownership AND sibling order preserved — nothing moved.
+			var moved = [];
+			Array.prototype.forEach.call( document.querySelectorAll( '[data-tid]' ), function ( n ) {
+				var b = window.__before[ n.dataset.tid ];
+				var row = n.closest( '[role="presentation"]' );
+				var idx = Array.prototype.indexOf.call( n.parentElement.children, n );
+				if ( ! b || ! row || row.dataset.row !== b.row || idx !== b.idx ) {
+					moved.push( n.dataset.tid );
+				}
+			} );
+			check( moved.length === 0, 'row + sibling index preserved for every node (moved: ' + moved.join( ',' ) + ')' );
+			check( document.querySelectorAll( '.rcmi-inserter-subhead' ).length === 2, 'no new subheads introduced (got ' + document.querySelectorAll( '.rcmi-inserter-subhead' ).length + ')' );
+
+			// Accordion: header becomes a button and toggles collapsed class.
+			var header = document.querySelector( '.block-editor-inserter__panel-header' );
+			var content = header.nextElementSibling;
+			check( header.getAttribute( 'role' ) === 'button', 'accordion header role=button' );
+			header.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+			var collapsedAfterClick = content.classList.contains( 'rcmi-acc-collapsed' );
+			header.dispatchEvent( new KeyboardEvent( 'keydown', { key: 'Enter', bubbles: true } ) );
+			var afterKey = content.classList.contains( 'rcmi-acc-collapsed' );
+			check( collapsedAfterClick !== afterKey, 'accordion toggles on click+Enter' );
+
+			// Badges: exactly the 3 meta-known labels, once each.
+			var labels = Array.prototype.map.call( document.querySelectorAll( '.rcmi-inserter-badge' ), function ( b ) { return b.textContent; } ).sort();
+			check( labels.join( ',' ) === 'New,New,Updated', 'badges exactly New,New,Updated (got ' + labels.join( ',' ) + ')' );
+
+			// Search input adds rcmi-searching to the menu.
+			var input = document.querySelector( '.block-editor-inserter__search input' );
+			input.value = 'sec';
+			input.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+			check( !! document.querySelector( '.rcmi-searching' ), 'search expands (rcmi-searching set)' );
+			input.value = '';
+			input.dispatchEvent( new Event( 'input', { bubbles: true } ) );
+
+			// Context strip hidden when __all-blocks populated.
+			check( document.querySelector( '.block-editor-inserter__insertable-blocks-at-selection' ).classList.contains( 'rcmi-inserter-hidden' ), 'context panel hidden when all-blocks populated' );
+
+			// Ordinary DOM churn must settle without badge duplication.
+			var row0 = document.querySelector( '[data-row="0"]' );
+			var extra = document.createElement( 'li' );
+			extra.className = 'block-editor-block-types-list__item editor-block-list-item-rcmi-table';
+			extra.textContent = 'Table';
+			row0.appendChild( extra );
+			await sleep( 500 );
+			extra.remove();
+			await sleep( 500 );
+			check( document.querySelectorAll( '.rcmi-inserter-badge' ).length === 3, 'no duplicate badges after churn (got ' + document.querySelectorAll( '.rcmi-inserter-badge' ).length + ')' );
+
+			// Final guard state — report exactly what happened.
+			check( ! window.__guard, 'observer settled; guard=' + ( window.__guard || 'clear' ) + ' deliveries=' + window.__deliveries + ' maxBatch=' + window.__maxBatch );
+			check( window.__deliveries <= 20 && ( window.__maxBatch || 0 ) <= 5000, 'deliveries+batches bounded: ' + window.__deliveries + ' del / ' + window.__maxBatch + ' rec' );
+
+			var pre = document.getElementById( 'results' );
+			pre.innerHTML = out.map( function ( l ) { return '<span class="' + ( l.indexOf( 'FAIL' ) === 0 ? 'fail' : 'pass' ) + '">' + l + '</span>'; } ).join( '\n' );
+			document.body.setAttribute( 'data-status', ok ? 'ALL-PASS' : 'HAS-FAILURES' );
+			document.title = ok ? 'ALL-PASS' : 'HAS-FAILURES';
+		} );
+	} )();
+</script>
+</body></html>

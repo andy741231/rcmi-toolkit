@@ -6,6 +6,11 @@
  *    window.rcmiBlockMeta (block name -> { added, updated } ISO dates).
  *    A block is "new" for 60 days after `added`; "updated" for 60 days
  *    after `updated`.
+ *
+ * Keep the native inserter order: moving React-owned list nodes from this
+ * observer can trigger non-convergent childList feedback loops (observed:
+ * editor-freezing mutation storms). Categories are ordered server-side.
+ * Never reparent or reorder .block-editor-block-types-list nodes here.
  */
 ( function () {
 	var META = window.rcmiBlockMeta || {};
@@ -131,166 +136,20 @@
 		}
 	}
 
-	// ---- RCMI panel order + sub-headings -----------------------------------
-	// Core promotes the currently-selected block type to the top of its
-	// category, which scrambles the RCMI list whenever you click a block.
-	// Re-order the items back to this fixed order on every render.
-
-	var RCMI_ORDER = [
-		'rcmi/section',
-		'rcmi/quote-block',
-		'rcmi/cta-band',
-		'rcmi/impact-stats-block',
-		'rcmi/role-selector-block',
-		'rcmi/impact-strip-block',
-		'rcmi/slide-block',
-		'rcmi/slide',
-		'rcmi/parallax',
-		'rcmi/table',
-		'rcmi/directory',
-		'rcmi/directory-person'
-	];
-
-	// First block name of each visual group -> its sub-heading label.
-	var RCMI_GROUPS = {
-		'rcmi/section': 'Layout',
-		'rcmi/quote-block': 'Content',
-		'rcmi/impact-stats-block': 'Dynamic sections',
-		'rcmi/slide-block': 'Media & data'
-	};
-
-	function itemBlockName( el ) {
-		var btn = el.classList.contains( 'block-editor-block-types-list__item' )
-			? el
-			: el.querySelector( '.block-editor-block-types-list__item' );
-		var cls = btn && btn.className.match( /editor-block-list-item-([a-z0-9-]+)/ );
-		return cls ? cls[1].replace( '-', '/' ) : '';
-	}
-
-	function organizeRcmiPanel( content ) {
-		var list = content.querySelector( '.block-editor-block-types-list' );
-		if ( ! list ) {
-			return;
-		}
-		// GB renders items in flex row wrappers ([role="presentation"], ~3
-		// items per row), each item followed by a draggable-chip sibling.
-		// Consolidate everything into the first row — flex-wrap re-flows
-		// identically — with full-width sub-heads between groups.
-		var rows = Array.from( list.querySelectorAll( ':scope > [role="presentation"]' ) );
-		if ( ! rows.length ) {
-			rows = [ list ];
-		}
-		var row0 = rows[ 0 ];
-
-		// Collect item nodes + their chips, in DOM order across all rows.
-		var units = [];
-		var orphanChips = [];
-		var last = null;
-		rows.forEach( function ( row ) {
-			Array.from( row.children ).forEach( function ( n ) {
-				if ( n.classList.contains( 'rcmi-inserter-subhead' ) ) {
-					return;
-				}
-				if ( /draggable/.test( n.className ) && ! n.querySelector( '.block-editor-block-types-list__item' ) ) {
-					if ( last ) {
-						last.chips.push( n );
-					} else {
-						orphanChips.push( n );
-					}
-					return;
-				}
-				var name = itemBlockName( n );
-				if ( name ) {
-					last = { node: n, name: name, chips: [] };
-					units.push( last );
-				} else {
-					last = null;
-				}
-			} );
-		} );
-
-		var byName = {};
-		var extras = [];
-		units.forEach( function ( u ) {
-			if ( RCMI_ORDER.indexOf( u.name ) !== -1 ) {
-				byName[ u.name ] = u;
-			} else {
-				extras.push( u );
-			}
-		} );
-
-		// Desired node order: sub-head + items per group, then unlisted extras.
-		var wanted = [];
-		var groupHeads = {};
-		var pushUnit = function ( u ) {
-			wanted.push( u.node );
-			u.chips.forEach( function ( c ) { wanted.push( c ); } );
-		};
-		RCMI_ORDER.forEach( function ( name ) {
-			var u = byName[ name ];
-			if ( ! u ) {
-				return;
-			}
-			var group = RCMI_GROUPS[ name ];
-			if ( group ) {
-				var head = row0.querySelector( '.rcmi-inserter-subhead[data-group="' + group + '"]' );
-				if ( ! head ) {
-					head = document.createElement( 'div' );
-					head.className = 'rcmi-inserter-subhead';
-					head.dataset.group = group;
-					head.textContent = group;
-				}
-				wanted.push( head );
-				groupHeads[ group ] = true;
-			}
-			pushUnit( u );
-		} );
-		extras.forEach( pushUnit );
-		orphanChips.forEach( function ( c ) { wanted.push( c ); } );
-
-		// Remove stale sub-heads for groups that have no visible items.
-		Array.from( list.querySelectorAll( '.rcmi-inserter-subhead' ) ).forEach( function ( h ) {
-			if ( ! groupHeads[ h.dataset.group ] ) {
-				h.parentNode.removeChild( h );
-			}
-		} );
-
-		// Already organized? Don't touch the DOM (avoids observer loops).
-		var flat = [];
-		rows.forEach( function ( row ) {
-			Array.from( row.children ).forEach( function ( n ) { flat.push( n ); } );
-		} );
-		var current = flat.filter( function ( n ) {
-			return n.classList.contains( 'rcmi-inserter-subhead' )
-				|| /draggable/.test( n.className )
-				|| n.classList.contains( 'block-editor-block-types-list__item' )
-				|| n.querySelector( '.block-editor-block-types-list__item' );
-		} );
-		var laterRowsHaveItems = rows.slice( 1 ).some( function ( row ) {
-			return !! row.querySelector( '.block-editor-block-types-list__item' );
-		} );
-		if ( ! laterRowsHaveItems && current.length === wanted.length && current.every( function ( n, i ) { return n === wanted[ i ]; } ) ) {
-			return;
-		}
-		wanted.forEach( function ( n ) { row0.appendChild( n ); } );
-	}
-
-	function isRcmiPanel( header ) {
-		var t = header.querySelector( '.block-editor-inserter__panel-title' );
-		return t && t.textContent.trim() === 'RCMI Sections';
-	}
-
+	// ---- active container --------------------------------------------------
 	// GB swaps where panels render by selection state: with nothing selected
 	// everything lives in __insertable-blocks-at-selection; with a block
 	// selected __all-blocks holds the categories and the other container
 	// becomes a small "context" panel promoting the selected type. Hide the
-	// context panel only when __all-blocks is populated, and organize the
-	// RCMI panel inside whichever container is active.
+	// context panel only when __all-blocks is populated.
 	function activeBlocksContainer() {
 		var all = document.querySelector( '.block-editor-inserter__all-blocks' );
 		var populated = !!( all && all.querySelector( '.block-editor-block-types-list__item' ) );
 		var strip = document.querySelector( '.block-editor-inserter__insertable-blocks-at-selection' );
-		if ( strip ) {
+		// Toggle only when the class actually differs — writing the class
+		// attribute on every observer pass feeds mutation records back into
+		// every observer on the document.
+		if ( strip && strip.classList.contains( 'rcmi-inserter-hidden' ) !== populated ) {
 			strip.classList.toggle( 'rcmi-inserter-hidden', populated );
 		}
 		return populated ? all : ( strip || document );
@@ -318,15 +177,7 @@
 	function enhance( root ) {
 		var headers = root.querySelectorAll ? Array.from( root.querySelectorAll( '.block-editor-inserter__panel-header' ) ) : [];
 		headers.forEach( enhanceHeader );
-		var scope = activeBlocksContainer();
-		headers.forEach( function ( h ) {
-			if ( isRcmiPanel( h ) && scope.contains( h ) ) {
-				var content = h.nextElementSibling;
-				if ( content && content.classList.contains( 'block-editor-inserter__panel-content' ) ) {
-					organizeRcmiPanel( content );
-				}
-			}
-		} );
+		activeBlocksContainer();
 		( root.querySelectorAll ? Array.from( root.querySelectorAll( '.block-editor-block-types-list__item' ) ) : [] )
 			.forEach( enhanceItem );
 		( root.querySelectorAll ? Array.from( root.querySelectorAll( '.block-editor-inserter__menu input[type="search"], .block-editor-inserter__main-area input[type="search"], .block-editor-inserter__search input' ) ) : [] )
@@ -350,16 +201,10 @@
 					} else {
 						enhance( n );
 					}
-					// Any addition inside a panel may mean more items mounted —
-					// re-run ordering/sub-heads for the RCMI category.
-					var pc = n.closest ? n.closest( '.block-editor-inserter__panel-content' ) : null;
-					if ( pc ) {
-						var prev = pc.previousElementSibling;
-						var scope = activeBlocksContainer();
-						if ( prev && prev.classList.contains( 'block-editor-inserter__panel-header' ) && isRcmiPanel( prev ) && scope.contains( prev ) ) {
-							organizeRcmiPanel( pc );
-						}
-					}
+					// New nodes elsewhere can swap which inserter container
+					// is active — re-check the hide/show state (cheap, no DOM
+					// writes unless the state actually changed).
+					activeBlocksContainer();
 				}
 			}
 		} ).observe( document.body, { childList: true, subtree: true } );

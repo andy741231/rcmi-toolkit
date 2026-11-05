@@ -1082,18 +1082,23 @@ function rcmi_toolkit_editor_assets() {
 	);
 
 	// Inserter UI: category accordion + New/Updated badges on RCMI blocks.
+	// filemtime versions (not the static plugin version) so editor cache
+	// busts immediately when these files change — e.g. the mutation-loop
+	// hotfix that removed the inserter DOM re-sorting.
+	$inserter_ui_js_ver  = filemtime( RCMI_TOOLKIT_PATH . 'assets/js/rcmi-inserter-ui.js' );
+	$inserter_ui_css_ver = filemtime( RCMI_TOOLKIT_PATH . 'assets/css/rcmi-inserter-ui.css' );
 	wp_enqueue_script(
 		'rcmi-inserter-ui',
 		RCMI_TOOLKIT_URL . 'assets/js/rcmi-inserter-ui.js',
 		array( 'wp-dom-ready' ),
-		RCMI_TOOLKIT_VERSION,
+		$inserter_ui_js_ver,
 		true
 	);
 	wp_enqueue_style(
 		'rcmi-inserter-ui',
 		RCMI_TOOLKIT_URL . 'assets/css/rcmi-inserter-ui.css',
 		array(),
-		RCMI_TOOLKIT_VERSION
+		$inserter_ui_css_ver
 	);
 	// Per-block lifecycle dates for the inserter badges. Update 'updated'
 	// when a block's code changes and 'added' when a new block ships.
