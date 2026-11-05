@@ -1135,10 +1135,10 @@ function rcmi_toolkit_block_meta() {
 		'rcmi/slide-block'          => array( 'added' => '2026-08-13', 'updated' => '2026-09-29' ),
 		'rcmi/parallax'             => array( 'added' => '2026-07-29', 'updated' => '2026-09-29' ),
 		'rcmi/table'                => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
-		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-10-08' ),
+		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-11-05' ),
 		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-10-08' ),
-		'rcmi/feature-cards'        => array( 'added' => '2026-11-03', 'updated' => '2026-11-03' ),
-		'rcmi/feature-card'         => array( 'added' => '2026-11-03', 'updated' => '2026-11-03' ),
+		'rcmi/feature-cards'        => array( 'added' => '2026-11-03', 'updated' => '2026-11-05' ),
+		'rcmi/feature-card'         => array( 'added' => '2026-11-03', 'updated' => '2026-11-05' ),
 		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 		'rcmi/story-text'           => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
 		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
@@ -2725,6 +2725,8 @@ function rcmi_register_server_side_blocks() {
 			'showProfileLink' => array( 'type' => 'boolean', 'default' => false ),
 			'initialsBg'      => array( 'type' => 'string', 'default' => '' ),
 			'initialsText'    => array( 'type' => 'string', 'default' => '' ),
+			'cardMaxWidth'    => array( 'type' => 'number', 'default' => 0 ),
+			'cardAlignment'   => array( 'type' => 'string', 'default' => 'left' ),
 			'people'          => array( 'type' => 'array', 'default' => array() ),
 		),
 		'provides_context' => array(
@@ -2761,8 +2763,9 @@ function rcmi_register_server_side_blocks() {
 
 	// rcmi/feature-cards — card grid. Cards are rcmi/feature-card inner
 	// blocks. Two families: 'content' (image-top/overlay/horizontal/text)
-	// and 'hover' (Codrops HoverEffectIdeas ports). A card URL makes the
-	// whole card clickable via a stretched link on the title.
+	// and 'hover' (Codrops HoverEffectIdeas ports). A card URL alone makes
+	// the whole card clickable (stretched link); a URL + label renders a
+	// single text/button CTA link instead.
 	register_block_type( 'rcmi/feature-cards', array(
 		'attributes' => array(
 			'columns'        => array( 'type' => 'number', 'default' => 3 ),
@@ -2772,6 +2775,8 @@ function rcmi_register_server_side_blocks() {
 			'imageRatio'     => array( 'type' => 'string', 'default' => '4-3' ),
 			'headingLevel'   => array( 'type' => 'string', 'default' => 'h3' ),
 			'linkNewTab'     => array( 'type' => 'boolean', 'default' => false ),
+			'cardMaxWidth'   => array( 'type' => 'number', 'default' => 0 ),
+			'cardAlignment'  => array( 'type' => 'string', 'default' => 'left' ),
 			'cardBg'         => array( 'type' => 'string', 'default' => '' ),
 			'cardText'       => array( 'type' => 'string', 'default' => '' ),
 			'accentColor'    => array( 'type' => 'string', 'default' => '' ),
@@ -2804,6 +2809,7 @@ function rcmi_register_server_side_blocks() {
 			'title'      => array( 'type' => 'string', 'default' => '' ),
 			'text'       => array( 'type' => 'string', 'default' => '' ),
 			'buttonText' => array( 'type' => 'string', 'default' => '' ),
+			'ctaStyle'   => array( 'type' => 'string', 'default' => 'text' ),
 			'url'        => array( 'type' => 'string', 'default' => '' ),
 		),
 		'uses_context'    => array( 'rcmi/fcType', 'rcmi/fcLayout', 'rcmi/fcEffect', 'rcmi/fcHeading', 'rcmi/fcNewTab' ),
@@ -3265,6 +3271,34 @@ function rcmi_render_directory_person_block( $attrs, $content = '', $block = nul
 }
 
 /**
+ * Shared opt-in card layout for rcmi/directory and rcmi/feature-cards:
+ * cardMaxWidth caps each card (0 = fill the column tracks), cardAlignment
+ * justifies the rows. Returns the wrapper class fragment and CSS custom
+ * property list; both are empty when the block uses default layout so the
+ * existing grid markup is unchanged. Mirrored by rcmiCardLayout() in
+ * src/blocks.js and consumed by .rcmi-card-layout in rcmi-blocks.css.
+ *
+ * @param array $attrs Block attributes.
+ * @param int   $cols  Validated column count.
+ * @return array{class:string,vars:string}
+ */
+function rcmi_card_layout( $attrs, $cols ) {
+	$max_w = intval( $attrs['cardMaxWidth'] ?? 0 );
+	$max_w = $max_w <= 0 ? 0 : max( 200, min( $max_w, 800 ) );
+	$align = in_array( $attrs['cardAlignment'] ?? '', array( 'left', 'center', 'right' ), true ) ? $attrs['cardAlignment'] : 'left';
+	if ( ! $max_w && 'left' === $align ) {
+		return array( 'class' => '', 'vars' => '' );
+	}
+	$justify = 'center' === $align ? 'center' : ( 'right' === $align ? 'flex-end' : 'flex-start' );
+	return array(
+		'class' => ' rcmi-card-layout' . ( 'left' !== $align ? ' rcmi-card-layout--' . $align : '' ),
+		'vars'  => '--rcmi-card-columns:' . $cols . ';'
+			. '--rcmi-card-max-width:' . ( $max_w ? $max_w . 'px' : '100%' ) . ';'
+			. '--rcmi-card-justify:' . $justify . ';',
+	);
+}
+
+/**
  * Render callback for rcmi/directory.
  *
  * @param array    $attrs   Block attributes.
@@ -3282,14 +3316,16 @@ function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 	$target      = ! empty( $attrs['linkNewTab'] ) ? ' target="_blank" rel="noopener noreferrer"' : '';
 	$show_link   = ! empty( $attrs['showProfileLink'] );
 
-	$classes = 'rcmi-directory rcmi-directory--cols-' . $cols . ' rcmi-directory--photo-' . $photo_style . ' rcmi-directory--' . $card_style;
+	$card_layout = rcmi_card_layout( $attrs, $cols );
+	$classes = 'rcmi-directory rcmi-directory--cols-' . $cols . ' rcmi-directory--photo-' . $photo_style . ' rcmi-directory--' . $card_style . $card_layout['class'];
 	if ( ! empty( $attrs['align'] ) ) {
 		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
 	}
 	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
 
-	// No-photo placeholder colors as CSS custom properties (inherited by cards).
-	$vars = '';
+	// No-photo placeholder colors + optional card layout as CSS custom
+	// properties (inherited by cards).
+	$vars = $card_layout['vars'];
 	foreach ( array(
 		'initialsBg'   => '--rcmi-dir-initials-bg',
 		'initialsText' => '--rcmi-dir-initials-text',
@@ -3329,7 +3365,8 @@ function rcmi_render_directory_block( $attrs, $content = '', $block = null ) {
 
 /**
  * Sanitize inline card text (eyebrow/title/text/buttonText): keep basic
- * emphasis tags only — no links, the whole card is already the link.
+ * emphasis tags only — links are added by the card itself (stretched
+ * whole-card anchor or the CTA).
  *
  * @param string $v Raw value.
  * @return string
@@ -3366,8 +3403,14 @@ function rcmi_render_feature_card_block( $attrs, $content = '', $block = null ) 
 	$pos_y   = max( 0, min( 100, intval( $attrs['positionY'] ?? 50 ) ) );
 	// Photo crop focus (0–100 object-position; omitted when centered).
 	$img_style = ( 50 === $pos_x && 50 === $pos_y ) ? '' : 'object-position:' . $pos_x . '% ' . $pos_y . '%';
-	$safe_url  = esc_url( trim( (string) ( $attrs['url'] ?? '' ) ) );
-	$has_link  = '' !== $safe_url;
+	$safe_url   = esc_url( trim( (string) ( $attrs['url'] ?? '' ) ) );
+	$has_link   = '' !== $safe_url;
+	$cta_style  = in_array( $attrs['ctaStyle'] ?? '', array( 'text', 'button' ), true ) ? $attrs['ctaStyle'] : 'text';
+	$cta_label  = trim( wp_strip_all_tags( $button ) );
+	// CTA mode: a sanitized URL plus a non-empty label makes the label the
+	// card's single link. A URL alone keeps the whole-card stretched link.
+	$has_cta    = $has_link && '' !== $cta_label;
+	$whole_card = $has_link && ! $has_cta;
 
 	if ( ! $img_id && ! $img_url && '' === trim( wp_strip_all_tags( $eyebrow . $title . $text . $button ) ) ) {
 		return '';
@@ -3390,41 +3433,50 @@ function rcmi_render_feature_card_block( $attrs, $content = '', $block = null ) 
 		$img = '<img class="rcmi-fc-img" src="' . esc_url( $img_url ) . '" alt="' . esc_attr( $img_alt ) . '" loading="lazy"' . ( $img_style ? ' style="' . esc_attr( $img_style ) . '"' : '' ) . ' />';
 	}
 
-	// Stretched link: the anchor wraps the title text and ::after covers the
-	// whole card. Titleless linked cards get a bare labelled anchor instead.
+	// Link modes: whole-card stretched link when only a URL is set (anchor
+	// wraps the title text and ::after covers the card; titleless cards get
+	// a bare labelled anchor instead). With a URL + label the title stays
+	// plain and exactly one CTA anchor renders — no stretched/bare link.
 	$title_html = '';
 	if ( '' !== trim( wp_strip_all_tags( $title ) ) ) {
 		$title_inner = rcmi_fc_inline( $title );
-		if ( $has_link ) {
+		if ( $whole_card ) {
 			$title_inner = '<a class="rcmi-fc-link" href="' . $safe_url . '"' . $target . '>' . $title_inner . '</a>';
 		}
 		$title_html = '<' . $heading . ' class="rcmi-fc-title">' . $title_inner . '</' . $heading . '>';
 	}
 	$bare_link = '';
-	if ( $has_link && '' === $title_html ) {
-		$label = trim( wp_strip_all_tags( $button ) ) ?: ( trim( $img_alt ) ?: __( 'Learn more', 'rcmi-toolkit' ) );
+	if ( $whole_card && '' === $title_html ) {
+		$label = $cta_label ?: ( trim( $img_alt ) ?: __( 'Learn more', 'rcmi-toolkit' ) );
 		$bare_link = '<a class="rcmi-fc-link rcmi-fc-link--bare" href="' . $safe_url . '"' . $target . ' aria-label="' . esc_attr( $label ) . '"></a>';
 	}
-	$linked_class = $has_link ? ' rcmi-fc--linked' : '';
-	$text_html    = '' !== trim( wp_strip_all_tags( $text ) ) ? '<p class="rcmi-fc-text">' . rcmi_fc_inline( $text ) . '</p>' : '';
+	$linked_class  = $whole_card ? ' rcmi-fc--linked' : '';
+	$has_cta_class = $has_cta ? ' rcmi-fc--has-cta' : '';
+	$text_html     = '' !== trim( wp_strip_all_tags( $text ) ) ? '<p class="rcmi-fc-text">' . rcmi_fc_inline( $text ) . '</p>' : '';
+	$cta_html      = '';
+	if ( $has_cta ) {
+		$cta_html = '<a class="rcmi-fc-cta' . ( 'button' === $cta_style ? ' rcmi-fc-cta--button' : '' ) . '" href="' . $safe_url . '"' . $target . '>'
+			. rcmi_fc_inline( $button )
+			. ( 'button' === $cta_style ? '' : ' <span aria-hidden="true">&#8594;</span>' )
+			. '</a>';
+	}
 
 	if ( 'hover' === $card_type ) {
-		$card  = '<figure class="rcmi-fc rcmi-fc--effect-' . $effect . $linked_class . '">';
+		$card  = '<figure class="rcmi-fc rcmi-fc--effect-' . $effect . $linked_class . $has_cta_class . '">';
 		$card .= $bare_link;
 		$card .= $img;
-		$card .= '<figcaption><div class="rcmi-fc-cap">' . $title_html . $text_html . '</div></figcaption>';
+		$card .= '<figcaption><div class="rcmi-fc-cap">' . $title_html . $text_html . '</div>' . $cta_html . '</figcaption>';
 		$card .= '</figure>';
 		return $card;
 	}
 
 	$media        = ( $img && 'text' !== $layout ) ? '<div class="rcmi-fc-media">' . $img . '</div>' : '';
 	$eyebrow_html = '' !== trim( wp_strip_all_tags( $eyebrow ) ) ? '<p class="rcmi-fc-eyebrow">' . rcmi_fc_inline( $eyebrow ) . '</p>' : '';
-	$cta          = ( $has_link && '' !== trim( wp_strip_all_tags( $button ) ) ) ? '<span class="rcmi-fc-cta" aria-hidden="true">' . rcmi_fc_inline( $button ) . ' &#8594;</span>' : '';
 
-	$card  = '<article class="rcmi-fc' . $linked_class . '">';
+	$card  = '<article class="rcmi-fc' . $linked_class . $has_cta_class . '">';
 	$card .= $bare_link;
 	$card .= $media;
-	$card .= '<div class="rcmi-fc-body">' . $eyebrow_html . $title_html . $text_html . $cta . '</div>';
+	$card .= '<div class="rcmi-fc-body">' . $eyebrow_html . $title_html . $text_html . $cta_html . '</div>';
 	$card .= '</article>';
 	return $card;
 }
@@ -3447,14 +3499,16 @@ function rcmi_render_feature_cards_block( $attrs, $content = '', $block = null )
 	$ratio     = in_array( $attrs['imageRatio'] ?? '', array( '16-9', '4-3', '1-1', '3-4' ), true ) ? $attrs['imageRatio'] : '4-3';
 	$opacity   = max( 0, min( 90, intval( $attrs['overlayOpacity'] ?? 50 ) ) ) / 100;
 
-	$classes = 'rcmi-fc-grid rcmi-fc-grid--cols-' . $cols . ' rcmi-fc-grid--' . $card_type . ' rcmi-fc-grid--layout-' . $layout . ' rcmi-fc-grid--ratio-' . $ratio;
+	$card_layout = rcmi_card_layout( $attrs, $cols );
+	$classes = 'rcmi-fc-grid rcmi-fc-grid--cols-' . $cols . ' rcmi-fc-grid--' . $card_type . ' rcmi-fc-grid--layout-' . $layout . ' rcmi-fc-grid--ratio-' . $ratio . $card_layout['class'];
 	if ( ! empty( $attrs['align'] ) ) {
 		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
 	}
 	$id_attr = ! empty( $attrs['anchor'] ) ? ' id="' . esc_attr( $attrs['anchor'] ) . '"' : '';
 
-	// Color overrides as CSS custom properties (inherited by the cards).
-	$vars = '--rcmi-fc-overlay-opacity:' . $opacity . ';';
+	// Color overrides + optional card layout as CSS custom properties
+	// (inherited by the cards).
+	$vars = '--rcmi-fc-overlay-opacity:' . $opacity . ';' . $card_layout['vars'];
 	foreach ( array(
 		'cardBg'       => '--rcmi-fc-bg',
 		'cardText'     => '--rcmi-fc-text',

@@ -443,9 +443,15 @@
 	inset:0;
 	z-index:2;
 }
-.rcmi-fc:focus-within{
+/* Keyboard focus: outline the card only when the card itself is the link;
+   CTA cards outline the CTA anchor instead. */
+.rcmi-fc--linked:focus-within{
 	outline:3px solid #005950;
 	outline-offset:2px;
+}
+.rcmi-fc-cta:focus-visible{
+	outline:2px solid #005950;
+	outline-offset:3px;
 }
 
 /* ------------------------------ content cards ------------------------------ */
@@ -517,15 +523,39 @@
 	font-size:.95rem;
 	margin:0;
 }
-/* CTA is pushed to the body bottom so cards in a row align. */
+/* CTA link/button is the card's single interactive element when a label
+   and URL are set (replacing the whole-card stretched link); it is pushed
+   to the body bottom so cards in a row align. */
 .rcmi-fc-cta{
 	margin-top:auto;
+	align-self:flex-start;
 	padding-top:14px;
 	font-size:.8rem;
 	font-weight:700;
 	letter-spacing:.06em;
 	text-transform:uppercase;
 	color:var(--rcmi-fc-accent,#C8102E);
+	text-decoration:none;
+}
+a.rcmi-fc-cta:hover{ text-decoration:underline; }
+/* Element class (not a.) so the editor's inert span preview gets the same
+   filled-button look as the frontend anchor. */
+.rcmi-fc-cta--button{
+	display:inline-flex;
+	align-items:center;
+	justify-content:center;
+	gap:.4em;
+	box-sizing:border-box;
+	padding:.7em 1.25em;
+	min-height:44px;
+	background:var(--rcmi-fc-cta-bg,var(--red,#C8102E));
+	color:#fff;
+	border-radius:4px;
+}
+a.rcmi-fc-cta--button:hover{
+	background:var(--brick,#960C22);
+	color:#fff;
+	text-decoration:none;
 }
 
 /* Overlay layout: text sits on the image over a scrim. */
@@ -963,6 +993,83 @@
 	transition-delay:.1s;
 }
 
+/*----- Hover-card CTA: a stable anchor pinned to the caption's bottom
+   strip — outside .rcmi-fc-cap so effect transforms never move it and it
+   stays reachable without hovering. .rcmi-fc--has-cta reserves the bottom
+   space per effect so nothing overlaps it. -----*/
+.rcmi-fc-grid--hover .rcmi-fc--has-cta .rcmi-fc-cta{
+	position:absolute;
+	bottom:clamp(.6em,4cqi,1.3em);
+	left:50%;
+	transform:translateX(-50%);
+	z-index:4;
+	margin:0;
+	padding:0;
+	max-width:calc(100% - 1.5em);
+	color:#fff;
+}
+.rcmi-fc-grid--hover .rcmi-fc--has-cta .rcmi-fc-cta--button{
+	padding:.7em 1.25em;
+}
+/* CTA-mode copy is trimmed so the ~4.2em strip never collides: the text
+   clamps to two lines and tall top offsets are reduced per effect. */
+.rcmi-fc-grid--hover .rcmi-fc--has-cta .rcmi-fc-text{ -webkit-line-clamp:2; }
+/* Lily's cap is bottom-anchored at fixed 50% height — let it grow upward
+   so a title+text never spills onto the CTA strip. */
+.rcmi-fc--effect-lily.rcmi-fc--has-cta .rcmi-fc-cap{
+	height:auto;
+	max-height:calc(100% - 2.6em);
+	padding-bottom:4.5em;
+}
+.rcmi-fc--effect-sadie.rcmi-fc--has-cta .rcmi-fc-text{ bottom:4em; }
+.rcmi-fc--effect-layla.rcmi-fc--has-cta figcaption,
+.rcmi-fc--effect-oscar.rcmi-fc--has-cta figcaption,
+.rcmi-fc--effect-ruby.rcmi-fc--has-cta figcaption,
+.rcmi-fc--effect-apollo.rcmi-fc--has-cta figcaption{ padding-bottom:4.5em; }
+/* Top offsets that push copy toward the strip are reduced in CTA mode. */
+.rcmi-fc--effect-layla.rcmi-fc--has-cta .rcmi-fc-title{ padding-top:14%; }
+.rcmi-fc--effect-oscar.rcmi-fc--has-cta .rcmi-fc-title{ margin-top:12%; }
+.rcmi-fc--effect-ruby.rcmi-fc--has-cta .rcmi-fc-title{ margin-top:10%; }
+/* Honey's copy sits on the accent bar — lift it fully clear of the CTA. */
+.rcmi-fc--effect-honey.rcmi-fc--has-cta .rcmi-fc-cap{ bottom:4.2em; }
+/* Zoe's figcaption is a sliding caption bar parked below the card until
+   hover — with a CTA the bar instead peeks ~4.2em so the CTA (reordered to
+   the top of the bar) stays reachable, then slides up fully on hover. */
+.rcmi-fc--effect-zoe.rcmi-fc--has-cta figcaption{
+	display:flex;
+	flex-direction:column;
+	/* Peek sized for the tallest CTA (44px button + bar padding + margin). */
+	transform:translate3d(0,calc(100% - 4.2em),0);
+}
+.rcmi-fc--effect-zoe.rcmi-fc--has-cta .rcmi-fc-cta{
+	position:static;
+	transform:none;
+	order:-1;
+	display:inline-block;
+	margin:0 0 .6em;
+	text-align:left;
+	color:var(--rcmi-fc-accent,#C8102E);
+}
+.rcmi-fc--effect-zoe.rcmi-fc--has-cta:is(:hover,:focus-within) figcaption{
+	transform:translate3d(0,0,0);
+}
+/* Apollo's copy is a bottom-right text block — lift it clear of the
+   centered CTA strip so narrow cards can't collide horizontally. */
+.rcmi-fc--effect-apollo.rcmi-fc--has-cta .rcmi-fc-text{ bottom:4em; }
+
+/* The filled-button variant must stay white-on-red even where an effect
+   or layout recolors the text CTA (overlay scrim, hover captions, zoe's
+   light bar). Highest-specificity rules, declared last — the :hover
+   pairing keeps the dark-red hover reachable under them. */
+.rcmi-fc-grid .rcmi-fc .rcmi-fc-cta.rcmi-fc-cta--button{
+	background:var(--rcmi-fc-cta-bg,var(--red,#C8102E));
+	color:#fff;
+}
+.rcmi-fc-grid .rcmi-fc a.rcmi-fc-cta.rcmi-fc-cta--button:hover{
+	background:var(--brick,#960C22);
+	color:#fff;
+}
+
 /* Touch devices: no hover — show the revealed state statically. Apollo's
    diagonal flash stays parked off-canvas (a transform reset would paint it
    over the card); Sadie's title keeps its centered offset. */
@@ -1013,6 +1120,59 @@
 }
 @media (max-width:560px){
 	.rcmi-fc-grid{ grid-template-columns:1fr; }
+}
+
+/* ==================== shared card layout (opt-in) ==================== */
+/* rcmi/directory + rcmi/feature-cards: cardMaxWidth caps each card,
+   cardAlignment justifies rows. Only rendered when a cap or non-left
+   alignment is set — default blocks keep the grid rules above.
+   The flex container is itself capped to exactly one row of capped cards
+   so the column count stays the maximum per row even when cards are
+   narrower than their share; justify-content then aligns each row —
+   including an incomplete final row — inside the capped container, and
+   the --center/--right modifiers align the container itself. */
+.rcmi-directory.rcmi-card-layout,
+.rcmi-fc-grid.rcmi-card-layout{
+	--rcmi-card-gap:24px;
+	display:flex;
+	flex-wrap:wrap;
+	justify-content:var(--rcmi-card-justify,flex-start);
+	gap:var(--rcmi-card-gap);
+	max-width:calc(
+		var(--rcmi-card-columns,1)
+			* min(var(--rcmi-card-max-width,100%), (100% - (var(--rcmi-card-columns,1) - 1) * var(--rcmi-card-gap)) / var(--rcmi-card-columns,1))
+		+ (var(--rcmi-card-columns,1) - 1) * var(--rcmi-card-gap)
+	);
+}
+.rcmi-card-layout--center{ margin-left:auto; margin-right:auto; }
+.rcmi-card-layout--right{ margin-left:auto; }
+.rcmi-directory.rcmi-card-layout > .rcmi-person,
+.rcmi-fc-grid.rcmi-card-layout > .rcmi-fc,
+.editor-styles-wrapper .rcmi-directory.rcmi-card-layout .wp-block-rcmi-directory-person,
+.editor-styles-wrapper .rcmi-fc-grid.rcmi-card-layout .wp-block-rcmi-feature-card{
+	flex:0 1 min(var(--rcmi-card-max-width,100%), calc((100% - (var(--rcmi-card-columns,1) - 1) * var(--rcmi-card-gap)) / var(--rcmi-card-columns,1)));
+	min-width:0;
+	/* Basis measures the content box — force border-box so the cap means
+	   the card's visual width even on themes without a global reset. */
+	box-sizing:border-box;
+}
+/* Responsive column collapse mirrors the grid rules: the effective column
+   count drops via --rcmi-card-columns so rows and the container cap both
+   recompute. !important is required — the block emits the desktop column
+   count as an inline custom property, which otherwise always wins. */
+@media (max-width:1100px){
+	.rcmi-directory--cols-6.rcmi-card-layout{ --rcmi-card-columns:3 !important; }
+}
+@media (max-width:900px){
+	.rcmi-directory--cols-3.rcmi-card-layout,
+	.rcmi-directory--cols-4.rcmi-card-layout,
+	.rcmi-directory--cols-6.rcmi-card-layout{ --rcmi-card-columns:2 !important; }
+	.rcmi-fc-grid--cols-3.rcmi-card-layout,
+	.rcmi-fc-grid--cols-4.rcmi-card-layout{ --rcmi-card-columns:2 !important; }
+}
+@media (max-width:560px){
+	.rcmi-directory.rcmi-card-layout,
+	.rcmi-fc-grid.rcmi-card-layout{ --rcmi-card-columns:1 !important; }
 }
 
 /* ============================ editor-only styles ========================= */
@@ -1197,10 +1357,23 @@
 	color:rgba(255,255,255,.72);
 }
 /* Hover cards: the caption layer covers the image — let clicks pass through
-   to the media button except on the editable title/text themselves. */
+   to the media button except on the editable title/text/CTA themselves. */
 .editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc figcaption{ pointer-events:none; }
 .editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc .rcmi-fc-title,
-.editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc .rcmi-fc-text{ pointer-events:auto; }
+.editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc .rcmi-fc-text,
+.editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc .rcmi-fc-cta{ pointer-events:auto; }
+/* The real editor wraps our appender in a .block-list-appender.wp-block
+   div — that wrapper is the flex item, so give it display:contents (scoped
+   to the direct list layout) and let the tile itself carry the card-like
+   footprint instead of collapsing to content width. */
+.editor-styles-wrapper .rcmi-card-layout > .block-editor-inner-blocks > .block-editor-block-list__layout > .block-list-appender{
+	display:contents;
+}
+.editor-styles-wrapper .rcmi-card-layout .rcmi-directory-add,
+.editor-styles-wrapper .rcmi-card-layout .rcmi-fc-add{
+	flex:0 1 min(var(--rcmi-card-max-width,240px), calc((100% - (var(--rcmi-card-columns,1) - 1) * var(--rcmi-card-gap,24px)) / var(--rcmi-card-columns,1)));
+	min-width:0;
+}
 /* A selected hover card shows its revealed state so caption text is editable. */
 .editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc:is(.is-selected,.has-child-selected) figcaption,
 .editor-styles-wrapper .rcmi-fc-grid--hover .rcmi-fc:is(.is-selected,.has-child-selected) figcaption::before,

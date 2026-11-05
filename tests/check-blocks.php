@@ -471,16 +471,22 @@ rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--cols-4' ), 'fc: cols class mis
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--content' ), 'fc: content class missing' );
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--layout-image-top' ), 'fc: layout class missing' );
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-grid--ratio-4-3' ), 'fc: default ratio class missing' );
+rcmi_check( false === strpos( $fc, 'rcmi-card-layout' ), 'fc: default grid should not opt into the flex card layout' );
+rcmi_check( false === strpos( $fc, '--rcmi-card-columns' ), 'fc: default grid should not emit card layout vars' );
 rcmi_check( 2 === substr_count( $fc, '<article class="rcmi-fc' ), 'fc: expected 2 articles' );
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-media' ), 'fc: media box missing' );
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-img' ), 'fc: image missing' );
 rcmi_check( false !== strpos( $fc, 'rcmi-fc-eyebrow' ), 'fc: eyebrow missing' );
-rcmi_check( false !== strpos( $fc, '<h3 class="rcmi-fc-title"><a class="rcmi-fc-link" href="https://example.edu/one"' ), 'fc: stretched link missing' );
-rcmi_check( false !== strpos( $fc, 'rcmi-fc--linked' ), 'fc: linked class missing' );
-rcmi_check( false !== strpos( $fc, 'class="rcmi-fc-cta"' ), 'fc: CTA missing' );
-rcmi_check( false !== strpos( $fc, 'Read more &#8594;' ) || false !== strpos( $fc, 'Read more &rarr;' ), 'fc: CTA arrow missing' );
-rcmi_check( 1 === substr_count( $fc, 'class="rcmi-fc-link"' ), 'fc: exactly one stretched link expected (unlinked card should not get one)' );
-rcmi_check( false === strpos( $fc, 'No Link Card</a>' ), 'fc: unlinked card title should not be wrapped in an anchor' );
+// URL + label => CTA mode: plain title, exactly one CTA anchor, no
+// stretched/bare link, no linked class.
+rcmi_check( false !== strpos( $fc, '<h3 class="rcmi-fc-title">Card One</h3>' ), 'fc: CTA card title should be plain (no stretched link)' );
+rcmi_check( false !== strpos( $fc, '<a class="rcmi-fc-cta" href="https://example.edu/one"' ), 'fc: CTA anchor missing' );
+rcmi_check( false !== strpos( $fc, 'Read more <span aria-hidden="true">&#8594;</span></a>' ), 'fc: CTA arrow missing' );
+rcmi_check( 1 === substr_count( $fc, 'href="https://example.edu/one"' ), 'fc: exactly one link expected on a CTA card' );
+rcmi_check( false === strpos( $fc, 'rcmi-fc-link' ), 'fc: no stretched/bare link expected in CTA mode' );
+rcmi_check( false === strpos( $fc, 'rcmi-fc--linked' ), 'fc: linked class should not render in CTA mode' );
+rcmi_check( false !== strpos( $fc, 'rcmi-fc--has-cta' ), 'fc: has-cta class missing' );
+rcmi_check( false !== strpos( $fc, '<h3 class="rcmi-fc-title">No Link Card</h3>' ), 'fc: unlinked card title should not be wrapped in an anchor' );
 
 // All four content layouts emit their class.
 foreach ( array( 'image-top', 'overlay', 'horizontal', 'text' ) as $fc_layout ) {
@@ -500,6 +506,7 @@ $fc_text = do_blocks(
 rcmi_check( false === strpos( $fc_text, 'rcmi-fc-media' ), 'fc: text layout should not render media' );
 
 // Hover type: each of the 8 curated Codrops effects renders its class.
+// URL only => the whole-card link still applies to hover cards.
 foreach ( array( 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ) as $fc_effect ) {
 	$fh = do_blocks(
 		'<!-- wp:rcmi/feature-cards {"cardType":"hover","effect":"' . $fc_effect . '"} -->'
@@ -509,6 +516,23 @@ foreach ( array( 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apo
 	rcmi_check( false !== strpos( $fh, 'rcmi-fc--effect-' . $fc_effect ), 'fc: effect class missing for ' . $fc_effect );
 	rcmi_check( false !== strpos( $fh, '<figure class="rcmi-fc' ), 'fc(hover): figure missing for ' . $fc_effect );
 	rcmi_check( false !== strpos( $fh, '<figcaption>' ), 'fc(hover): figcaption missing for ' . $fc_effect );
+	rcmi_check( false !== strpos( $fh, 'rcmi-fc--linked' ), 'fc(hover): url-only card should keep the whole-card link for ' . $fc_effect );
+}
+// Hover CTA: URL + label renders a persistent CTA anchor inside the
+// figcaption (outside the animated .rcmi-fc-cap) for every effect, with
+// no stretched link or linked class.
+foreach ( array( 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ) as $fc_effect ) {
+	$fhc = do_blocks(
+		'<!-- wp:rcmi/feature-cards {"cardType":"hover","effect":"' . $fc_effect . '"} -->'
+		. '<!-- wp:rcmi/feature-card {"title":"T","text":"D","buttonText":"Details","url":"https://example.edu/x","imageUrl":"https://example.edu/a.jpg"} /-->'
+		. '<!-- /wp:rcmi/feature-cards -->'
+	);
+	rcmi_check( false !== strpos( $fhc, 'rcmi-fc--has-cta' ), 'fc(hover): has-cta class missing for ' . $fc_effect );
+	rcmi_check( false !== strpos( $fhc, '<a class="rcmi-fc-cta" href="https://example.edu/x"' ), 'fc(hover): CTA anchor missing for ' . $fc_effect );
+	rcmi_check( strpos( $fhc, 'rcmi-fc-cta' ) > strpos( $fhc, 'rcmi-fc-cap' ), 'fc(hover): CTA should sit outside .rcmi-fc-cap for ' . $fc_effect );
+	rcmi_check( false === strpos( $fhc, 'rcmi-fc--linked' ), 'fc(hover): CTA card should not be whole-card linked for ' . $fc_effect );
+	rcmi_check( false === strpos( $fhc, 'rcmi-fc-link' ), 'fc(hover): no stretched/bare link expected for ' . $fc_effect );
+	rcmi_check( false !== strpos( $fhc, '<h3 class="rcmi-fc-title">T</h3>' ), 'fc(hover): CTA card title should be plain for ' . $fc_effect );
 }
 // Hover card with no image still renders the figure.
 $fc_noimg = do_blocks(
@@ -519,22 +543,32 @@ $fc_noimg = do_blocks(
 rcmi_check( false !== strpos( $fc_noimg, '<figure class="rcmi-fc' ), 'fc(hover): figure should render without an image' );
 rcmi_check( false === strpos( $fc_noimg, 'rcmi-fc-img' ), 'fc(hover): no img tag expected without an image' );
 
-// linkNewTab reaches the stretched link via context.
+// linkNewTab reaches both link modes via context.
 $fc_tab = do_blocks(
 	'<!-- wp:rcmi/feature-cards {"linkNewTab":true} -->'
 	. '<!-- wp:rcmi/feature-card {"title":"T","url":"https://example.edu/x"} /-->'
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
 rcmi_check( false !== strpos( $fc_tab, 'target="_blank" rel="noopener noreferrer"' ), 'fc: linkNewTab did not reach child' );
+$fc_tab_cta = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"linkNewTab":true} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_tab_cta, '<a class="rcmi-fc-cta" href="https://example.edu/x" target="_blank" rel="noopener noreferrer">' ), 'fc: linkNewTab did not reach the CTA anchor' );
 
-// Bare link: title empty + url -> labelled covering anchor.
+// Bare link: url + no label + empty title -> labelled covering anchor.
 $fc_bare = do_blocks(
 	'<!-- wp:rcmi/feature-cards -->'
 	. '<!-- wp:rcmi/feature-card {"text":"Body","buttonText":"Go there","url":"https://example.edu/b"} /-->'
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
-rcmi_check( false !== strpos( $fc_bare, 'rcmi-fc-link--bare' ), 'fc: bare link missing' );
-rcmi_check( false !== strpos( $fc_bare, 'aria-label="Go there"' ), 'fc: bare link should fall back to buttonText label' );
+// A titleless card with a label is CTA mode: exactly one real link (the
+// CTA anchor), no bare covering link.
+rcmi_check( false === strpos( $fc_bare, 'rcmi-fc-link--bare' ), 'fc: no bare link expected when a CTA renders' );
+rcmi_check( 1 === substr_count( $fc_bare, 'rcmi-fc-cta' ), 'fc: titleless card should render exactly one CTA' );
+rcmi_check( false !== strpos( $fc_bare, 'href="https://example.edu/b">Go there <span aria-hidden="true">' ), 'fc: CTA label missing on titleless card' );
+rcmi_check( false === strpos( $fc_bare, 'rcmi-fc-title' ), 'fc: no title element expected' );
 $fc_bare2 = do_blocks(
 	'<!-- wp:rcmi/feature-cards -->'
 	. '<!-- wp:rcmi/feature-card {"text":"Body","url":"https://example.edu/b","imageUrl":"https://example.edu/a.jpg","imageAlt":"Alt label"} /-->'
@@ -548,19 +582,48 @@ $fc_bare3 = do_blocks(
 );
 rcmi_check( false !== strpos( $fc_bare3, 'aria-label="Learn more"' ), 'fc: bare link should fall back to Learn more' );
 
-// CTA needs buttonText AND url.
+// CTA needs a non-empty label AND a sanitized URL.
 $fc_cta_nourl = do_blocks(
 	'<!-- wp:rcmi/feature-cards -->'
 	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","url":""} /-->'
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
 rcmi_check( false === strpos( $fc_cta_nourl, 'rcmi-fc-cta' ), 'fc: CTA should not render without url' );
+rcmi_check( false === strpos( $fc_cta_nourl, 'rcmi-fc-link' ), 'fc: no link expected without url' );
 $fc_cta_nobtn = do_blocks(
 	'<!-- wp:rcmi/feature-cards -->'
 	. '<!-- wp:rcmi/feature-card {"title":"T","url":"https://example.edu/x"} /-->'
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
 rcmi_check( false === strpos( $fc_cta_nobtn, 'rcmi-fc-cta' ), 'fc: CTA should not render without buttonText' );
+rcmi_check( false !== strpos( $fc_cta_nobtn, 'rcmi-fc--linked' ), 'fc: url without a label should keep the whole-card link' );
+rcmi_check( false !== strpos( $fc_cta_nobtn, '<a class="rcmi-fc-link" href="https://example.edu/x"' ), 'fc: stretched link missing for url-only card' );
+
+// Whitespace / basic-format-only labels count as absent.
+$fc_cta_ws = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"<strong> </strong>","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_cta_ws, 'rcmi-fc-cta' ), 'fc: whitespace-only label should not render a CTA' );
+rcmi_check( false !== strpos( $fc_cta_ws, 'rcmi-fc--linked' ), 'fc: whitespace-only label should fall back to the whole-card link' );
+
+// ctaStyle: 'button' renders the button variant (no arrow); unknown
+// values fall back to the text style.
+$fc_cta_btn = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","ctaStyle":"button","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_cta_btn, '<a class="rcmi-fc-cta rcmi-fc-cta--button" href="https://example.edu/x"' ), 'fc: button CTA class missing' );
+rcmi_check( false === strpos( $fc_cta_btn, '&#8594;' ), 'fc: button CTA should not render the text arrow' );
+$fc_cta_bad = do_blocks(
+	'<!-- wp:rcmi/feature-cards -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","buttonText":"Go","ctaStyle":"weird","url":"https://example.edu/x"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_cta_bad, '<a class="rcmi-fc-cta" href="https://example.edu/x"' ), 'fc: unknown ctaStyle should fall back to text CTA' );
+rcmi_check( false === strpos( $fc_cta_bad, 'rcmi-fc-cta--button' ), 'fc: unknown ctaStyle should not render the button class' );
 
 // javascript: URLs are stripped — no anchor at all.
 $fc_js = do_blocks(
@@ -570,6 +633,8 @@ $fc_js = do_blocks(
 );
 rcmi_check( false === strpos( $fc_js, 'javascript:' ), 'fc: javascript: URL should be stripped' );
 rcmi_check( false === strpos( $fc_js, 'rcmi-fc-link' ), 'fc: no anchor expected for a stripped URL' );
+rcmi_check( false === strpos( $fc_js, 'rcmi-fc-cta' ), 'fc: no CTA expected for a stripped URL' );
+rcmi_check( false === strpos( $fc_js, '<a ' ), 'fc: no anchor at all expected for a stripped URL' );
 
 // <script> stripped from title while <strong> survives.
 $fc_kses = do_blocks(
@@ -641,6 +706,84 @@ $fc_empty2 = do_blocks(
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
 rcmi_check( '' === $fc_empty2, 'fc: grid of empty cards should render empty string' );
+
+// ---------------------------------------------------------------------------
+// Shared card layout — cardMaxWidth + cardAlignment on both parents
+// ---------------------------------------------------------------------------
+
+// feature-cards: cap + center emits the flex class and all three vars.
+$fc_lay = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"columns":3,"cardMaxWidth":360,"cardAlignment":"center"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_lay, 'rcmi-card-layout rcmi-card-layout--center' ), 'fc(layout): card layout classes missing' );
+rcmi_check( false !== strpos( $fc_lay, '--rcmi-card-max-width:360px' ), 'fc(layout): max width var missing' );
+rcmi_check( false !== strpos( $fc_lay, '--rcmi-card-justify:center' ), 'fc(layout): justify var missing' );
+rcmi_check( false !== strpos( $fc_lay, '--rcmi-card-columns:3' ), 'fc(layout): columns var missing' );
+
+// Right alignment only (no cap) still opts in.
+$fc_lay_r = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardAlignment":"right"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_lay_r, 'rcmi-card-layout--right' ), 'fc(layout): right alignment class missing' );
+rcmi_check( false !== strpos( $fc_lay_r, '--rcmi-card-justify:flex-end' ), 'fc(layout): right should map to flex-end' );
+rcmi_check( false !== strpos( $fc_lay_r, '--rcmi-card-max-width:100%' ), 'fc(layout): no cap should emit 100%' );
+
+// Invalid values clamp/fallback: cap clamps to 800, unknown alignment to left.
+$fc_lay_bad = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"columns":9,"cardMaxWidth":9999,"cardAlignment":"diagonal"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_lay_bad, '--rcmi-card-max-width:800px' ), 'fc(layout): cap above 800 should clamp to 800' );
+rcmi_check( false !== strpos( $fc_lay_bad, '--rcmi-card-justify:flex-start' ), 'fc(layout): unknown alignment should map to flex-start' );
+rcmi_check( false !== strpos( $fc_lay_bad, '--rcmi-card-columns:3' ), 'fc(layout): invalid columns should fall back to 3 in the var' );
+$fc_lay_zero = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardMaxWidth":-50} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_lay_zero, 'rcmi-card-layout' ), 'fc(layout): negative cap should be treated as unset' );
+
+// Positive caps below the 200px floor clamp up, on both parents.
+foreach ( array( 1, 199 ) as $low_w ) {
+	$fc_lay_low = do_blocks(
+		'<!-- wp:rcmi/feature-cards {"cardMaxWidth":' . $low_w . '} -->'
+		. '<!-- wp:rcmi/feature-card {"title":"T"} /-->'
+		. '<!-- /wp:rcmi/feature-cards -->'
+	);
+	rcmi_check( false !== strpos( $fc_lay_low, '--rcmi-card-max-width:200px' ), 'fc(layout): cap ' . $low_w . ' should clamp up to 200' );
+	$dir_lay_low = rcmi_render( 'rcmi/directory', array(
+		'cardMaxWidth' => $low_w,
+		'people'       => array( array( 'name' => 'P' ) ),
+	) );
+	rcmi_check( false !== strpos( $dir_lay_low, '--rcmi-card-max-width:200px' ), 'dir(layout): cap ' . $low_w . ' should clamp up to 200' );
+}
+
+// directory: same controls, applied over the legacy `people` render path.
+$dir_lay = rcmi_render( 'rcmi/directory', array(
+	'columns'       => 4,
+	'cardMaxWidth'  => 400,
+	'cardAlignment' => 'right',
+	'people'        => array( array( 'name' => 'Capped Person' ) ),
+) );
+rcmi_check( false !== strpos( $dir_lay, 'rcmi-card-layout--right' ), 'dir(layout): right alignment class missing' );
+rcmi_check( false !== strpos( $dir_lay, '--rcmi-card-max-width:400px' ), 'dir(layout): max width var missing' );
+rcmi_check( false !== strpos( $dir_lay, '--rcmi-card-justify:flex-end' ), 'dir(layout): justify var missing' );
+rcmi_check( false !== strpos( $dir_lay, '--rcmi-card-columns:4' ), 'dir(layout): columns var missing' );
+$dir_lay_def = rcmi_render( 'rcmi/directory', array(
+	'people' => array( array( 'name' => 'Default Person' ) ),
+) );
+rcmi_check( false === strpos( $dir_lay_def, 'rcmi-card-layout' ), 'dir(layout): default should not opt into the flex card layout' );
+$dir_lay_bad = rcmi_render( 'rcmi/directory', array(
+	'cardMaxWidth'  => 'abc',
+	'cardAlignment' => 'upside',
+	'people'        => array( array( 'name' => 'Bad Person' ) ),
+) );
+rcmi_check( false === strpos( $dir_lay_bad, 'rcmi-card-layout' ), 'dir(layout): non-numeric cap + bad alignment should be treated as unset' );
 
 // ---------------------------------------------------------------------------
 // Summary
