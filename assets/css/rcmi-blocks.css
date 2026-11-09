@@ -525,11 +525,11 @@
 }
 /* CTA link/button is the card's single interactive element when a label
    and URL are set (replacing the whole-card stretched link); it is pushed
-   to the body bottom so cards in a row align. */
+   to the body bottom so cards in a row align, while the preceding element
+   supplies a fixed 21px gap the auto margin can only grow. */
 .rcmi-fc-cta{
 	margin-top:auto;
 	align-self:flex-start;
-	padding-top:14px;
 	font-size:.8rem;
 	font-weight:700;
 	letter-spacing:.06em;
@@ -538,6 +538,10 @@
 	text-decoration:none;
 }
 a.rcmi-fc-cta:hover{ text-decoration:underline; }
+/* Minimum gap above the CTA lives on the previous element — flex sibling
+   margins don't collapse, so gap = 21px + auto margin, keeping the CTA
+   bottom-aligned across a row while never closer than 21px to the copy. */
+.rcmi-fc-body > :has(+ .rcmi-fc-cta){ margin-bottom:21px; }
 /* Element class (not a.) so the editor's inert span preview gets the same
    filled-button look as the frontend anchor. */
 .rcmi-fc-cta--button{
