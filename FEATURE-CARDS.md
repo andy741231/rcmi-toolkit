@@ -33,6 +33,16 @@ independent **Text alignment** left/center/right (default center) (`iconAlign`/`
 `--rcmi-fc-icon-bg`; default = accent color on a 10% accent tint). Both
 link modes work as on content cards.
 
+Icon cards use roomier padding than content cards: 32px (`--rcmi-fc-icon-pad`,
+24px at ≤560px), with a 20px gap between the icon and the copy.
+
+**Hover effect** (`iconHover`, default none): Zoom icon, Tilt icon, Spin
+icon, Fill icon background (icon and its background swap; plain icons
+zoom gently instead), or Lift card. It plays on `:hover` and
+`:focus-within` via `rcmi-fc-grid--icon-hover-*`; under
+`prefers-reduced-motion` the motion effects are static and Fill (a color
+change) still applies. In the editor, focus from typing does not trigger it.
+
 ## Per-card colors
 
 Every content and icon card has a **Card colors** panel (open by default on

@@ -687,6 +687,18 @@ $fc_iconbad = do_blocks(
 	. '<!-- /wp:rcmi/feature-cards -->'
 );
 rcmi_check( false !== strpos( $fc_iconbad, 'rcmi-fc-grid--icon-circle rcmi-fc-grid--icon-size-md rcmi-fc-grid--icon-align-center rcmi-fc-grid--text-align-center' ), 'fc: invalid icon enums should fall back (icon + text centered by default)' );
+// Icon hover effects: whitelisted, none by default.
+foreach ( array( 'zoom', 'tilt', 'spin', 'fill', 'lift' ) as $fc_hv ) {
+	$fc_h2 = do_blocks( '<!-- wp:rcmi/feature-cards {"cardType":"icon","iconHover":"' . $fc_hv . '"} --><!-- wp:rcmi/feature-card {"icon":"star-filled"} /--><!-- /wp:rcmi/feature-cards -->' );
+	rcmi_check( false !== strpos( $fc_h2, 'rcmi-fc-grid--icon-hover-' . $fc_hv ), 'fc: icon hover ' . $fc_hv . ' class missing' );
+}
+foreach ( array( '', '"iconHover":"bogus",' ) as $fc_hv ) {
+	$fc_h2 = do_blocks( '<!-- wp:rcmi/feature-cards {' . $fc_hv . '"cardType":"icon"} --><!-- wp:rcmi/feature-card {"icon":"star-filled"} /--><!-- /wp:rcmi/feature-cards -->' );
+	rcmi_check( false === strpos( $fc_h2, 'icon-hover-' ), 'fc: default/invalid icon hover should add no class' );
+}
+$fc_h2 = do_blocks( '<!-- wp:rcmi/feature-cards {"iconHover":"zoom"} --><!-- wp:rcmi/feature-card {"title":"T"} /--><!-- /wp:rcmi/feature-cards -->' );
+rcmi_check( false === strpos( $fc_h2, 'icon-hover-' ), 'fc: icon hover applies only to icon grids' );
+
 // Corner radius: all card types, clamped 0–40, absent at 0.
 foreach ( array( 'content', 'hover', 'icon' ) as $fc_rt ) {
 	$fc_r = do_blocks(

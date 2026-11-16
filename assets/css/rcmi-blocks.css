@@ -625,6 +625,7 @@ a.rcmi-fc-cta--button:hover{
 .rcmi-fc-grid--icon{
 	--rcmi-fc-icon-box:76px;
 	--rcmi-fc-icon-glyph:40px;
+	--rcmi-fc-icon-pad:32px; /* roomier than content cards' 20px */
 }
 .rcmi-fc-grid--icon-size-sm{ --rcmi-fc-icon-box:56px; --rcmi-fc-icon-glyph:28px; }
 .rcmi-fc-grid--icon-size-lg{ --rcmi-fc-icon-box:96px; --rcmi-fc-icon-glyph:52px; }
@@ -637,9 +638,10 @@ a.rcmi-fc-cta--button:hover{
 	box-sizing:border-box;
 	width:var(--rcmi-fc-icon-box);
 	height:var(--rcmi-fc-icon-box);
-	margin:20px 20px 0;
+	margin:var(--rcmi-fc-icon-pad,20px) var(--rcmi-fc-icon-pad,20px) 0;
 	padding:0;
 	border:0;
+	transition:transform .3s cubic-bezier(.4,0,.2,1), background-color .3s, color .3s;
 	color:var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E));
 	background:var(--rcmi-fc-icon-bg,color-mix(in srgb, var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E)) 10%, #fff));
 	font:inherit;
@@ -661,8 +663,47 @@ a.rcmi-fc-cta--button:hover{
 .rcmi-fc-grid--icon-plain{ --rcmi-fc-icon-glyph:52px; }
 .rcmi-fc-grid--icon-plain.rcmi-fc-grid--icon-size-sm{ --rcmi-fc-icon-glyph:36px; }
 .rcmi-fc-grid--icon-plain.rcmi-fc-grid--icon-size-lg{ --rcmi-fc-icon-glyph:68px; }
+.rcmi-fc-grid--icon .rcmi-fc-body{ padding:var(--rcmi-fc-icon-pad); }
 .rcmi-fc-grid--icon .rcmi-fc-icon + .rcmi-fc-body,
-.rcmi-fc-grid--icon .rcmi-fc-icon-dropdown + .rcmi-fc-body{ padding-top:16px; }
+.rcmi-fc-grid--icon .rcmi-fc-icon-dropdown + .rcmi-fc-body{ padding-top:20px; }
+@media (max-width: 560px){
+	.rcmi-fc-grid--icon{ --rcmi-fc-icon-pad:24px; }
+}
+
+/* Icon card hover effects (grid-level iconHover). Triggered by hovering
+   or keyboard-focusing anywhere in the card. */
+.rcmi-fc-grid--icon[class*="rcmi-fc-grid--icon-hover-"] .rcmi-fc{
+	transition:transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s cubic-bezier(.4,0,.2,1), border-color .3s;
+}
+.rcmi-fc-grid--icon-hover-zoom .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{ transform:scale(1.15); }
+.rcmi-fc-grid--icon-hover-tilt .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{ transform:rotate(-10deg) scale(1.08); }
+.rcmi-fc-grid--icon-hover-spin .rcmi-fc-icon{ transition-duration:.6s; }
+.rcmi-fc-grid--icon-hover-spin .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{ transform:rotate(360deg); }
+.rcmi-fc-grid--icon-hover-fill .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{
+	background:var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E));
+	color:var(--rcmi-fc-bg,#FFFFFF);
+}
+/* Plain icons have no shape to fill — fall back to a gentle zoom. */
+.rcmi-fc-grid--icon-plain.rcmi-fc-grid--icon-hover-fill .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{
+	background:none;
+	color:var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E));
+	transform:scale(1.1);
+}
+.rcmi-fc-grid--icon-hover-lift .rcmi-fc:is(:hover,:focus-within){
+	transform:translateY(-6px);
+	box-shadow:0 16px 32px rgba(0,0,0,.1);
+	border-color:var(--color-fg,#111213);
+}
+/* Editor: :focus-within would fire whenever text is being edited. */
+.editor-styles-wrapper [class*="rcmi-fc-grid--icon-hover-"] .rcmi-fc:not(:hover):focus-within .rcmi-fc-icon,
+.editor-styles-wrapper .rcmi-fc-grid--icon-hover-lift .rcmi-fc:not(:hover):focus-within{
+	transform:none;
+	box-shadow:none;
+}
+.editor-styles-wrapper .rcmi-fc-grid--icon-hover-fill .rcmi-fc:not(:hover):focus-within .rcmi-fc-icon{
+	background:var(--rcmi-fc-icon-bg,color-mix(in srgb, var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E)) 10%, #fff));
+	color:var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E));
+}
 /* Icon alignment (icon only) and text alignment (eyebrow/title/text/CTA)
    are independent. */
 .rcmi-fc-grid--icon-align-center .rcmi-fc-icon{ align-self:center; }
@@ -1170,6 +1211,11 @@ a.rcmi-fc-cta--button:hover{
 }
 
 @media (prefers-reduced-motion: reduce){
+	/* Motion hover effects become static; Fill (a color change) stays. */
+	.rcmi-fc-grid--icon .rcmi-fc:is(:hover,:focus-within),
+	.rcmi-fc-grid--icon .rcmi-fc:is(:hover,:focus-within) .rcmi-fc-icon{
+		transform:none !important;
+	}
 	.rcmi-fc,
 	.rcmi-fc::before,
 	.rcmi-fc::after,

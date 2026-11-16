@@ -2800,6 +2800,7 @@ function rcmi_register_server_side_blocks() {
 			'iconAlign'      => array( 'type' => 'string', 'default' => 'center' ),
 			'textAlign'      => array( 'type' => 'string', 'default' => 'center' ),
 			'cardRadius'     => array( 'type' => 'number', 'default' => 0 ),
+			'iconHover'      => array( 'type' => 'string', 'default' => 'none' ),
 			'iconColor'      => array( 'type' => 'string', 'default' => '' ),
 			'iconBg'         => array( 'type' => 'string', 'default' => '' ),
 		),
@@ -3601,7 +3602,11 @@ function rcmi_render_feature_cards_block( $attrs, $content = '', $block = null )
 		$icon_size  = in_array( $attrs['iconSize'] ?? '', array( 'sm', 'md', 'lg' ), true ) ? $attrs['iconSize'] : 'md';
 		$icon_align = in_array( $attrs['iconAlign'] ?? '', array( 'left', 'center', 'right' ), true ) ? $attrs['iconAlign'] : 'center';
 		$text_align = in_array( $attrs['textAlign'] ?? '', array( 'left', 'center', 'right' ), true ) ? $attrs['textAlign'] : 'center';
+		$icon_hover = in_array( $attrs['iconHover'] ?? '', array( 'zoom', 'tilt', 'spin', 'fill', 'lift' ), true ) ? $attrs['iconHover'] : '';
 		$classes   .= ' rcmi-fc-grid--icon-' . $icon_style . ' rcmi-fc-grid--icon-size-' . $icon_size . ' rcmi-fc-grid--icon-align-' . $icon_align . ' rcmi-fc-grid--text-align-' . $text_align;
+		if ( $icon_hover ) {
+			$classes .= ' rcmi-fc-grid--icon-hover-' . $icon_hover;
+		}
 		// Dashicons is not loaded on the frontend by default; enqueueing
 		// during render prints it in the footer on block themes.
 		wp_enqueue_style( 'dashicons' );

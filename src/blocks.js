@@ -5262,6 +5262,7 @@
 		var iconSize = [ 'sm', 'md', 'lg' ].indexOf( attrs.iconSize ) !== -1 ? attrs.iconSize : 'md';
 		var iconAlign = [ 'left', 'center', 'right' ].indexOf( attrs.iconAlign ) !== -1 ? attrs.iconAlign : 'center';
 		var textAlign = [ 'left', 'center', 'right' ].indexOf( attrs.textAlign ) !== -1 ? attrs.textAlign : 'center';
+		var iconHover = [ 'zoom', 'tilt', 'spin', 'fill', 'lift' ].indexOf( attrs.iconHover ) !== -1 ? attrs.iconHover : 'none';
 		var cardRadius = Math.max( 0, Math.min( 40, parseInt( attrs.cardRadius, 10 ) || 0 ) );
 
 		var editorColors = useSelect( function ( select ) {
@@ -5315,7 +5316,8 @@
 				+ ' rcmi-fc-grid--' + cardType
 				+ ' rcmi-fc-grid--layout-' + ( isIcon ? 'text' : layout )
 				+ ' rcmi-fc-grid--ratio-' + ( attrs.imageRatio || '4-3' )
-				+ ( isIcon ? ' rcmi-fc-grid--icon-' + iconStyle + ' rcmi-fc-grid--icon-size-' + iconSize + ' rcmi-fc-grid--icon-align-' + iconAlign + ' rcmi-fc-grid--text-align-' + textAlign : '' )
+				+ ( isIcon ? ' rcmi-fc-grid--icon-' + iconStyle + ' rcmi-fc-grid--icon-size-' + iconSize + ' rcmi-fc-grid--icon-align-' + iconAlign + ' rcmi-fc-grid--text-align-' + textAlign
+					+ ( iconHover !== 'none' ? ' rcmi-fc-grid--icon-hover-' + iconHover : '' ) : '' )
 				+ ( cardRadius ? ' rcmi-fc-grid--rounded' : '' )
 				+ ( cardLayout ? cardLayout.className : '' ),
 			style: fcStyle
@@ -5385,6 +5387,20 @@
 							{ label: __( 'Right', 'rcmi-toolkit' ), value: 'right' }
 						],
 						onChange: function ( v ) { setAttributes( { iconAlign: v } ); }
+					} ) : null,
+					isIcon ? el( SelectControl, {
+						label: __( 'Hover effect', 'rcmi-toolkit' ),
+						value: iconHover,
+						options: [
+							{ label: __( 'None', 'rcmi-toolkit' ), value: 'none' },
+							{ label: __( 'Zoom icon', 'rcmi-toolkit' ), value: 'zoom' },
+							{ label: __( 'Tilt icon', 'rcmi-toolkit' ), value: 'tilt' },
+							{ label: __( 'Spin icon', 'rcmi-toolkit' ), value: 'spin' },
+							{ label: __( 'Fill icon background', 'rcmi-toolkit' ), value: 'fill' },
+							{ label: __( 'Lift card', 'rcmi-toolkit' ), value: 'lift' }
+						],
+						help: __( 'Plays when a visitor hovers over or tabs into a card. Motion is skipped for visitors who prefer reduced motion.', 'rcmi-toolkit' ),
+						onChange: function ( v ) { setAttributes( { iconHover: v } ); }
 					} ) : null,
 					isIcon ? el( SelectControl, {
 						label: __( 'Text alignment', 'rcmi-toolkit' ),
@@ -5542,6 +5558,7 @@
 			iconAlign:      { type: 'string', default: 'center' },
 			textAlign:      { type: 'string', default: 'center' },
 			cardRadius:     { type: 'number', default: 0 },
+			iconHover:      { type: 'string', default: 'none' },
 			iconColor:      { type: 'string', default: '' },
 			iconBg:         { type: 'string', default: '' }
 		},
