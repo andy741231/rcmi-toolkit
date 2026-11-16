@@ -1081,6 +1081,13 @@ function rcmi_toolkit_editor_assets() {
 		'before'
 	);
 
+	// Feature Cards icon picker: every Dashicon bundled with this WP core.
+	wp_add_inline_script(
+		'rcmi-toolkit-editor',
+		'window.rcmiToolkitDashicons = ' . wp_json_encode( rcmi_toolkit_dashicon_names() ) . ';',
+		'before'
+	);
+
 	// Inserter UI: category accordion + New/Updated badges on RCMI blocks.
 	// filemtime versions (not the static plugin version) so editor cache
 	// busts immediately when these files change — e.g. the mutation-loop
@@ -1142,8 +1149,8 @@ function rcmi_toolkit_block_meta() {
 		'rcmi/table'                => array( 'added' => '2026-09-28', 'updated' => '2026-09-28' ),
 		'rcmi/directory'            => array( 'added' => '2026-09-28', 'updated' => '2026-11-05' ),
 		'rcmi/directory-person'     => array( 'added' => '2026-09-28', 'updated' => '2026-10-08' ),
-		'rcmi/feature-cards'        => array( 'added' => '2026-11-03', 'updated' => '2026-11-05' ),
-		'rcmi/feature-card'         => array( 'added' => '2026-11-03', 'updated' => '2026-11-05' ),
+		'rcmi/feature-cards'        => array( 'added' => '2026-11-03', 'updated' => '2026-11-16' ),
+		'rcmi/feature-card'         => array( 'added' => '2026-11-03', 'updated' => '2026-11-16' ),
 		'rcmi/story-featured-image' => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
 		'rcmi/story-text'           => array( 'added' => '2026-08-27', 'updated' => '2026-08-27' ),
 		'rcmi/story-image'          => array( 'added' => '2026-08-27', 'updated' => '2026-09-29' ),
@@ -2767,8 +2774,9 @@ function rcmi_register_server_side_blocks() {
 	) );
 
 	// rcmi/feature-cards — card grid. Cards are rcmi/feature-card inner
-	// blocks. Two families: 'content' (image-top/overlay/horizontal/text)
-	// and 'hover' (Codrops HoverEffectIdeas ports). A card URL alone makes
+	// blocks. Three families: 'content' (image-top/overlay/horizontal/text),
+	// 'hover' (Codrops HoverEffectIdeas ports) and 'icon' (a Dashicon above
+	// the copy instead of an image). A card URL alone makes
 	// the whole card clickable (stretched link); a URL + label renders a
 	// single text/button CTA link instead.
 	register_block_type( 'rcmi/feature-cards', array(
@@ -2787,6 +2795,13 @@ function rcmi_register_server_side_blocks() {
 			'accentColor'    => array( 'type' => 'string', 'default' => '' ),
 			'overlayColor'   => array( 'type' => 'string', 'default' => '' ),
 			'overlayOpacity' => array( 'type' => 'number', 'default' => 50 ),
+			'iconStyle'      => array( 'type' => 'string', 'default' => 'circle' ),
+			'iconSize'       => array( 'type' => 'string', 'default' => 'md' ),
+			'iconAlign'      => array( 'type' => 'string', 'default' => 'center' ),
+			'textAlign'      => array( 'type' => 'string', 'default' => 'center' ),
+			'cardRadius'     => array( 'type' => 'number', 'default' => 0 ),
+			'iconColor'      => array( 'type' => 'string', 'default' => '' ),
+			'iconBg'         => array( 'type' => 'string', 'default' => '' ),
 		),
 		'provides_context' => array(
 			'rcmi/fcType'    => 'cardType',
@@ -2816,6 +2831,13 @@ function rcmi_register_server_side_blocks() {
 			'buttonText' => array( 'type' => 'string', 'default' => '' ),
 			'ctaStyle'   => array( 'type' => 'string', 'default' => 'text' ),
 			'url'        => array( 'type' => 'string', 'default' => '' ),
+			'icon'       => array( 'type' => 'string', 'default' => '' ),
+			// Per-card color overrides (beat the grid-level defaults).
+			'cardBg'     => array( 'type' => 'string', 'default' => '' ),
+			'cardText'   => array( 'type' => 'string', 'default' => '' ),
+			'accentColor' => array( 'type' => 'string', 'default' => '' ),
+			'iconColor'  => array( 'type' => 'string', 'default' => '' ),
+			'iconBg'     => array( 'type' => 'string', 'default' => '' ),
 		),
 		'uses_context'    => array( 'rcmi/fcType', 'rcmi/fcLayout', 'rcmi/fcEffect', 'rcmi/fcHeading', 'rcmi/fcNewTab' ),
 		'supports'        => array( 'html' => false ),
@@ -3381,6 +3403,37 @@ function rcmi_fc_inline( $v ) {
 }
 
 /**
+ * Normalize a feature-card Dashicon name: accepts "admin-site" or
+ * "dashicons-admin-site", returns the bare slug ('' when invalid).
+ *
+ * @param string $v Raw value.
+ * @return string
+ */
+function rcmi_fc_icon_slug( $v ) {
+	$v = strtolower( trim( (string) $v ) );
+	$v = preg_replace( '/^dashicons-/', '', $v );
+	return preg_match( '/^[a-z0-9][a-z0-9-]{0,60}$/', $v ) ? $v : '';
+}
+
+/**
+ * Every icon in WordPress core's bundled Dashicons font, read from
+ * wp-includes/css/dashicons.css so the picker tracks the installed WP
+ * version. Feeds the Feature Cards icon picker.
+ *
+ * @return string[] Bare slugs, e.g. "admin-site".
+ */
+function rcmi_toolkit_dashicon_names() {
+	$file = ABSPATH . WPINC . '/css/dashicons.css';
+	$css  = is_readable( $file ) ? (string) file_get_contents( $file ) : '';
+	if ( ! preg_match_all( '/\.dashicons-([a-z0-9-]+):before/', $css, $m ) ) {
+		return array();
+	}
+	$names = array_values( array_unique( $m[1] ) );
+	sort( $names );
+	return $names;
+}
+
+/**
  * Render callback for rcmi/feature-card (child block of rcmi/feature-cards).
  * Card type/layout/effect/heading/new-tab arrive via parent context.
  *
@@ -3391,7 +3444,7 @@ function rcmi_fc_inline( $v ) {
  */
 function rcmi_render_feature_card_block( $attrs, $content = '', $block = null ) {
 	$ctx       = ( $block instanceof WP_Block ) ? $block->context : array();
-	$card_type = in_array( $ctx['rcmi/fcType'] ?? '', array( 'content', 'hover' ), true ) ? $ctx['rcmi/fcType'] : 'content';
+	$card_type = in_array( $ctx['rcmi/fcType'] ?? '', array( 'content', 'hover', 'icon' ), true ) ? $ctx['rcmi/fcType'] : 'content';
 	$layout    = in_array( $ctx['rcmi/fcLayout'] ?? '', array( 'image-top', 'overlay', 'horizontal', 'text' ), true ) ? $ctx['rcmi/fcLayout'] : 'image-top';
 	$effect    = in_array( $ctx['rcmi/fcEffect'] ?? '', array( 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ), true ) ? $ctx['rcmi/fcEffect'] : 'lily';
 	$heading   = in_array( $ctx['rcmi/fcHeading'] ?? '', array( 'h2', 'h3', 'h4' ), true ) ? $ctx['rcmi/fcHeading'] : 'h3';
@@ -3417,7 +3470,15 @@ function rcmi_render_feature_card_block( $attrs, $content = '', $block = null ) 
 	$has_cta    = $has_link && '' !== $cta_label;
 	$whole_card = $has_link && ! $has_cta;
 
-	if ( ! $img_id && ! $img_url && '' === trim( wp_strip_all_tags( $eyebrow . $title . $text . $button ) ) ) {
+	$icon    = rcmi_fc_icon_slug( $attrs['icon'] ?? '' );
+	$is_icon = 'icon' === $card_type;
+
+	if ( $is_icon ) {
+		// Icon cards never show an image.
+		$img_id  = 0;
+		$img_url = '';
+	}
+	if ( ! $img_id && ! $img_url && ! ( $is_icon && $icon ) && '' === trim( wp_strip_all_tags( $eyebrow . $title . $text . $button ) ) ) {
 		return '';
 	}
 
@@ -3475,10 +3536,33 @@ function rcmi_render_feature_card_block( $attrs, $content = '', $block = null ) 
 		return $card;
 	}
 
-	$media        = ( $img && 'text' !== $layout ) ? '<div class="rcmi-fc-media">' . $img . '</div>' : '';
 	$eyebrow_html = '' !== trim( wp_strip_all_tags( $eyebrow ) ) ? '<p class="rcmi-fc-eyebrow">' . rcmi_fc_inline( $eyebrow ) . '</p>' : '';
 
-	$card  = '<article class="rcmi-fc' . $linked_class . $has_cta_class . '">';
+	// Per-card color overrides: card bg/text on content + icon cards, icon
+	// colors on icon cards. Set as the same custom properties the grid
+	// uses, so they win over the grid defaults by inheritance.
+	$card_vars = array( 'cardBg' => '--rcmi-fc-bg', 'cardText' => '--rcmi-fc-text', 'accentColor' => '--rcmi-fc-accent' );
+	if ( $is_icon ) {
+		$card_vars['iconColor'] = '--rcmi-fc-icon-color';
+		$card_vars['iconBg']    = '--rcmi-fc-icon-bg';
+	}
+	$card_style = '';
+	foreach ( $card_vars as $key => $var ) {
+		$hex = sanitize_hex_color( (string) ( $attrs[ $key ] ?? '' ) );
+		if ( $hex ) {
+			$card_style .= $var . ':' . $hex . ';';
+		}
+	}
+	$card_style_attr = $card_style ? ' style="' . esc_attr( $card_style ) . '"' : '';
+
+	if ( $is_icon ) {
+		// Decorative: the title carries the meaning.
+		$media = $icon ? '<div class="rcmi-fc-icon" aria-hidden="true"><span class="dashicons dashicons-' . esc_attr( $icon ) . '"></span></div>' : '';
+		$card  = '<article class="rcmi-fc rcmi-fc--icon' . $linked_class . $has_cta_class . '"' . $card_style_attr . '>';
+	} else {
+		$media = ( $img && 'text' !== $layout ) ? '<div class="rcmi-fc-media">' . $img . '</div>' : '';
+		$card  = '<article class="rcmi-fc' . $linked_class . $has_cta_class . '"' . $card_style_attr . '>';
+	}
 	$card .= $bare_link;
 	$card .= $media;
 	$card .= '<div class="rcmi-fc-body">' . $eyebrow_html . $title_html . $text_html . $cta_html . '</div>';
@@ -3499,13 +3583,32 @@ function rcmi_render_feature_cards_block( $attrs, $content = '', $block = null )
 	if ( ! in_array( $cols, array( 1, 2, 3, 4 ), true ) ) {
 		$cols = 3;
 	}
-	$card_type = in_array( $attrs['cardType'] ?? '', array( 'content', 'hover' ), true ) ? $attrs['cardType'] : 'content';
+	$card_type = in_array( $attrs['cardType'] ?? '', array( 'content', 'hover', 'icon' ), true ) ? $attrs['cardType'] : 'content';
 	$layout    = in_array( $attrs['layout'] ?? '', array( 'image-top', 'overlay', 'horizontal', 'text' ), true ) ? $attrs['layout'] : 'image-top';
 	$ratio     = in_array( $attrs['imageRatio'] ?? '', array( '16-9', '4-3', '1-1', '3-4' ), true ) ? $attrs['imageRatio'] : '4-3';
 	$opacity   = max( 0, min( 90, intval( $attrs['overlayOpacity'] ?? 50 ) ) ) / 100;
+	// Corner radius (all card types), 0–40px; 0 keeps square corners and
+	// adds no class/var.
+	$radius    = max( 0, min( 40, intval( $attrs['cardRadius'] ?? 0 ) ) );
 
 	$card_layout = rcmi_card_layout( $attrs, $cols );
 	$classes = 'rcmi-fc-grid rcmi-fc-grid--cols-' . $cols . ' rcmi-fc-grid--' . $card_type . ' rcmi-fc-grid--layout-' . $layout . ' rcmi-fc-grid--ratio-' . $ratio . $card_layout['class'];
+	if ( 'icon' === $card_type ) {
+		// Icon cards have no image: neutralize image-layout CSS (overlay
+		// aspect ratios, horizontal rows) left over from a previous type.
+		$classes    = str_replace( ' rcmi-fc-grid--layout-' . $layout . ' ', ' rcmi-fc-grid--layout-text ', $classes );
+		$icon_style = in_array( $attrs['iconStyle'] ?? '', array( 'plain', 'circle', 'square' ), true ) ? $attrs['iconStyle'] : 'circle';
+		$icon_size  = in_array( $attrs['iconSize'] ?? '', array( 'sm', 'md', 'lg' ), true ) ? $attrs['iconSize'] : 'md';
+		$icon_align = in_array( $attrs['iconAlign'] ?? '', array( 'left', 'center', 'right' ), true ) ? $attrs['iconAlign'] : 'center';
+		$text_align = in_array( $attrs['textAlign'] ?? '', array( 'left', 'center', 'right' ), true ) ? $attrs['textAlign'] : 'center';
+		$classes   .= ' rcmi-fc-grid--icon-' . $icon_style . ' rcmi-fc-grid--icon-size-' . $icon_size . ' rcmi-fc-grid--icon-align-' . $icon_align . ' rcmi-fc-grid--text-align-' . $text_align;
+		// Dashicons is not loaded on the frontend by default; enqueueing
+		// during render prints it in the footer on block themes.
+		wp_enqueue_style( 'dashicons' );
+	}
+	if ( $radius ) {
+		$classes .= ' rcmi-fc-grid--rounded';
+	}
 	if ( ! empty( $attrs['align'] ) ) {
 		$classes .= ' align' . sanitize_html_class( $attrs['align'] );
 	}
@@ -3513,12 +3616,14 @@ function rcmi_render_feature_cards_block( $attrs, $content = '', $block = null )
 
 	// Color overrides + optional card layout as CSS custom properties
 	// (inherited by the cards).
-	$vars = '--rcmi-fc-overlay-opacity:' . $opacity . ';' . $card_layout['vars'];
+	$vars = '--rcmi-fc-overlay-opacity:' . $opacity . ';' . ( $radius ? '--rcmi-fc-radius:' . $radius . 'px;' : '' ) . $card_layout['vars'];
 	foreach ( array(
 		'cardBg'       => '--rcmi-fc-bg',
 		'cardText'     => '--rcmi-fc-text',
 		'accentColor'  => '--rcmi-fc-accent',
 		'overlayColor' => '--rcmi-fc-overlay',
+		'iconColor'    => '--rcmi-fc-icon-color',
+		'iconBg'       => '--rcmi-fc-icon-bg',
 	) as $key => $var ) {
 		$v = $attrs[ $key ] ?? '';
 		if ( $v && sanitize_hex_color( $v ) ) {
@@ -3557,6 +3662,11 @@ function rcmi_toolkit_block_styles() {
 		array(),
 		$ver
 	);
+	// The iframed editor canvas needs Dashicons for Feature Cards icon
+	// cards (the frontend enqueues it only when an icon grid renders).
+	if ( is_admin() ) {
+		wp_enqueue_style( 'dashicons' );
+	}
 }
 add_action( 'enqueue_block_assets', 'rcmi_toolkit_block_styles' );
 

@@ -4875,6 +4875,71 @@
 
 	var rcmiFcEffects = [ 'lily', 'sadie', 'layla', 'oscar', 'ruby', 'honey', 'zoe', 'apollo' ];
 	var rcmiFcFormats = [ 'core/bold', 'core/italic' ];
+	var rcmiFcTypes = [ 'content', 'hover', 'icon' ];
+	var rcmiFcType = function ( v ) { return rcmiFcTypes.indexOf( v ) !== -1 ? v : 'content'; };
+
+	// Icon cards use WordPress core's Dashicons font. The full list is read
+	// server-side from wp-includes/css/dashicons.css (window.rcmiToolkitDashicons);
+	// the fallback keeps the picker usable if that inline script is missing.
+	var rcmiFcDashicons = ( window.rcmiToolkitDashicons && window.rcmiToolkitDashicons.length )
+		? window.rcmiToolkitDashicons
+		: [ 'admin-site', 'admin-users', 'awards', 'book', 'calendar-alt', 'chart-bar', 'clipboard', 'cloud', 'database', 'email', 'groups', 'heart', 'lightbulb', 'location', 'lock', 'megaphone', 'phone', 'portfolio', 'search', 'star-filled', 'welcome-learn-more' ];
+	var rcmiFcIconLabel = function ( name ) {
+		return name.replace( /-/g, ' ' ).replace( /^./, function ( c ) { return c.toUpperCase(); } );
+	};
+
+	// Palette color field shared by the grid and per-card Colors panels.
+	var rcmiFcColorControl = function ( label, value, onChange, colors ) {
+		return el( BaseControl, { label: label, className: 'rcmi-color-field' },
+			el( ColorPalette, {
+				colors: colors,
+				value: value || '',
+				clearable: true,
+				onChange: function ( v ) { onChange( v || '' ); }
+			} )
+		);
+	};
+
+	// Searchable Dashicons grid. Used in the card sidebar and in the
+	// canvas dropdown that opens when the card's icon is clicked.
+	var RcmiFcIconPicker = function ( props ) {
+		var queryState = useState( '' );
+		var query = queryState[ 0 ], setQuery = queryState[ 1 ];
+		var q = query.trim().toLowerCase().replace( /^dashicons-/, '' );
+		var terms = q.split( /[\s-]+/ ).filter( Boolean );
+		var matches = rcmiFcDashicons.filter( function ( name ) {
+			var hay = name.replace( /-/g, ' ' );
+			return terms.every( function ( t ) { return hay.indexOf( t ) !== -1; } );
+		} );
+		return el( 'div', { className: 'rcmi-fc-iconpicker' },
+			el( TextControl, {
+				label: __( 'Search icons', 'rcmi-toolkit' ),
+				hideLabelFromVision: true,
+				placeholder: __( 'Search icons…', 'rcmi-toolkit' ),
+				value: query,
+				onChange: setQuery,
+				__nextHasNoMarginBottom: true
+			} ),
+			el( 'div', { className: 'rcmi-fc-iconpicker__grid', role: 'listbox', 'aria-label': __( 'Icons', 'rcmi-toolkit' ) },
+				matches.length ? matches.map( function ( name ) {
+					var selected = name === props.value;
+					return el( 'button', {
+						key: name,
+						type: 'button',
+						role: 'option',
+						'aria-selected': selected,
+						className: 'rcmi-fc-iconpicker__item' + ( selected ? ' is-selected' : '' ),
+						title: rcmiFcIconLabel( name ),
+						'aria-label': rcmiFcIconLabel( name ),
+						onClick: function () { props.onChange( name ); }
+					}, el( 'span', { className: 'dashicons dashicons-' + name, 'aria-hidden': 'true' } ) );
+				} ) : el( 'p', { className: 'rcmi-fc-iconpicker__empty' }, __( 'No icons match.', 'rcmi-toolkit' ) )
+			),
+			el( 'p', { className: 'rcmi-fc-iconpicker__count' },
+				matches.length + ' / ' + rcmiFcDashicons.length + ' ' + __( 'icons', 'rcmi-toolkit' )
+			)
+		);
+	};
 
 	// Plain-text version of a RichText-stored label (sidebar fields must
 	// not show raw markup). Uses wp.htmlEntities.decodeEntities when the
@@ -4900,18 +4965,26 @@
 		text:       { type: 'string', default: '' },
 		buttonText: { type: 'string', default: '' },
 		ctaStyle:   { type: 'string', default: 'text' },
-		url:        { type: 'string', default: '' }
+		url:        { type: 'string', default: '' },
+		icon:       { type: 'string', default: '' },
+		cardBg:     { type: 'string', default: '' },
+		cardText:   { type: 'string', default: '' },
+		accentColor: { type: 'string', default: '' },
+		iconColor:  { type: 'string', default: '' },
+		iconBg:     { type: 'string', default: '' }
 	};
 
 	var RcmiFeatureCardEdit = function ( props ) {
 		var attrs = props.attributes, setAttributes = props.setAttributes;
 		var ctx = props.context || {};
-		var cardType = ctx[ 'rcmi/fcType' ] === 'hover' ? 'hover' : 'content';
+		var cardType = rcmiFcType( ctx[ 'rcmi/fcType' ] );
 		var layout = ctx[ 'rcmi/fcLayout' ] || 'image-top';
 		var effect = rcmiFcEffects.indexOf( ctx[ 'rcmi/fcEffect' ] ) !== -1 ? ctx[ 'rcmi/fcEffect' ] : 'lily';
 		var heading = [ 'h2', 'h3', 'h4' ].indexOf( ctx[ 'rcmi/fcHeading' ] ) !== -1 ? ctx[ 'rcmi/fcHeading' ] : 'h3';
 		var isHover = cardType === 'hover';
-		var showImage = isHover || layout !== 'text';
+		var isIcon = cardType === 'icon';
+		var showImage = ! isIcon && ( isHover || layout !== 'text' );
+		var iconName = ( attrs.icon || '' ).replace( /^dashicons-/, '' );
 		var posX = attrs.positionX == null ? 50 : attrs.positionX;
 		var posY = attrs.positionY == null ? 50 : attrs.positionY;
 		var ctaStyle = attrs.ctaStyle === 'button' ? 'button' : 'text';
@@ -4923,9 +4996,34 @@
 		var hasCta = !! attrs.url && ctaLabel !== '';
 		var wholeCard = !! attrs.url && ! hasCta;
 		var classes = 'rcmi-fc' + ( isHover ? ' rcmi-fc--effect-' + effect : '' )
+			+ ( isIcon ? ' rcmi-fc--icon' : '' )
 			+ ( wholeCard ? ' rcmi-fc--linked' : '' )
 			+ ( hasCta ? ' rcmi-fc--has-cta' : '' );
-		var blockProps = useBlockProps( { className: classes } );
+		// Per-card color overrides (hover cards keep the grid colors).
+		var cardStyle = {};
+		if ( ! isHover ) {
+			if ( attrs.cardBg ) { cardStyle[ '--rcmi-fc-bg' ] = attrs.cardBg; }
+			if ( attrs.cardText ) { cardStyle[ '--rcmi-fc-text' ] = attrs.cardText; }
+			if ( attrs.accentColor ) { cardStyle[ '--rcmi-fc-accent' ] = attrs.accentColor; }
+		}
+		if ( isIcon ) {
+			if ( attrs.iconColor ) { cardStyle[ '--rcmi-fc-icon-color' ] = attrs.iconColor; }
+			if ( attrs.iconBg ) { cardStyle[ '--rcmi-fc-icon-bg' ] = attrs.iconBg; }
+		}
+		var blockProps = useBlockProps( { className: classes, style: cardStyle } );
+
+		var editorColors = useSelect( function ( select ) {
+			var settings = select( 'core/block-editor' ).getSettings() || {};
+			return ( settings.color && settings.color.palette ) || settings.colors || [];
+		}, [] );
+		var cardColors = editorColors && editorColors.length ? editorColors : UH_COLORS;
+		var cardColorField = function ( label, key ) {
+			return rcmiFcColorControl( label, attrs[ key ], function ( v ) {
+				var u = {};
+				u[ key ] = v;
+				setAttributes( u );
+			}, cardColors );
+		};
 
 		var onSelectImage = function ( media ) {
 			setAttributes( { imageId: media.id, imageUrl: media.url, imageAlt: media.alt || attrs.imageAlt || '' } );
@@ -5009,6 +5107,35 @@
 					onChange: function ( v ) { setAttributes( { ctaStyle: v === 'button' ? 'button' : 'text' } ); }
 				} )
 			),
+			isIcon ? el( PanelBody, { title: __( 'Icon', 'rcmi-toolkit' ), initialOpen: true },
+				el( 'div', { className: 'rcmi-fc-iconpicker__current' },
+					iconName
+						? el( Fragment, null,
+							el( 'span', { className: 'dashicons dashicons-' + iconName, 'aria-hidden': 'true' } ),
+							el( 'span', null, rcmiFcIconLabel( iconName ) )
+						)
+						: el( 'span', null, __( 'No icon selected', 'rcmi-toolkit' ) ),
+					iconName ? el( Button, {
+						variant: 'link',
+						isDestructive: true,
+						onClick: function () { setAttributes( { icon: '' } ); }
+					}, __( 'Remove', 'rcmi-toolkit' ) ) : null
+				),
+				el( RcmiFcIconPicker, {
+					value: iconName,
+					onChange: function ( v ) { setAttributes( { icon: v } ); }
+				} )
+			) : null,
+			! isHover ? el( PanelBody, { title: __( 'Card colors', 'rcmi-toolkit' ), initialOpen: isIcon },
+				el( 'p', { className: 'components-base-control__help' },
+					__( 'Overrides the grid colors for this card only. Clear a color to use the grid setting.', 'rcmi-toolkit' )
+				),
+				isIcon ? cardColorField( __( 'Icon color', 'rcmi-toolkit' ), 'iconColor' ) : null,
+				isIcon ? cardColorField( __( 'Icon background', 'rcmi-toolkit' ), 'iconBg' ) : null,
+				cardColorField( __( 'Card background', 'rcmi-toolkit' ), 'cardBg' ),
+				cardColorField( __( 'Card text', 'rcmi-toolkit' ), 'cardText' ),
+				cardColorField( __( 'Accent (eyebrow & link)', 'rcmi-toolkit' ), 'accentColor' )
+			) : null,
 			showImage ? el( PanelBody, { title: __( 'Image', 'rcmi-toolkit' ), initialOpen: false },
 				el( MediaUploadCheck, null,
 					el( MediaUpload, {
@@ -5076,10 +5203,33 @@
 			);
 		}
 
+		// Icon cards: clicking the icon opens the same picker in a popover.
+		var iconEl = isIcon ? el( wp.components.Dropdown, {
+			className: 'rcmi-fc-icon-dropdown',
+			contentClassName: 'rcmi-fc-iconpicker-popover',
+			popoverProps: { placement: 'bottom-start' },
+			renderToggle: function ( t ) {
+				return el( 'button', {
+					type: 'button',
+					className: 'rcmi-fc-icon' + ( iconName ? '' : ' rcmi-fc-icon--empty' ),
+					onClick: t.onToggle,
+					'aria-expanded': t.isOpen,
+					title: iconName ? __( 'Change icon', 'rcmi-toolkit' ) : __( 'Choose icon', 'rcmi-toolkit' )
+				}, el( 'span', { className: 'dashicons dashicons-' + ( iconName || 'plus-alt2' ), 'aria-hidden': 'true' } ) );
+			},
+			renderContent: function ( c ) {
+				return el( RcmiFcIconPicker, {
+					value: iconName,
+					onChange: function ( v ) { setAttributes( { icon: v } ); c.onClose(); }
+				} );
+			}
+		} ) : null;
+
 		return el( Fragment, null,
 			inspector,
 			el( 'article', blockProps,
 				bareLink,
+				iconEl,
 				showImage ? el( 'div', { className: 'rcmi-fc-media' }, imageButton ) : null,
 				el( 'div', { className: 'rcmi-fc-body' },
 					el( RichText, {
@@ -5102,11 +5252,17 @@
 		var attrs = props.attributes, setAttributes = props.setAttributes;
 		var cols = [ 1, 2, 3, 4 ].indexOf( attrs.columns ) !== -1 ? attrs.columns : 3;
 		var clientId = props.clientId;
-		var cardType = attrs.cardType === 'hover' ? 'hover' : 'content';
-		var layout = attrs.layout || 'image-top';
+		var cardType = rcmiFcType( attrs.cardType );
 		var isHover = cardType === 'hover';
-		var showRatio = isHover || ( layout !== 'text' && layout !== 'horizontal' );
-		var showOverlay = isHover || layout === 'overlay';
+		var isIcon = cardType === 'icon';
+		var layout = attrs.layout || 'image-top';
+		var showRatio = ! isIcon && ( isHover || ( layout !== 'text' && layout !== 'horizontal' ) );
+		var showOverlay = ! isIcon && ( isHover || layout === 'overlay' );
+		var iconStyle = [ 'plain', 'circle', 'square' ].indexOf( attrs.iconStyle ) !== -1 ? attrs.iconStyle : 'circle';
+		var iconSize = [ 'sm', 'md', 'lg' ].indexOf( attrs.iconSize ) !== -1 ? attrs.iconSize : 'md';
+		var iconAlign = [ 'left', 'center', 'right' ].indexOf( attrs.iconAlign ) !== -1 ? attrs.iconAlign : 'center';
+		var textAlign = [ 'left', 'center', 'right' ].indexOf( attrs.textAlign ) !== -1 ? attrs.textAlign : 'center';
+		var cardRadius = Math.max( 0, Math.min( 40, parseInt( attrs.cardRadius, 10 ) || 0 ) );
 
 		var editorColors = useSelect( function ( select ) {
 			var settings = select( 'core/block-editor' ).getSettings() || {};
@@ -5146,7 +5302,10 @@
 			'--rcmi-fc-text': attrs.cardText || undefined,
 			'--rcmi-fc-accent': attrs.accentColor || undefined,
 			'--rcmi-fc-overlay': attrs.overlayColor || undefined,
-			'--rcmi-fc-overlay-opacity': ( attrs.overlayOpacity == null ? 50 : attrs.overlayOpacity ) / 100
+			'--rcmi-fc-overlay-opacity': ( attrs.overlayOpacity == null ? 50 : attrs.overlayOpacity ) / 100,
+			'--rcmi-fc-icon-color': attrs.iconColor || undefined,
+			'--rcmi-fc-icon-bg': attrs.iconBg || undefined,
+			'--rcmi-fc-radius': cardRadius ? cardRadius + 'px' : undefined
 		};
 		if ( cardLayout ) {
 			for ( var ck2 in cardLayout.style ) { fcStyle[ ck2 ] = cardLayout.style[ ck2 ]; }
@@ -5154,8 +5313,10 @@
 		var blockProps = useBlockProps( {
 			className: 'rcmi-fc-grid rcmi-fc-grid--cols-' + cols
 				+ ' rcmi-fc-grid--' + cardType
-				+ ' rcmi-fc-grid--layout-' + layout
+				+ ' rcmi-fc-grid--layout-' + ( isIcon ? 'text' : layout )
 				+ ' rcmi-fc-grid--ratio-' + ( attrs.imageRatio || '4-3' )
+				+ ( isIcon ? ' rcmi-fc-grid--icon-' + iconStyle + ' rcmi-fc-grid--icon-size-' + iconSize + ' rcmi-fc-grid--icon-align-' + iconAlign + ' rcmi-fc-grid--text-align-' + textAlign : '' )
+				+ ( cardRadius ? ' rcmi-fc-grid--rounded' : '' )
 				+ ( cardLayout ? cardLayout.className : '' ),
 			style: fcStyle
 		} );
@@ -5173,6 +5334,17 @@
 			el( InspectorControls, null,
 				el( PanelBody, { title: __( 'Layout', 'rcmi-toolkit' ), initialOpen: true },
 					el( SelectControl, {
+						label: __( 'Card type', 'rcmi-toolkit' ),
+						value: cardType,
+						options: [
+							{ label: __( 'Content', 'rcmi-toolkit' ), value: 'content' },
+							{ label: __( 'Hover reveal', 'rcmi-toolkit' ), value: 'hover' },
+							{ label: __( 'Icon', 'rcmi-toolkit' ), value: 'icon' }
+						],
+						help: isIcon ? __( 'Choose each card\'s icon by clicking it on the card, or in the card\'s Icon panel.', 'rcmi-toolkit' ) : undefined,
+						onChange: function ( v ) { setAttributes( { cardType: rcmiFcType( v ) } ); }
+					} ),
+					el( SelectControl, {
 						label: __( 'Columns', 'rcmi-toolkit' ),
 						value: cols,
 						options: [
@@ -5184,16 +5356,47 @@
 						onChange: function ( v ) { setAttributes( { columns: parseInt( v, 10 ) || 3 } ); }
 					} ),
 					rcmiCardLayoutControls( attrs, setAttributes ),
-					el( SelectControl, {
-						label: __( 'Card type', 'rcmi-toolkit' ),
-						value: cardType,
+					isIcon ? el( SelectControl, {
+						label: __( 'Icon style', 'rcmi-toolkit' ),
+						value: iconStyle,
 						options: [
-							{ label: __( 'Content', 'rcmi-toolkit' ), value: 'content' },
-							{ label: __( 'Hover reveal', 'rcmi-toolkit' ), value: 'hover' }
+							{ label: __( 'Circle', 'rcmi-toolkit' ), value: 'circle' },
+							{ label: __( 'Rounded square', 'rcmi-toolkit' ), value: 'square' },
+							{ label: __( 'Plain (no background)', 'rcmi-toolkit' ), value: 'plain' }
 						],
-						onChange: function ( v ) { setAttributes( { cardType: v } ); }
-					} ),
-					! isHover ? el( SelectControl, {
+						onChange: function ( v ) { setAttributes( { iconStyle: v } ); }
+					} ) : null,
+					isIcon ? el( SelectControl, {
+						label: __( 'Icon size', 'rcmi-toolkit' ),
+						value: iconSize,
+						options: [
+							{ label: __( 'Small', 'rcmi-toolkit' ), value: 'sm' },
+							{ label: __( 'Medium', 'rcmi-toolkit' ), value: 'md' },
+							{ label: __( 'Large', 'rcmi-toolkit' ), value: 'lg' }
+						],
+						onChange: function ( v ) { setAttributes( { iconSize: v } ); }
+					} ) : null,
+					isIcon ? el( SelectControl, {
+						label: __( 'Icon alignment', 'rcmi-toolkit' ),
+						value: iconAlign,
+						options: [
+							{ label: __( 'Left', 'rcmi-toolkit' ), value: 'left' },
+							{ label: __( 'Center', 'rcmi-toolkit' ), value: 'center' },
+							{ label: __( 'Right', 'rcmi-toolkit' ), value: 'right' }
+						],
+						onChange: function ( v ) { setAttributes( { iconAlign: v } ); }
+					} ) : null,
+					isIcon ? el( SelectControl, {
+						label: __( 'Text alignment', 'rcmi-toolkit' ),
+						value: textAlign,
+						options: [
+							{ label: __( 'Left', 'rcmi-toolkit' ), value: 'left' },
+							{ label: __( 'Center', 'rcmi-toolkit' ), value: 'center' },
+							{ label: __( 'Right', 'rcmi-toolkit' ), value: 'right' }
+						],
+						onChange: function ( v ) { setAttributes( { textAlign: v } ); }
+					} ) : null,
+					! isHover && ! isIcon ? el( SelectControl, {
 						label: __( 'Layout', 'rcmi-toolkit' ),
 						value: layout,
 						options: [
@@ -5223,6 +5426,17 @@
 						],
 						onChange: function ( v ) { setAttributes( { imageRatio: v } ); }
 					} ) : null,
+					el( RangeControl, {
+						label: __( 'Corner radius (px)', 'rcmi-toolkit' ),
+						value: cardRadius,
+						onChange: function ( v ) { setAttributes( { cardRadius: Math.max( 0, Math.min( 40, parseInt( v, 10 ) || 0 ) ) } ); },
+						min: 0,
+						max: 40,
+						step: 2,
+						allowReset: true,
+						resetFallbackValue: 0,
+						help: __( 'Rounds the corners of every card in this grid. 0 = square.', 'rcmi-toolkit' )
+					} ),
 					el( SelectControl, {
 						label: __( 'Heading level', 'rcmi-toolkit' ),
 						value: attrs.headingLevel,
@@ -5243,6 +5457,8 @@
 					! isHover ? fcColorField( __( 'Card background', 'rcmi-toolkit' ), 'cardBg' ) : null,
 					! isHover ? fcColorField( __( 'Card text', 'rcmi-toolkit' ), 'cardText' ) : null,
 					fcColorField( __( 'Accent', 'rcmi-toolkit' ), 'accentColor' ),
+					isIcon ? fcColorField( __( 'Icon color', 'rcmi-toolkit' ), 'iconColor' ) : null,
+					isIcon && iconStyle !== 'plain' ? fcColorField( __( 'Icon background', 'rcmi-toolkit' ), 'iconBg' ) : null,
 					showOverlay ? fcColorField( __( 'Overlay color', 'rcmi-toolkit' ), 'overlayColor' ) : null,
 					showOverlay ? el( RangeControl, {
 						label: __( 'Overlay opacity', 'rcmi-toolkit' ),
@@ -5297,10 +5513,10 @@
 	registerBlockType( 'rcmi/feature-cards', {
 		apiVersion: 3,
 		title: __( 'RCMI Feature Cards', 'rcmi-toolkit' ),
-		description: __( 'Card grid — content cards (image-top/overlay/horizontal/text) or Codrops-style hover-reveal image cards.', 'rcmi-toolkit' ),
+		description: __( 'Card grid — content cards (image-top/overlay/horizontal/text), Codrops-style hover-reveal image cards, or icon cards.', 'rcmi-toolkit' ),
 		category: 'rcmi-sections',
 		icon: 'grid-view',
-		keywords: [ 'feature', 'cards', 'grid', 'hover' ],
+		keywords: [ 'feature', 'cards', 'grid', 'hover', 'icon' ],
 		supports: {
 			html: false,
 			anchor: true,
@@ -5320,7 +5536,14 @@
 			cardText:       { type: 'string', default: '' },
 			accentColor:    { type: 'string', default: '' },
 			overlayColor:   { type: 'string', default: '' },
-			overlayOpacity: { type: 'number', default: 50 }
+			overlayOpacity: { type: 'number', default: 50 },
+			iconStyle:      { type: 'string', default: 'circle' },
+			iconSize:       { type: 'string', default: 'md' },
+			iconAlign:      { type: 'string', default: 'center' },
+			textAlign:      { type: 'string', default: 'center' },
+			cardRadius:     { type: 'number', default: 0 },
+			iconColor:      { type: 'string', default: '' },
+			iconBg:         { type: 'string', default: '' }
 		},
 		providesContext: {
 			'rcmi/fcType':    'cardType',

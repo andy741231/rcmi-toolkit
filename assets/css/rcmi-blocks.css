@@ -456,15 +456,18 @@
 
 /* ------------------------------ content cards ------------------------------ */
 
-.rcmi-fc-grid--content .rcmi-fc{
+.rcmi-fc-grid--content .rcmi-fc,
+.rcmi-fc-grid--icon .rcmi-fc{
 	background:var(--rcmi-fc-bg,#FFFFFF);
 	color:var(--rcmi-fc-text,var(--color-fg,#111213));
 	border:1px solid var(--color-border,#DEE1E2);
 }
-.rcmi-fc-grid--content .rcmi-fc--linked{
+.rcmi-fc-grid--content .rcmi-fc--linked,
+.rcmi-fc-grid--icon .rcmi-fc--linked{
 	transition:border-color .22s cubic-bezier(.4,0,.2,1), transform .22s cubic-bezier(.4,0,.2,1), box-shadow .22s cubic-bezier(.4,0,.2,1);
 }
-.rcmi-fc-grid--content .rcmi-fc--linked:hover{
+.rcmi-fc-grid--content .rcmi-fc--linked:hover,
+.rcmi-fc-grid--icon .rcmi-fc--linked:hover{
 	border-color:var(--color-fg,#111213);
 	box-shadow:0 12px 28px rgba(0,0,0,.06);
 	transform:translateY(-3px);
@@ -512,14 +515,16 @@
 	color:var(--rcmi-fc-accent,#C8102E);
 	margin:0 0 8px;
 }
-.rcmi-fc-grid--content .rcmi-fc-title{
+.rcmi-fc-grid--content .rcmi-fc-title,
+.rcmi-fc-grid--icon .rcmi-fc-title{
 	font-family:var(--font-body,'Source Sans 3',-apple-system,sans-serif);
 	font-size:1.2rem;
 	font-weight:700;
 	line-height:1.25;
 	margin:0 0 8px;
 }
-.rcmi-fc-grid--content .rcmi-fc-text{
+.rcmi-fc-grid--content .rcmi-fc-text,
+.rcmi-fc-grid--icon .rcmi-fc-text{
 	font-size:.95rem;
 	margin:0;
 }
@@ -605,6 +610,73 @@ a.rcmi-fc-cta--button:hover{
 	border-bottom:2px solid var(--rcmi-fc-accent,#C8102E);
 	padding-bottom:4px;
 }
+
+/* Corner radius (all card types). overflow:hidden clips image-top media,
+   overlay images and hover-effect layers to the rounded corners. */
+.rcmi-fc-grid--rounded .rcmi-fc{
+	border-radius:var(--rcmi-fc-radius,0);
+	overflow:hidden;
+}
+
+/* ------------------------------- icon cards ------------------------------- */
+/* Dashicon above the copy. --rcmi-fc-icon-color / --rcmi-fc-icon-bg come
+   from the parent's Icon color / Icon background; both fall back to the
+   accent (shape background = a light accent tint). */
+.rcmi-fc-grid--icon{
+	--rcmi-fc-icon-box:76px;
+	--rcmi-fc-icon-glyph:40px;
+}
+.rcmi-fc-grid--icon-size-sm{ --rcmi-fc-icon-box:56px; --rcmi-fc-icon-glyph:28px; }
+.rcmi-fc-grid--icon-size-lg{ --rcmi-fc-icon-box:96px; --rcmi-fc-icon-glyph:52px; }
+.rcmi-fc-icon{
+	display:inline-flex;
+	align-items:center;
+	justify-content:center;
+	flex:none;
+	align-self:flex-start;
+	box-sizing:border-box;
+	width:var(--rcmi-fc-icon-box);
+	height:var(--rcmi-fc-icon-box);
+	margin:20px 20px 0;
+	padding:0;
+	border:0;
+	color:var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E));
+	background:var(--rcmi-fc-icon-bg,color-mix(in srgb, var(--rcmi-fc-icon-color,var(--rcmi-fc-accent,#C8102E)) 10%, #fff));
+	font:inherit;
+}
+.rcmi-fc-icon .dashicons{
+	width:var(--rcmi-fc-icon-glyph);
+	height:var(--rcmi-fc-icon-glyph);
+	font-size:var(--rcmi-fc-icon-glyph);
+	line-height:1;
+	color:inherit;
+}
+.rcmi-fc-grid--icon-circle .rcmi-fc-icon{ border-radius:50%; }
+.rcmi-fc-grid--icon-square .rcmi-fc-icon{ border-radius:12px; }
+.rcmi-fc-grid--icon-plain .rcmi-fc-icon{
+	width:auto;
+	height:auto;
+	background:none;
+}
+.rcmi-fc-grid--icon-plain{ --rcmi-fc-icon-glyph:52px; }
+.rcmi-fc-grid--icon-plain.rcmi-fc-grid--icon-size-sm{ --rcmi-fc-icon-glyph:36px; }
+.rcmi-fc-grid--icon-plain.rcmi-fc-grid--icon-size-lg{ --rcmi-fc-icon-glyph:68px; }
+.rcmi-fc-grid--icon .rcmi-fc-icon + .rcmi-fc-body,
+.rcmi-fc-grid--icon .rcmi-fc-icon-dropdown + .rcmi-fc-body{ padding-top:16px; }
+/* Icon alignment (icon only) and text alignment (eyebrow/title/text/CTA)
+   are independent. */
+.rcmi-fc-grid--icon-align-center .rcmi-fc-icon{ align-self:center; }
+.rcmi-fc-grid--icon-align-right .rcmi-fc-icon{ align-self:flex-end; }
+.rcmi-fc-grid--text-align-center .rcmi-fc-body{ text-align:center; }
+.rcmi-fc-grid--text-align-right .rcmi-fc-body{ text-align:right; }
+.rcmi-fc-grid--text-align-center .rcmi-fc-cta{ align-self:center; }
+.rcmi-fc-grid--text-align-right .rcmi-fc-cta{ align-self:flex-end; }
+/* Editor: InnerBlocks wraps the toggle in a Dropdown div. */
+.rcmi-fc-icon-dropdown{ display:flex; flex-direction:column; align-items:flex-start; }
+.rcmi-fc-grid--icon-align-center .rcmi-fc-icon-dropdown{ align-items:center; }
+.rcmi-fc-grid--icon-align-right .rcmi-fc-icon-dropdown{ align-items:flex-end; }
+.rcmi-fc-icon-dropdown .rcmi-fc-icon{ align-self:auto; cursor:pointer; }
+.rcmi-fc-icon--empty{ outline:1px dashed currentColor; outline-offset:2px; opacity:.6; }
 
 /* Horizontal layout: image column left, text right. */
 .rcmi-fc-grid--layout-horizontal .rcmi-fc{ flex-direction:row; }
@@ -1413,3 +1485,44 @@ a.rcmi-fc-cta--button:hover{
 	border-color:var(--red,#C8102E);
 	color:var(--red,#C8102E);
 }
+
+/* Feature Cards icon picker (editor sidebar + canvas popover). */
+.rcmi-fc-iconpicker{ width:100%; }
+.rcmi-fc-iconpicker-popover .components-popover__content{ width:300px; padding:12px; }
+.rcmi-fc-iconpicker__grid{
+	display:grid;
+	grid-template-columns:repeat(auto-fill,minmax(36px,1fr));
+	gap:4px;
+	max-height:240px;
+	overflow-y:auto;
+	margin-top:8px;
+	padding:2px;
+}
+.rcmi-fc-iconpicker__item{
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	height:36px;
+	padding:0;
+	border:1px solid transparent;
+	border-radius:4px;
+	background:none;
+	color:#1e1e1e;
+	cursor:pointer;
+}
+.rcmi-fc-iconpicker__item:hover{ background:#f0f0f0; }
+.rcmi-fc-iconpicker__item:focus-visible{ outline:2px solid var(--wp-admin-theme-color,#3858e9); outline-offset:0; }
+.rcmi-fc-iconpicker__item.is-selected{
+	background:var(--wp-admin-theme-color,#3858e9);
+	color:#fff;
+}
+.rcmi-fc-iconpicker__empty,
+.rcmi-fc-iconpicker__count{ margin:8px 0 0; font-size:12px; color:#757575; }
+.rcmi-fc-iconpicker__empty{ grid-column:1 / -1; }
+.rcmi-fc-iconpicker__current{
+	display:flex;
+	align-items:center;
+	gap:8px;
+	margin-bottom:12px;
+}
+.rcmi-fc-iconpicker__current .components-button{ margin-left:auto; }

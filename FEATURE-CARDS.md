@@ -1,8 +1,48 @@
 # RCMI Feature Cards — usage notes
 
-`rcmi/feature-cards` is a grid of `rcmi/feature-card` children in two
+`rcmi/feature-cards` is a grid of `rcmi/feature-card` children in three
 families: **Content** cards (image-top / overlay / horizontal / text
-layouts) and **Hover reveal** cards (the eight Codrops effect ports).
+layouts), **Hover reveal** cards (the eight Codrops effect ports) and
+**Icon** cards. **Card type** is the first control in the Layout panel.
+
+## Corner radius
+
+**Corner radius (px)** in the Layout panel (0–40, step 2, default 0 =
+square) rounds every card in the grid, for all three card types. A
+non-zero value adds `rcmi-fc-grid--rounded` and `--rcmi-fc-radius` on the
+grid; cards get `border-radius` + `overflow:hidden` so images, overlay
+scrims and hover-effect layers clip to the corners. At 0 the markup is
+unchanged.
+
+## Icon cards
+
+Each card shows a WordPress core Dashicon above the eyebrow/title/text/CTA
+(no image — image layouts and ratios are ignored and the grid renders as
+`rcmi-fc-grid--layout-text`). Pick a card's icon by clicking the icon on
+the card (popover) or in the card's **Icon** sidebar panel; both are a
+searchable grid of every icon in `wp-includes/css/dashicons.css`, read at
+runtime by `rcmi_toolkit_dashicon_names()` so the list follows the
+installed WordPress version. The card stores the bare slug in `icon`
+(`dashicons-` prefixes are normalized; invalid names are dropped).
+
+Parent controls (icon type only): **Icon style** circle / rounded square /
+plain, **Icon size** S/M/L, **Icon alignment** left/center/right (default center) and an
+independent **Text alignment** left/center/right (default center) (`iconAlign`/`textAlign`
+→ `rcmi-fc-grid--icon-align-*` / `rcmi-fc-grid--text-align-*`), plus grid
+**Icon color** and **Icon background** colors (`--rcmi-fc-icon-color`,
+`--rcmi-fc-icon-bg`; default = accent color on a 10% accent tint). Both
+link modes work as on content cards.
+
+## Per-card colors
+
+Every content and icon card has a **Card colors** panel (open by default on
+icon cards) that overrides the grid colors for that card only: **Icon
+color** / **Icon background** (icon cards), **Card background**, **Card
+text**, and **Accent (eyebrow & link)**. They render as the same
+`--rcmi-fc-*` custom properties on the card's `<article>`, so clearing a
+color falls back to the grid setting. Invalid hex values are dropped;
+hover cards ignore per-card colors.
+Dashicons is enqueued on the frontend only when an icon grid renders.
 
 ## Card width & alignment
 

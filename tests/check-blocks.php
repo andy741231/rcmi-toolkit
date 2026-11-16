@@ -663,6 +663,58 @@ $fc_colbad = do_blocks(
 );
 rcmi_check( false === strpos( $fc_colbad, '--rcmi-fc-bg' ), 'fc: invalid cardBg should be dropped' );
 
+// Icon cards: Dashicon markup, image suppressed, image layout neutralized,
+// icon enums/colors whitelisted, invalid icon names dropped.
+$fc_icon = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardType":"icon","layout":"overlay","iconStyle":"square","iconSize":"lg","iconAlign":"center","iconColor":"#005950","iconBg":"bogus"} -->'
+	. '<!-- wp:rcmi/feature-card {"icon":"dashicons-lightbulb","title":"Ideas","imageUrl":"https://example.edu/a.jpg"} /-->'
+	. '<!-- wp:rcmi/feature-card {"icon":"bad\\"x","title":"NoIcon"} /-->'
+	. '<!-- wp:rcmi/feature-card {"icon":"groups"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_icon, 'rcmi-fc-grid--icon ' ), 'fc: icon cardType should reach the grid class' );
+rcmi_check( false !== strpos( $fc_icon, 'rcmi-fc-grid--layout-text' ) && false === strpos( $fc_icon, 'layout-overlay' ), 'fc: icon grid should neutralize image layouts' );
+rcmi_check( false !== strpos( $fc_icon, 'rcmi-fc-grid--icon-square rcmi-fc-grid--icon-size-lg rcmi-fc-grid--icon-align-center rcmi-fc-grid--text-align-center' ), 'fc: icon style/size/align classes missing' );
+rcmi_check( false !== strpos( $fc_icon, '<div class="rcmi-fc-icon" aria-hidden="true"><span class="dashicons dashicons-lightbulb"></span></div>' ), 'fc: dashicons- prefixed icon should normalize' );
+rcmi_check( false !== strpos( $fc_icon, 'dashicons-groups' ), 'fc: icon-only card should still render' );
+rcmi_check( 2 === substr_count( $fc_icon, 'class="rcmi-fc-icon"' ), 'fc: invalid icon name should be dropped' );
+rcmi_check( false === strpos( $fc_icon, '<img' ), 'fc: icon cards should never render images' );
+rcmi_check( false !== strpos( $fc_icon, '--rcmi-fc-icon-color:#005950' ) && false === strpos( $fc_icon, '--rcmi-fc-icon-bg' ), 'fc: icon colors should be hex-whitelisted' );
+rcmi_check( wp_style_is( 'dashicons', 'enqueued' ), 'fc: icon grid should enqueue dashicons' );
+$fc_iconbad = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardType":"icon","iconStyle":"x","iconSize":"xl","iconAlign":"middle","textAlign":"justify"} -->'
+	. '<!-- wp:rcmi/feature-card {"icon":"star-filled"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_iconbad, 'rcmi-fc-grid--icon-circle rcmi-fc-grid--icon-size-md rcmi-fc-grid--icon-align-center rcmi-fc-grid--text-align-center' ), 'fc: invalid icon enums should fall back (icon + text centered by default)' );
+// Corner radius: all card types, clamped 0–40, absent at 0.
+foreach ( array( 'content', 'hover', 'icon' ) as $fc_rt ) {
+	$fc_r = do_blocks(
+		'<!-- wp:rcmi/feature-cards {"cardType":"' . $fc_rt . '","cardRadius":12} -->'
+		. '<!-- wp:rcmi/feature-card {"title":"T","icon":"star-filled","imageUrl":"https://example.edu/a.jpg"} /-->'
+		. '<!-- /wp:rcmi/feature-cards -->'
+	);
+	rcmi_check( false !== strpos( $fc_r, 'rcmi-fc-grid--rounded' ) && false !== strpos( $fc_r, '--rcmi-fc-radius:12px' ), 'fc: cardRadius should apply to ' . $fc_rt . ' cards' );
+}
+$fc_r = do_blocks( '<!-- wp:rcmi/feature-cards {"cardRadius":999} --><!-- wp:rcmi/feature-card {"title":"T"} /--><!-- /wp:rcmi/feature-cards -->' );
+rcmi_check( false !== strpos( $fc_r, '--rcmi-fc-radius:40px' ), 'fc: cardRadius should clamp to 40' );
+$fc_r = do_blocks( '<!-- wp:rcmi/feature-cards --><!-- wp:rcmi/feature-card {"title":"T"} /--><!-- /wp:rcmi/feature-cards -->' );
+rcmi_check( false === strpos( $fc_r, 'rcmi-fc-grid--rounded' ) && false === strpos( $fc_r, '--rcmi-fc-radius' ), 'fc: default radius should add no class/var' );
+$fc_iconright = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardType":"icon","iconAlign":"right","textAlign":"center"} -->'
+	. '<!-- wp:rcmi/feature-card {"icon":"star-filled","cardBg":"#005950","cardText":"#FFFFFF","accentColor":"#F6BE00","iconColor":"#F6BE00","iconBg":"nope"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false !== strpos( $fc_iconright, 'rcmi-fc-grid--icon-align-right rcmi-fc-grid--text-align-center' ), 'fc: right icon / center text alignment classes missing' );
+rcmi_check( false !== strpos( $fc_iconright, '<article class="rcmi-fc rcmi-fc--icon" style="--rcmi-fc-bg:#005950;--rcmi-fc-text:#FFFFFF;--rcmi-fc-accent:#F6BE00;--rcmi-fc-icon-color:#F6BE00;"' ), 'fc: per-card colors should render as card vars (invalid dropped)' );
+$fc_hovercol = do_blocks(
+	'<!-- wp:rcmi/feature-cards {"cardType":"hover"} -->'
+	. '<!-- wp:rcmi/feature-card {"title":"T","imageUrl":"https://example.edu/a.jpg","iconColor":"#F6BE00"} /-->'
+	. '<!-- /wp:rcmi/feature-cards -->'
+);
+rcmi_check( false === strpos( $fc_hovercol, '--rcmi-fc-icon-color' ), 'fc: icon colors should apply only to icon cards' );
+rcmi_check( in_array( 'lightbulb', rcmi_toolkit_dashicon_names(), true ), 'fc: dashicon list should be read from core CSS' );
+
 // Enum fallbacks + opacity clamp.
 $fc_bad = do_blocks(
 	'<!-- wp:rcmi/feature-cards {"columns":7,"cardType":"weird","layout":"sideways","effect":"bogus","imageRatio":"9-9","headingLevel":"h5","overlayOpacity":200} -->'
